@@ -153,3 +153,51 @@ export async function upsertTodayCheckin(input: {
   if (error) throw error;
   return data;
 }
+
+
+export async function getRecentCheckins(days = 7) {
+  const id = await currentUserId();
+  const since = new Date();
+  since.setDate(since.getDate() - (days - 1));
+  const { data, error } = await supabase
+    .from("daily_checkins")
+    .select("checkin_date, sleep_minutes, sleep_quality, fatigue, stress, soreness, motivation, pain")
+    .eq("athlete_id", id)
+    .gte("checkin_date", since.toISOString().slice(0, 10))
+    .order("checkin_date", { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function getLatestPerformance() {
+  const id = await currentUserId();
+  const { data, error } = await supabase
+    .from("performed_sets")
+    .select(`
+      id, reps, load_kg, created_at, completed,
+      workout_exercises (
+        exercises ( id, name )
+      ),
+      workout_sessions!inner ( athlete_id )
+    `)
+    .eq("workout_sessions.athlete_id", id)
+    .eq("completed", true)
+    .order("created_at", { ascending: false })
+    .limit(50);
+  if (error) throw error;
+  const rows: any[] = data ?? [];
+  if (!rows.length) return null;
+  const latest: any = rows[0];
+  const score = (r: any) => Number(r.load_kg || 0) * (1 + Number(r.reps || 0) / 30);
+  const latestScore = score(latest);
+  const previousBest = Math.max(0, ...rows.slice(1).map(score));
+  return {
+    exerciseName: latest.workout_exercises?.exercises?.name ?? "Performance",
+    reps: Number(latest.reps || 0),
+    loadKg: Number(latest.load_kg || 0),
+    estimated1rm: Math.round(latestScore * 2) / 2,
+    isPR: latestScore >= previousBest && latestScore > 0,
+    deltaKg: Math.max(0, Math.round((latestScore - previousBest) * 2) / 2),
+    createdAt: latest.created_at,
+  };
+}

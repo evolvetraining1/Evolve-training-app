@@ -87,6 +87,6 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
     borderBottomWidth: 1,
   },
-  meal: { color: colors.text, fontWeight: "750" },
+  meal: { color: colors.text, fontWeight: "700" },
   kcal: { color: colors.muted, fontWeight: "800" },
 });
