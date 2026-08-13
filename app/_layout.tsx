@@ -1,0 +1,25 @@
+import { Stack } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import { SessionProvider } from "@/src/store/session";
+import { AuthProvider } from "@/src/store/auth";
+import { colors } from "@/src/theme";
+
+export default function RootLayout() {
+  return (
+    <AuthProvider>
+      <SessionProvider>
+        <StatusBar style="light" />
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
+          <Stack.Screen name="index" />
+          <Stack.Screen name="login" />
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="workout" />
+          <Stack.Screen name="nutrition" />
+          <Stack.Screen name="coach" />
+          <Stack.Screen name="coach-workout" />
+          <Stack.Screen name="invite" />
+        </Stack>
+      </SessionProvider>
+    </AuthProvider>
+  );
+}
