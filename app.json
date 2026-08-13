@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "Evolve Training",
+    "slug": "evolve-training-mvp",
+    "scheme": "evolve",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "android": {
+      "package": "fr.evolvetraining.app",
+      "versionCode": 1
+    }
+  }
+}
