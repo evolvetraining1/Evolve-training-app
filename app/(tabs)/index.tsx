@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { router } from "expo-router";
+import { SymbolView } from "expo-symbols";
 import {
   ActivityIndicator, Image, Pressable, RefreshControl, ScrollView,
   StyleSheet, Text, View
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import BrandLogo from "@/src/components/BrandLogo";
 import SideMenu from "@/src/components/SideMenu";
 import { colors } from "@/src/theme";
@@ -16,6 +18,7 @@ import { displayDuration, recoveryLabel, recoveryScore } from "@/src/lib/dashboa
 const DAYS = ["L", "M", "M", "J", "V", "S", "D"];
 
 export default function HomeScreen() {
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -60,13 +63,13 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl tintColor={colors.yellow} refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }}/>}>
 
-        <View style={styles.topbar}>
+        <View style={[styles.topbar, { paddingTop: insets.top + 12 }]}>
           <Pressable onPress={() => setMenuOpen(true)} style={styles.squareButton}>
-            <Text style={styles.menuGlyph}>☷</Text>
+            <SymbolView name={{ ios: "ellipsis", android: "more_vert" }} size={32} tintColor={colors.text} />
           </Pressable>
           <View style={styles.logoWrap}><BrandLogo compact /></View>
           <Pressable style={styles.squareButton}>
-            <Text style={styles.bell}>♧</Text>
+            <SymbolView name={{ ios: "bell", android: "notifications_none" }} size={30} tintColor={colors.text} />
             <View style={styles.notification}><Text style={styles.notificationText}>2</Text></View>
           </Pressable>
         </View>
@@ -177,7 +180,7 @@ function MetricCard({icon,label,value,state,color}:{icon:string;label:string;val
 
 const styles = StyleSheet.create({
   root:{flex:1,backgroundColor: "transparent"}, page:{paddingHorizontal:15,paddingTop:18,paddingBottom:105,backgroundColor: "transparent"}, center:{flex:1,alignItems:"center",justifyContent:"center",backgroundColor: "transparent"},
-  topbar:{height:116,flexDirection:"row",alignItems:"flex-start",justifyContent:"space-between"}, squareButton:{width:54,height:54,borderRadius:16,borderWidth:1,borderColor:colors.border,backgroundColor:"#0A0A0B",alignItems:"center",justifyContent:"center",position:"relative"}, menuGlyph:{color:colors.text,fontSize:29,lineHeight:31}, bell:{color:colors.text,fontSize:26}, notification:{position:"absolute",right:-3,top:-4,width:22,height:22,borderRadius:11,backgroundColor:colors.yellow,alignItems:"center",justifyContent:"center"}, notificationText:{color:"#080808",fontSize:11,fontWeight:"900"}, logoWrap:{position:"absolute",left:"50%",transform:[{translateX:-76}],top:-10,width:152,height:120,alignItems:"center",overflow:"hidden"},
+  topbar: { minHeight: 138,flexDirection:"row",alignItems:"flex-start",justifyContent:"space-between"}, squareButton:{width:54,height:54,borderRadius:16,borderWidth:1,borderColor:colors.border,backgroundColor:"#0A0A0B",alignItems:"center",justifyContent:"center",position:"relative"}, menuGlyph:{color:colors.text,fontSize:29,lineHeight:31}, bell:{color:colors.text,fontSize:26}, notification:{position:"absolute",right:-3,top:-4,width:22,height:22,borderRadius:11,backgroundColor:colors.yellow,alignItems:"center",justifyContent:"center"}, notificationText:{color:"#080808",fontSize:11,fontWeight:"900"}, logoWrap:{position:"absolute",left:"50%",transform:[{translateX:-76}],top:-10,width:152,height:120,alignItems:"center",overflow:"hidden"},
   greetingRecovery:{flexDirection:"row",gap:10,alignItems:"stretch",marginBottom:18}, greetingBlock:{flex:1,justifyContent:"center",paddingLeft:4}, hello:{color:colors.muted,fontSize:15,marginBottom:3}, name:{color:colors.text,fontSize:33,fontWeight:"900",letterSpacing:-1}, fist:{fontSize:22}, recoveryCard:{flex:1.12,minHeight:108,borderWidth:1,borderColor:colors.border,borderRadius:17,backgroundColor:"#0A0A0B",padding:13,flexDirection:"row",alignItems:"center",gap:8}, recoveryLabel:{color:colors.muted,fontSize:10}, recoveryValue:{fontSize:27,fontWeight:"900",marginTop:3}, recoveryText:{color:colors.muted,fontSize:10,marginTop:2}, ring:{width:64,height:64,borderRadius:32,borderWidth:7,alignItems:"center",justifyContent:"center",backgroundColor:"#0B1009"}, ringBolt:{fontSize:24},
   errorCard:{borderColor:"#632E2E",borderWidth:1,borderRadius:14,padding:12,marginBottom:12},error:{color:colors.red}, sectionHeader:{flexDirection:"row",justifyContent:"space-between",alignItems:"center",marginTop:11,marginBottom:10},sectionLeft:{flexDirection:"row",alignItems:"center"},yellowBar:{width:3,height:20,borderRadius:2,backgroundColor:colors.yellow,marginRight:10},sectionTitle:{color:colors.text,fontWeight:"800",fontSize:17},sectionAction:{color:colors.yellow,fontSize:13},
   workoutCard:{minHeight:430,borderWidth:1,borderColor:colors.border,borderRadius:20,overflow:"hidden",backgroundColor:"#080809",position:"relative"},workoutImage:{position:"absolute",right:0,top:0,width:"49%",height:"83%"},imageShade:{position:"absolute",right:0,top:0,width:"58%",height:"84%",backgroundColor:"rgba(0,0,0,.28)"},workoutContent:{padding:15,paddingTop:17},workoutHead:{flexDirection:"row",alignItems:"center",gap:13,marginBottom:13,maxWidth:"73%"},hexIcon:{width:54,height:54,borderWidth:1,borderColor:colors.yellow,borderRadius:17,alignItems:"center",justifyContent:"center",backgroundColor:"rgba(0,0,0,.55)"},hexSmall:{width:48,height:48,borderRadius:15},hexGlyph:{color:colors.yellow,fontWeight:"900",fontSize:18},workoutTitle:{color:colors.text,fontWeight:"900",fontSize:23},workoutMeta:{color:colors.muted,fontSize:11,marginTop:7},exerciseRow:{minHeight:76,maxWidth:"64%",flexDirection:"row",alignItems:"center",gap:11,borderBottomWidth:1,borderBottomColor:colors.borderSoft},exerciseIndex:{width:38,height:38,borderRadius:19,backgroundColor:"rgba(255,196,0,.08)",alignItems:"center",justifyContent:"center"},exerciseIndexText:{color:colors.yellow,fontWeight:"900",fontSize:21},exerciseName:{color:colors.text,fontWeight:"800",fontSize:14},exerciseDetail:{color:colors.muted,fontSize:12,marginTop:5},arrowCircle:{width:32,height:32,borderRadius:16,backgroundColor:"rgba(20,20,21,.85)",alignItems:"center",justifyContent:"center"},arrowText:{color:colors.text,fontSize:28,lineHeight:29},emptyWorkout:{color:colors.muted,maxWidth:"55%",paddingVertical:54},startButton:{height:57,borderRadius:10,backgroundColor:colors.yellow,alignItems:"center",justifyContent:"center",flexDirection:"row",gap:12,marginTop:15},play:{color:"#060606",fontSize:16},startText:{color:"#060606",fontWeight:"900",fontSize:13},
