@@ -201,3 +201,128 @@ export async function getLatestPerformance() {
     createdAt: latest.created_at,
   };
 }
+
+
+// ===== PROGRAM API RESTORE =====
+
+export async function getMyPrograms() {
+  const uid = await currentUserId();
+
+  const { data, error } = await supabase
+    .from("program_assignments")
+    .select(`
+      id,
+      starts_on,
+      ends_on,
+      active,
+      programs (
+        id,
+        name,
+        description,
+        duration_weeks
+      )
+    `)
+    .eq("athlete_id", uid)
+    .eq("active", true)
+    .order("starts_on", { ascending: false });
+
+  if (error) throw error;
+
+  return (data ?? []).map((assignment: any) => ({
+    assignment_id: assignment.id,
+    starts_on: assignment.starts_on,
+    ends_on: assignment.ends_on,
+    active: assignment.active,
+    ...(Array.isArray(assignment.programs)
+      ? assignment.programs[0]
+      : assignment.programs),
+  }));
+}
+
+export async function getProgramDetail(programId: string) {
+  const { data: program, error: programError } = await supabase
+    .from("programs")
+    .select("id, name, description, duration_weeks")
+    .eq("id", programId)
+    .single();
+
+  if (programError) throw programError;
+
+  const { data: workouts, error: workoutsError } = await supabase
+    .from("workout_templates")
+    .select(`
+      id,
+      program_id,
+      week_number,
+      day_number,
+      name,
+      notes,
+      estimated_minutes
+    `)
+    .eq("program_id", programId)
+    .order("week_number", { ascending: true })
+    .order("day_number", { ascending: true });
+
+  if (workoutsError) throw workoutsError;
+
+  return {
+    program,
+    workouts: workouts ?? [],
+  };
+}
+
+export async function getWorkoutTemplateDetail(workoutId: string) {
+  const { data: workout, error: workoutError } = await supabase
+    .from("workout_templates")
+    .select(`
+      id,
+      program_id,
+      week_number,
+      day_number,
+      name,
+      notes,
+      estimated_minutes
+    `)
+    .eq("id", workoutId)
+    .single();
+
+  if (workoutError) throw workoutError;
+
+  const { data: workoutExercises, error: exercisesError } = await supabase
+    .from("workout_exercises")
+    .select(`
+      id,
+      position,
+      prescription_notes,
+      exercises (
+        id,
+        name,
+        category,
+        instructions,
+        video_url
+      ),
+      prescribed_sets (
+        id,
+        set_number,
+        target_reps,
+        target_load_kg,
+        target_rpe,
+        target_rir,
+        rest_seconds
+      )
+    `)
+    .eq("workout_template_id", workoutId)
+    .order("position", { ascending: true });
+
+  if (exercisesError) throw exercisesError;
+
+  return {
+    workout,
+    workoutExercises: (workoutExercises ?? []).map((item: any) => ({
+      ...item,
+      prescribed_sets: [...(item.prescribed_sets ?? [])].sort(
+        (a: any, b: any) => Number(a.set_number ?? 0) - Number(b.set_number ?? 0)
+      ),
+    })),
+  };
+}
