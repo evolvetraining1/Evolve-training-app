@@ -10,8 +10,10 @@ export default function BrandLogo({ compact = false }: { compact?: boolean }) {
           style={styles.logoCompact}
         />
 
-        <Text style={styles.brandMain}>EVOLVE</Text>
-        <Text style={styles.brandSub}>TRAINING</Text>
+        <View style={styles.textBlock}>
+          <Text style={styles.brandMain}>EVOLVE</Text>
+          <Text style={styles.brandSub}>TRAINING</Text>
+        </View>
       </View>
     );
   }
@@ -24,8 +26,10 @@ export default function BrandLogo({ compact = false }: { compact?: boolean }) {
         style={styles.logo}
       />
 
-      <Text style={styles.brandMain}>EVOLVE</Text>
-      <Text style={styles.brandSub}>TRAINING</Text>
+      <View style={styles.textBlock}>
+        <Text style={styles.brandMain}>EVOLVE</Text>
+        <Text style={styles.brandSub}>TRAINING</Text>
+      </View>
     </View>
   );
 }
@@ -33,22 +37,22 @@ export default function BrandLogo({ compact = false }: { compact?: boolean }) {
 const styles = StyleSheet.create({
   wrap: {
     width: "100%",
-    height: 240,
+    height: 260,
     alignItems: "center",
     justifyContent: "center",
   },
 
   compact: {
-    height: 190,
     width: 260,
+    height: 210,
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "flex-start",
     marginTop: 18,
   },
 
   logo: {
-    width: 130,
-    height: 115,
+    width: 135,
+    height: 120,
   },
 
   logoCompact: {
@@ -56,19 +60,24 @@ const styles = StyleSheet.create({
     height: 120,
   },
 
+  textBlock: {
+    alignItems: "center",
+    marginTop: -4,
+  },
+
   brandMain: {
     color: "#FFFFFF",
-    fontSize: 25,
+    fontSize: 23,
     fontWeight: "800",
-    letterSpacing: 7,
-    lineHeight: 30,
+    letterSpacing: 6,
+    lineHeight: 27,
   },
 
   brandSub: {
     color: "#FFFFFF",
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "700",
-    letterSpacing: 6,
-    lineHeight: 20,
+    letterSpacing: 5,
+    lineHeight: 18,
   },
 });

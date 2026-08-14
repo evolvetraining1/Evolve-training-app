@@ -11,7 +11,7 @@ const sections = [
     { icon: "☷", label: "Journal & routine", route: "/(tabs)/journal" },
   ]},
   { title: "OUTILS", items: [
-    { icon: "1", label: "Calculateur 1RM", badge: "BIENTÔT" },
+    { icon: "1", label: "Calculateur 1RM", route: "/rm-calculator" },
     { icon: "◎", label: "Suivi nutrition", route: "/nutrition" },
     { icon: "↗", label: "Performances", route: "/(tabs)/stats" },
   ]},

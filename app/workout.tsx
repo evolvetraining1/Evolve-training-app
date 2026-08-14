@@ -100,24 +100,126 @@ export default function WorkoutScreen() {
         subtitle="Chaque série cochée est sauvegardée immédiatement."
       />
 
-      {detail.workoutExercises.map((we: any) => (
-        <Card key={we.id} style={{ marginBottom: 14 }}>
-          <Text style={styles.exerciseName}>{we.exercises?.name ?? "Exercice"}</Text>
-          <Text style={styles.muted}>{we.prescription_notes ?? ""}</Text>
+      {(() => {
+        const blockOrder = ["WARM UP", "STRENGTH WORK", "RENFO", "WOD", "AUTRE"];
 
-          {(sets[we.id] ?? []).map((item) => (
-            <View key={item.setNumber} style={styles.row}>
-              <Text style={styles.number}>{item.setNumber}</Text>
-              <TextInput style={styles.input} keyboardType="number-pad" value={String(item.reps)} onChangeText={(v) => patch(we.id, item.setNumber, { reps: Number(v || 0) })} />
-              <TextInput style={styles.input} keyboardType="decimal-pad" value={String(item.load)} onChangeText={(v) => patch(we.id, item.setNumber, { load: Number(v.replace(",", ".") || 0) })} />
-              <TextInput style={styles.input} keyboardType="decimal-pad" value={String(item.rpe)} onChangeText={(v) => patch(we.id, item.setNumber, { rpe: Number(v.replace(",", ".") || 0) })} />
-              <Pressable onPress={() => toggleDone(we.id, item)} style={[styles.check, item.done && styles.done]}>
-                <Text style={styles.checkText}>{item.done ? "✓" : ""}</Text>
-              </Pressable>
+        const blockSubtitles: Record<string, string> = {
+          "WARM UP": "Préparation / activation",
+          "STRENGTH WORK": "Force principale",
+          "RENFO": "Travail complémentaire",
+          "WOD": "Conditionnement",
+          "AUTRE": "Travail complémentaire",
+        };
+
+        const getBlock = (notes?: string) => {
+          const value = (notes ?? "").trim().toUpperCase();
+
+          if (value.startsWith("WARM UP")) return "WARM UP";
+          if (value.startsWith("STRENGTH WORK")) return "STRENGTH WORK";
+          if (value.startsWith("RENFO")) return "RENFO";
+          if (value.startsWith("WOD")) return "WOD";
+
+          return "AUTRE";
+        };
+
+        const grouped = detail.workoutExercises.reduce(
+          (acc: Record<string, any[]>, exercise: any) => {
+            const block = getBlock(exercise.prescription_notes);
+
+            if (!acc[block]) acc[block] = [];
+            acc[block].push(exercise);
+
+            return acc;
+          },
+          {}
+        );
+
+        return blockOrder
+          .filter((block) => grouped[block]?.length)
+          .map((block) => (
+            <View key={block} style={styles.trainingBlock}>
+              <View style={styles.blockHeader}>
+                <View style={styles.blockAccent} />
+
+                <View style={styles.blockHeaderText}>
+                  <Text style={styles.blockTitle}>{block}</Text>
+                  <Text style={styles.blockSubtitle}>
+                    {blockSubtitles[block]}
+                  </Text>
+                </View>
+
+                <Text style={styles.blockCount}>
+                  {grouped[block].length}
+                </Text>
+              </View>
+
+              <View style={styles.blockContent}>
+                {grouped[block].map((we: any) => (
+                  <Card key={we.id} style={styles.exerciseCard}>
+                    <Text style={styles.exerciseName}>
+                      {we.exercises?.name ?? "Exercice"}
+                    </Text>
+
+                    <Text style={styles.muted}>
+                      {we.prescription_notes ?? ""}
+                    </Text>
+
+                    {(sets[we.id] ?? []).map((item) => (
+                      <View key={item.setNumber} style={styles.row}>
+                        <Text style={styles.number}>{item.setNumber}</Text>
+
+                        <TextInput
+                          style={styles.input}
+                          keyboardType="number-pad"
+                          value={String(item.reps)}
+                          onChangeText={(v) =>
+                            patch(we.id, item.setNumber, {
+                              reps: Number(v || 0),
+                            })
+                          }
+                        />
+
+                        <TextInput
+                          style={styles.input}
+                          keyboardType="decimal-pad"
+                          value={String(item.load)}
+                          onChangeText={(v) =>
+                            patch(we.id, item.setNumber, {
+                              load: Number(v.replace(",", ".") || 0),
+                            })
+                          }
+                        />
+
+                        <TextInput
+                          style={styles.input}
+                          keyboardType="decimal-pad"
+                          value={String(item.rpe)}
+                          onChangeText={(v) =>
+                            patch(we.id, item.setNumber, {
+                              rpe: Number(v.replace(",", ".") || 0),
+                            })
+                          }
+                        />
+
+                        <Pressable
+                          onPress={() => toggleDone(we.id, item)}
+                          style={[
+                            styles.check,
+                            item.done && styles.done,
+                          ]}
+                        >
+                          <Text style={styles.checkText}>
+                            {item.done ? "✓" : ""}
+                          </Text>
+                        </Pressable>
+                      </View>
+                    ))}
+                  </Card>
+                ))}
+              </View>
             </View>
-          ))}
-        </Card>
-      ))}
+          ));
+      })()}
 
       <PrimaryButton label="TERMINER LA SÉANCE" onPress={finish} />
       {message ? <Text style={styles.message}>{message}</Text> : null}
@@ -128,6 +230,62 @@ export default function WorkoutScreen() {
 const styles = StyleSheet.create({
   page: { padding: 20, paddingTop: 68, paddingBottom: 50, backgroundColor: "transparent" },
   center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "transparent", padding: 20 },
+  trainingBlock: {
+    marginBottom: 26,
+  },
+
+  blockHeader: {
+    minHeight: 92,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 18,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    marginBottom: 12,
+  },
+
+  blockAccent: {
+    width: 5,
+    alignSelf: "stretch",
+    backgroundColor: colors.yellow,
+    borderRadius: 3,
+    marginRight: 14,
+  },
+
+  blockHeaderText: {
+    flex: 1,
+  },
+
+  blockTitle: {
+    color: colors.text,
+    fontSize: 24,
+    fontWeight: "900",
+    letterSpacing: 1.5,
+  },
+
+  blockSubtitle: {
+    color: colors.muted,
+    fontSize: 14,
+    marginTop: 4,
+  },
+
+  blockCount: {
+    color: colors.yellow,
+    fontSize: 26,
+    fontWeight: "900",
+  },
+
+  blockContent: {
+    paddingLeft: 8,
+  },
+
+  exerciseCard: {
+    marginBottom: 12,
+  },
+
   exerciseName: { color: colors.text, fontSize: 21, fontWeight: "900" },
   muted: { color: colors.muted, marginTop: 5, marginBottom: 14 },
   row: { flexDirection: "row", alignItems: "center", gap: 7, marginBottom: 9 },

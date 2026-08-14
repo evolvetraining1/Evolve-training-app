@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { router } from "expo-router";
 import {
   ActivityIndicator,
+    Image,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -95,29 +96,11 @@ export default function TrainingScreen() {
             pressed && { opacity: 0.82 },
           ]}
         >
-          <View style={styles.cardTop}>
-            <View style={styles.iconBox}>
-              <Text style={styles.iconText}>ET</Text>
-            </View>
-
-            <View style={styles.cardContent}>
-              <Text style={styles.programName}>
-                {program.name ?? "Programme"}
-              </Text>
-
-              <Text style={styles.programMeta}>
-                {program.duration_weeks
-                  ? `${program.duration_weeks} semaines`
-                  : "Durée libre"}
-              </Text>
-            </View>
-
-            <Text style={styles.arrow}>›</Text>
-          </View>
-
-          {program.description ? (
-            <Text style={styles.description}>{program.description}</Text>
-          ) : null}
+          <Image
+            source={require("../../assets/tactical-reconditioning.png")}
+            style={styles.programCover}
+            resizeMode="cover"
+          />
         </Pressable>
       ))}
     </ScrollView>
@@ -159,11 +142,17 @@ const styles = StyleSheet.create({
     marginTop: 12,
     marginBottom: 30,
   },
+  programCover: {
+    width: "100%",
+    height: 260,
+    borderRadius: 18,
+  },
+
   card: {
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 22,
-    padding: 20,
+    padding: 8,
     marginBottom: 18,
     backgroundColor: colors.surface,
   },

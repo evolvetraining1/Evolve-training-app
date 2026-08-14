@@ -10,6 +10,7 @@ import {
   getCoachAthletes,
   getCoachExercises,
   getCoachPrograms,
+  assignProgramAndSchedule,
 } from "@/src/lib/coachApi";
 
 export default function CoachScreen() {
@@ -21,6 +22,11 @@ export default function CoachScreen() {
   const [programName, setProgramName] = useState("");
   const [exerciseName, setExerciseName] = useState("");
   const [message, setMessage] = useState("");
+  const [selectedAthleteId, setSelectedAthleteId] = useState("");
+  const [selectedProgramId, setSelectedProgramId] = useState("");
+  const [startDate, setStartDate] = useState(
+    new Date().toISOString().slice(0, 10)
+  );
 
   async function refresh() {
     try {
@@ -47,6 +53,36 @@ export default function CoachScreen() {
       setInviteEmail("");
     } catch (e: any) {
       setMessage(e?.message ?? "Erreur invitation");
+    }
+  }
+
+  async function assignSelectedProgram() {
+    if (!selectedAthleteId) {
+      setMessage("Sélectionne un athlète.");
+      return;
+    }
+
+    if (!selectedProgramId) {
+      setMessage("Sélectionne un programme.");
+      return;
+    }
+
+    try {
+      setMessage("Attribution en cours...");
+
+      const result = await assignProgramAndSchedule({
+        athleteId: selectedAthleteId,
+        programId: selectedProgramId,
+        startsOn: startDate,
+      });
+
+      setMessage(
+        `Programme attribué — ${result.sessions.length} séance(s) planifiée(s).`
+      );
+
+      await refresh();
+    } catch (e: any) {
+      setMessage(e?.message ?? "Erreur attribution programme");
     }
   }
 
@@ -125,6 +161,60 @@ export default function CoachScreen() {
           style={styles.input}
         />
         <PrimaryButton label="AJOUTER L'EXERCICE" onPress={createEx} />
+      </Card>
+
+      <Card style={styles.section}>
+        <Label>Attribuer un programme</Label>
+
+        <Text style={styles.muted}>Athlète</Text>
+
+        {athletes.length ? athletes.map((a: any) => {
+          const profile = a.profiles;
+          const selected = selectedAthleteId === a.athlete_id;
+
+          return (
+            <PrimaryButton
+              key={a.athlete_id}
+              label={`${selected ? "✓ " : ""}${profile?.first_name || "Athlète"} ${profile?.last_name || ""}`}
+              onPress={() => setSelectedAthleteId(a.athlete_id)}
+            />
+          );
+        }) : (
+          <Text style={styles.muted}>Aucun athlète disponible.</Text>
+        )}
+
+        <Text style={[styles.muted, { marginTop: 14 }]}>Programme</Text>
+
+        {programs.length ? programs.map((p: any) => {
+          const selected = selectedProgramId === p.id;
+
+          return (
+            <PrimaryButton
+              key={p.id}
+              label={`${selected ? "✓ " : ""}${p.name}`}
+              onPress={() => setSelectedProgramId(p.id)}
+            />
+          );
+        }) : (
+          <Text style={styles.muted}>Aucun programme disponible.</Text>
+        )}
+
+        <Text style={[styles.muted, { marginTop: 14 }]}>
+          Date de début
+        </Text>
+
+        <TextInput
+          value={startDate}
+          onChangeText={setStartDate}
+          placeholder="2026-08-17"
+          placeholderTextColor={colors.muted}
+          style={styles.input}
+        />
+
+        <PrimaryButton
+          label="ATTRIBUER LE PROGRAMME"
+          onPress={assignSelectedProgram}
+        />
       </Card>
 
       <Card style={styles.section}>

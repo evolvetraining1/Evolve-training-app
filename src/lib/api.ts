@@ -348,3 +348,226 @@ export async function getWorkoutTemplateDetail(workoutId: string) {
     })),
   };
 }
+
+// ===== DASHBOARD STATS ATHLETE =====
+export async function getAthleteStatsDashboard() {
+  const uid = await currentUserId();
+
+  const { data: latestSession, error: sessionError } = await supabase
+    .from("workout_sessions")
+    .select(`
+      id,
+      scheduled_for,
+      completed_at,
+      session_rpe,
+      workout_templates (
+        id,
+        name
+      )
+    `)
+    .eq("athlete_id", uid)
+    .eq("status", "completed")
+    .order("completed_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (sessionError) throw sessionError;
+
+  let totalVolume = 0;
+  let completedSets = 0;
+  let averageRpe = 0;
+  let bestE1rm = 0;
+
+  if (latestSession?.id) {
+    const { data: sets, error: setsError } = await supabase
+      .from("performed_sets")
+      .select("reps, load_kg, rpe, completed")
+      .eq("workout_session_id", latestSession.id)
+      .eq("completed", true);
+
+    if (setsError) throw setsError;
+
+    const validSets = sets ?? [];
+
+    completedSets = validSets.length;
+
+    totalVolume = validSets.reduce((sum: number, set: any) => {
+      const reps = Number(set.reps ?? 0);
+      const load = Number(set.load_kg ?? 0);
+      return sum + reps * load;
+    }, 0);
+
+    const rpes = validSets
+      .map((set: any) => Number(set.rpe))
+      .filter((value: number) => Number.isFinite(value) && value > 0);
+
+    if (rpes.length) {
+      averageRpe =
+        rpes.reduce((sum: number, value: number) => sum + value, 0) /
+        rpes.length;
+    }
+
+    bestE1rm = validSets.reduce((best: number, set: any) => {
+      const reps = Number(set.reps ?? 0);
+      const load = Number(set.load_kg ?? 0);
+
+      if (!load || !reps) return best;
+
+      // Formule d'Epley
+      const estimated = load * (1 + reps / 30);
+
+      return Math.max(best, estimated);
+    }, 0);
+  }
+
+  const since = new Date();
+  since.setDate(since.getDate() - 30);
+  const sinceDate = since.toISOString().slice(0, 10);
+
+  const { data: recentSessions, error: recentError } = await supabase
+    .from("workout_sessions")
+    .select("id, status, scheduled_for")
+    .eq("athlete_id", uid)
+    .gte("scheduled_for", sinceDate)
+    .lte("scheduled_for", new Date().toISOString().slice(0, 10));
+
+  if (recentError) throw recentError;
+
+  const dueSessions = recentSessions ?? [];
+  const completedCount = dueSessions.filter(
+    (session: any) => session.status === "completed"
+  ).length;
+
+  const attendance =
+    dueSessions.length > 0
+      ? Math.round((completedCount / dueSessions.length) * 100)
+      : 0;
+
+  const template = Array.isArray(latestSession?.workout_templates)
+    ? latestSession?.workout_templates?.[0]
+    : latestSession?.workout_templates;
+
+  return {
+    latestSession: latestSession
+      ? {
+          id: latestSession.id,
+          name: template?.name ?? "Séance",
+          completedAt: latestSession.completed_at,
+        }
+      : null,
+
+    totalVolume: Math.round(totalVolume),
+    completedSets,
+    averageRpe:
+      averageRpe > 0 ? Math.round(averageRpe * 10) / 10 : null,
+    bestE1rm: Math.round(bestE1rm),
+    attendance,
+    completedLast30: completedCount,
+    scheduledLast30: dueSessions.length,
+  };
+}
+
+// ===== PERFORMANCE PAR EXERCICE =====
+export async function getExercisePerformanceHistory() {
+  const uid = await currentUserId();
+
+  const { data, error } = await supabase
+    .from("performed_sets")
+    .select(`
+      id,
+      reps,
+      load_kg,
+      rpe,
+      completed,
+      created_at,
+      workout_exercises (
+        id,
+        exercises (
+          id,
+          name
+        )
+      ),
+      workout_sessions!inner (
+        id,
+        athlete_id,
+        status,
+        completed_at
+      )
+    `)
+    .eq("workout_sessions.athlete_id", uid)
+    .eq("workout_sessions.status", "completed")
+    .eq("completed", true)
+    .order("created_at", { ascending: true });
+
+  if (error) throw error;
+
+  const rows = data ?? [];
+  const byExercise: Record<string, any> = {};
+
+  for (const row of rows as any[]) {
+    const workoutExercise = Array.isArray(row.workout_exercises)
+      ? row.workout_exercises[0]
+      : row.workout_exercises;
+
+    const exercise = Array.isArray(workoutExercise?.exercises)
+      ? workoutExercise.exercises[0]
+      : workoutExercise?.exercises;
+
+    if (!exercise?.id || !exercise?.name) continue;
+
+    const reps = Number(row.reps ?? 0);
+    const load = Number(row.load_kg ?? 0);
+
+    if (!reps || !load) continue;
+
+    const e1rm = load * (1 + reps / 30);
+
+    if (!byExercise[exercise.id]) {
+      byExercise[exercise.id] = {
+        exerciseId: exercise.id,
+        name: exercise.name,
+        performances: [],
+      };
+    }
+
+    byExercise[exercise.id].performances.push({
+      date: row.workout_sessions?.completed_at ?? row.created_at,
+      reps,
+      load,
+      rpe: row.rpe != null ? Number(row.rpe) : null,
+      e1rm: Math.round(e1rm * 10) / 10,
+    });
+  }
+
+  return Object.values(byExercise)
+    .map((exercise: any) => {
+      const perfs = exercise.performances.sort(
+        (a: any, b: any) =>
+          new Date(a.date).getTime() - new Date(b.date).getTime()
+      );
+
+      const latest = perfs[perfs.length - 1] ?? null;
+      const previous = perfs[perfs.length - 2] ?? null;
+
+      const best = perfs.reduce(
+        (max: number, perf: any) => Math.max(max, perf.e1rm),
+        0
+      );
+
+      const delta =
+        latest && previous
+          ? Math.round((latest.e1rm - previous.e1rm) * 10) / 10
+          : null;
+
+      return {
+        exerciseId: exercise.exerciseId,
+        name: exercise.name,
+        latest,
+        previous,
+        bestE1rm: Math.round(best * 10) / 10,
+        delta,
+        history: perfs.slice(-6).reverse(),
+      };
+    })
+    .sort((a: any, b: any) => b.bestE1rm - a.bestE1rm);
+}
