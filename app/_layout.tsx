@@ -1,12 +1,18 @@
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { ImageBackground, StyleSheet } from "react-native";
 import { SessionProvider } from "@/src/store/session";
 import { AuthProvider } from "@/src/store/auth";
 import { colors } from "@/src/theme";
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
+    <ImageBackground
+      source={require("../assets/evolve-concrete-dark.png")}
+      style={styles.background}
+      resizeMode="cover"
+    >
+      <AuthProvider>
       <SessionProvider>
         <StatusBar style="light" />
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
@@ -23,5 +29,13 @@ export default function RootLayout() {
         </Stack>
       </SessionProvider>
     </AuthProvider>
+    </ImageBackground>
   );
 }
+
+
+const styles = StyleSheet.create({
+  background: {
+    flex: 1,
+  },
+});
