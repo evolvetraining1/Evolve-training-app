@@ -208,6 +208,28 @@ export async function getLatestPerformance() {
 export async function getMyPrograms() {
   const uid = await currentUserId();
 
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("id, role")
+    .eq("id", uid)
+    .single();
+
+  if (profileError) throw profileError;
+
+  // COACH : affiche les programmes qu'il a créés
+  if (profile?.role === "coach") {
+    const { data, error } = await supabase
+      .from("programs")
+      .select("id, name, description, duration_weeks, created_at")
+      .eq("coach_id", uid)
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+
+    return data ?? [];
+  }
+
+  // ATHLETE : affiche les programmes qui lui sont attribués
   const { data, error } = await supabase
     .from("program_assignments")
     .select(`
