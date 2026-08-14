@@ -6,7 +6,7 @@ import { useAuth } from "@/src/store/auth";
 const icon=(symbol:string,color:string)=><Text style={{color,fontSize:22,fontWeight:"900"}}>{symbol}</Text>;
 export default function TabsLayout(){
   const{session,loading}=useAuth();
-  if(loading)return <View style={{flex:1,alignItems:"center",justifyContent:"center",backgroundColor:colors.bg}}><ActivityIndicator color={colors.yellow}/></View>;
+  if(loading)return <View style={{flex:1,alignItems:"center",justifyContent:"center",backgroundColor:"transparent"}}><ActivityIndicator color={colors.yellow}/></View>;
   if(!session)return <Redirect href="/login"/>;
   return <Tabs screenOptions={{
     headerShown:false,
@@ -14,7 +14,7 @@ export default function TabsLayout(){
     tabBarLabelStyle:{fontSize:11,fontWeight:"700"},
     tabBarActiveTintColor:colors.yellow,
     tabBarInactiveTintColor:colors.muted,
-    sceneStyle:{backgroundColor:colors.bg}
+    sceneStyle:{backgroundColor:"transparent"}
   }}>
     <Tabs.Screen name="index" options={{title:"Accueil",tabBarIcon:({color})=>icon("⌂", String(color))}}/>
     <Tabs.Screen name="training" options={{title:"Programme",tabBarIcon:({color})=>icon("▣", String(color))}}/>
