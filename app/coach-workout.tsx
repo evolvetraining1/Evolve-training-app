@@ -212,7 +212,7 @@ export default function CoachWorkoutScreen() {
 }
 
 const styles = StyleSheet.create({
-  page:{padding:20,paddingTop:68,paddingBottom:60,backgroundColor:colors.bg},
+  page:{padding:20,paddingTop:68,paddingBottom:60,backgroundColor: "transparent"},
   section:{marginBottom:14,gap:12},
   input:{backgroundColor:colors.surface2,borderColor:colors.border,borderWidth:1,borderRadius:12,color:colors.text,padding:12,fontSize:16},
   row:{flexDirection:"row",gap:8},

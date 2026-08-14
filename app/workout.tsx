@@ -126,8 +126,8 @@ export default function WorkoutScreen() {
 }
 
 const styles = StyleSheet.create({
-  page: { padding: 20, paddingTop: 68, paddingBottom: 50, backgroundColor: colors.bg },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg, padding: 20 },
+  page: { padding: 20, paddingTop: 68, paddingBottom: 50, backgroundColor: "transparent" },
+  center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "transparent", padding: 20 },
   exerciseName: { color: colors.text, fontSize: 21, fontWeight: "900" },
   muted: { color: colors.muted, marginTop: 5, marginBottom: 14 },
   row: { flexDirection: "row", alignItems: "center", gap: 7, marginBottom: 9 },

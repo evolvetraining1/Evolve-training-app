@@ -72,7 +72,7 @@ export default function NutritionScreen() {
 }
 
 const styles = StyleSheet.create({
-  page: { padding: 20, paddingTop: 58, paddingBottom: 50, backgroundColor: colors.bg },
+  page: { padding: 20, paddingTop: 58, paddingBottom: 50, backgroundColor: "transparent" },
   back: { color: colors.yellow, fontWeight: "900", marginBottom: 18 },
   macros: { gap: 18, marginTop: 14 },
   row: { flexDirection: "row", justifyContent: "space-between" },

@@ -43,7 +43,7 @@ export default function StatsScreen() {
 }
 
 const styles = StyleSheet.create({
-  page: { padding: 20, paddingTop: 68, paddingBottom: 110, backgroundColor: colors.bg },
+  page: { padding: 20, paddingTop: 68, paddingBottom: 110, backgroundColor: "transparent" },
   grid: { flexDirection: "row", gap: 12, marginBottom: 14 },
   gridCard: { flex: 1 },
   big: { color: colors.text, fontSize: 25, fontWeight: "900", marginTop: 8 },

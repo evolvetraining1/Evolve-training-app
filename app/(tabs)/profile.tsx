@@ -35,6 +35,6 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  page: { padding: 20, paddingTop: 68, paddingBottom: 110, backgroundColor: colors.bg },
+  page: { padding: 20, paddingTop: 68, paddingBottom: 110, backgroundColor: "transparent" },
   role: { color: colors.yellow, fontSize: 24, fontWeight: "900", marginTop: 8 },
 });

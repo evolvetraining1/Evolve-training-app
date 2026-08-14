@@ -172,7 +172,7 @@ export default function ProgramWorkoutScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.bg,
+    backgroundColor: "transparent",
   },
   page: {
     paddingHorizontal: 26,
@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
   },
   center: {
     flex: 1,
-    backgroundColor: colors.bg,
+    backgroundColor: "transparent",
     alignItems: "center",
     justifyContent: "center",
   },

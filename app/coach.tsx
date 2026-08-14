@@ -141,7 +141,7 @@ export default function CoachScreen() {
 }
 
 const styles = StyleSheet.create({
-  page: { padding: 20, paddingTop: 68, paddingBottom: 50, backgroundColor: colors.bg },
+  page: { padding: 20, paddingTop: 68, paddingBottom: 50, backgroundColor: "transparent" },
   grid: { flexDirection: "row", gap: 10, marginBottom: 14 },
   gridCard: { flex: 1 },
   metric: { color: colors.yellow, fontSize: 28, fontWeight: "900", marginTop: 6 },
