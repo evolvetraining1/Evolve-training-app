@@ -14,7 +14,12 @@
     },
     "android": {
       "package": "fr.evolvetraining.app",
-      "versionCode": 2
+      "versionCode": 2,
+      "icon": "./assets/icon.png",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#000000"
+      }
     },
     "extra": {
       "router": {},
@@ -28,6 +33,9 @@
     "updates": {
       "url": "https://u.expo.dev/351fbc52-60ff-48eb-920f-cc72354e2ccb"
     },
-    "ios": {}
+    "ios": {
+      "icon": "./assets/icon.png"
+    },
+    "icon": "./assets/icon.png"
   }
 }
