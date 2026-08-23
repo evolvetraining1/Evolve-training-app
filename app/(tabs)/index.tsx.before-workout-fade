@@ -49,176 +49,11 @@ export default function HomeScreen() {
   const next = sessions.find(s => s.status !== "completed" && s.status !== "skipped");
   const afterNext = sessions.filter(s => s.status !== "completed" && s.status !== "skipped")[1];
   const template:any = next?.workout_templates;
-  const previewExercises = nextDetail?.workoutExercises ?? [];
+  const previewExercises = (nextDetail?.workoutExercises ?? []).slice(0, 3);
   const checkinDates = useMemo(() => new Set(recentCheckins.map((x:any) => x.checkin_date)), [recentCheckins]);
   const streak = recentCheckins.length;
 
   if (loading) return <View style={styles.center}><ActivityIndicator color={colors.yellow}/></View>;
-
-  const homeBlockName = (we: any) => {
-    const notes = String(
-      we?.exercises?.prescription_notes ??
-      we?.prescription_notes ??
-      ""
-    ).trim().toUpperCase();
-
-    if (notes.startsWith("WARM UP")) return "WARM UP";
-    if (notes.startsWith("STRENGTH WORK")) return "STRENGTH WORK";
-    if (notes.startsWith("RENFO")) return "RENFO";
-    if (notes.startsWith("WOD")) return "WOD";
-
-    return "AUTRE";
-  };
-
-  const homeBlockRounds = (block: string) => {
-    const first = previewExercises.find(
-      (we: any) => homeBlockName(we) === block
-    );
-
-    if (!first) return "";
-
-    const notes = String(
-      first?.exercises?.prescription_notes ??
-      first?.prescription_notes ??
-      ""
-    );
-
-    const match = notes.match(/(\d+)\s*rounds?/i);
-
-    return match ? `${match[1]} rounds` : "";
-  };
-
-  const cleanHomePrescription = (value: any) => {
-    return String(value ?? "")
-      .replace(/\(?\s*tempo\s*[0-9A-Za-z]+\s*\)?/gi, "")
-      .replace(
-        /\s*[—–-]\s*\d+(?:[.,]\d+)?\s*(?:min(?:ute)?s?|sec(?:onde)?s?|s|'|’)\s*$/gi,
-        ""
-      )
-      .replace(
-        /\b(?:repos|récupération|recuperation|rest)\s*:?\s*\d+(?:[.,]\d+)?\s*(?:min(?:ute)?s?|sec(?:onde)?s?|s|'|’)/gi,
-        ""
-      )
-      .replace(/\s{2,}/g, " ")
-      .trim();
-  };
-
-  const homeExerciseText = (we: any) => {
-    const ex = we?.exercises ?? {};
-    const name =
-      ex?.name ??
-      we?.exercise_name ??
-      we?.name ??
-      "Exercice";
-
-    const notes = String(
-      ex?.prescription_notes ??
-      we?.prescription_notes ??
-      ""
-    );
-
-    const block = homeBlockName(we);
-
-    // --------------------------------------------------------
-    // WARM UP / WOD :
-    // prescription_notes contient déjà les infos utiles.
-    // On retire seulement le nom du bloc + le nombre de rounds.
-    // --------------------------------------------------------
-
-    if (block === "WARM UP" || block === "WOD") {
-      let detail = notes
-        .replace(
-          /^(WARM UP|WOD)\s*[—–-]?\s*/i,
-          ""
-        )
-        .replace(
-          /^\d+\s*rounds?\s*[—–-]?\s*/i,
-          ""
-        );
-
-      detail = cleanHomePrescription(detail);
-
-      if (!detail) return name;
-
-      if (
-        detail
-          .toLowerCase()
-          .includes(String(name).toLowerCase())
-      ) {
-        return detail;
-      }
-
-      return `${detail} ${name}`.trim();
-    }
-
-    // --------------------------------------------------------
-    // STRENGTH / RENFO :
-    // séries, reps, charge ou % depuis prescribed_sets
-    // --------------------------------------------------------
-
-    const sets = we?.prescribed_sets ?? [];
-    const first = sets[0];
-
-    if (first) {
-      const setCount = sets.length || "";
-
-      const reps =
-        first?.target_reps ??
-        first?.reps ??
-        "";
-
-      const loadKg =
-        first?.target_load_kg;
-
-      const loadPct =
-        first?.target_load_percent ??
-        first?.target_percentage ??
-        first?.percentage;
-
-      let line = "";
-
-      if (setCount && reps) {
-        line += `${setCount}×${reps} `;
-      } else if (reps) {
-        line += `${reps} `;
-      }
-
-      line += name;
-
-      if (loadPct != null && loadPct !== "") {
-        line += ` @${loadPct}%`;
-      } else if (loadKg != null && loadKg !== "") {
-        line += ` @${loadKg} kg`;
-      }
-
-      return cleanHomePrescription(line);
-    }
-
-    let detail = notes
-      .replace(
-        /^(STRENGTH WORK|RENFO)\s*[—–-]?\s*/i,
-        ""
-      );
-
-    detail = cleanHomePrescription(detail);
-
-    return detail || name;
-  };
-
-  const homeSessionGroups = [
-    "WARM UP",
-    "STRENGTH WORK",
-    "RENFO",
-    "WOD",
-    "AUTRE",
-  ]
-    .map((block) => ({
-      block,
-      exercises: previewExercises.filter(
-        (we: any) => homeBlockName(we) === block
-      ),
-    }))
-    .filter((group) => group.exercises.length > 0);
 
   return (
     <View style={styles.root}>
@@ -260,7 +95,7 @@ export default function HomeScreen() {
 
         <SectionTitle title="SÉANCE DU JOUR" />
         <View style={styles.workoutCard}>
-          <Image source={require("@/assets/workout-male-faded.png")} style={styles.workoutImage} resizeMode="cover" />
+          <Image source={require("@/assets/workout-male.jpg")} style={styles.workoutImage} resizeMode="cover" />
           <View style={styles.imageShade} />
           <View style={styles.workoutContent}>
             <View style={styles.workoutHead}>
@@ -271,55 +106,17 @@ export default function HomeScreen() {
               </View>
             </View>
 
-            {next ? (
-          previewExercises.length ? (
-            <View style={styles.homeSessionGroups}>
-              {homeSessionGroups.map((group) => (
-                <View
-                  key={group.block}
-                  style={styles.homeSessionGroup}
-                >
-                  <Text style={styles.homeSessionTitle}>
-                    {group.block === "RENFO"
-                      ? "RENFORCEMENT"
-                      : group.block}
-                  </Text>
+            {next ? previewExercises.length ? previewExercises.map((we:any, index:number) => {
+              const ex = we.exercises;
+              const set = (we.prescribed_sets ?? [])[0];
+              const prescription = set
+                ? `${(we.prescribed_sets ?? []).length} × ${set.target_reps ?? "—"}${set.target_load_kg ? ` @ ${set.target_load_kg} kg` : set.target_rpe ? ` @ RPE ${set.target_rpe}` : ""}`
+                : we.prescription_notes || "Prescription disponible";
+              return <ExerciseRow key={we.id} index={index+1} name={ex?.name || "Exercice"} detail={prescription} />;
+            }) : <Text style={styles.emptyWorkout}>Le détail de la séance apparaîtra ici.</Text>
+            : <Text style={styles.emptyWorkout}>Aucune séance programmée pour aujourd’hui.</Text>}
 
-                  {homeBlockRounds(group.block) ? (
-                    <Text style={styles.homeSessionRounds}>
-                      {homeBlockRounds(group.block)}
-                    </Text>
-                  ) : null}
-
-                  {group.exercises.map(
-                    (we: any, index: number) => (
-                      <View
-                        key={we.id ?? `${group.block}-${index}`}
-                        style={styles.homeSessionLine}
-                      >
-                        <Text style={styles.homeSessionBullet}>•</Text>
-
-                        <Text style={styles.homeSessionText}>
-                          {homeExerciseText(we)}
-                        </Text>
-                      </View>
-                    )
-                  )}
-                </View>
-              ))}
-            </View>
-          ) : (
-            <Text style={styles.emptyWorkout}>
-              Le détail de la séance apparaîtra ici.
-            </Text>
-          )
-        ) : (
-          <Text style={styles.emptyWorkout}>
-            Aucune séance programmée pour aujourd'hui.
-          </Text>
-        )}
-
-        <Pressable
+            <Pressable
               disabled={!next}
               onPress={() => next && router.push({ pathname: "/workout", params: { sessionId: next.id } })}
               style={[styles.startButton, !next && { opacity: .45 }]}>
@@ -391,55 +188,7 @@ const styles = StyleSheet.create({
   }, bell:{color:colors.text,fontSize:26}, notification:{position:"absolute",right:-3,top:-4,width:22,height:22,borderRadius:11,backgroundColor:colors.yellow,alignItems:"center",justifyContent:"center"}, notificationText:{color:"#080808",fontSize:11,fontWeight:"900"}, logoWrap:{position:"absolute",left:"50%",transform:[{translateX:-76}],top:-10,width:152,height:120,alignItems:"center",overflow:"hidden"},
   greetingRecovery:{flexDirection:"row",gap:10,alignItems:"stretch",marginBottom:18}, greetingBlock:{flex:1,justifyContent:"center",paddingLeft:4}, hello:{color:colors.muted,fontSize:15,marginBottom:3}, name:{color:colors.text,fontSize:33,fontWeight:"900",letterSpacing:-1}, fist:{fontSize:22}, recoveryCard:{flex:1.12,minHeight:108,borderWidth:1,borderColor:colors.border,borderRadius:17,backgroundColor:"#0A0A0B",padding:13,flexDirection:"row",alignItems:"center",gap:8}, recoveryLabel:{color:colors.muted,fontSize:10}, recoveryValue:{fontSize:27,fontWeight:"900",marginTop:3}, recoveryText:{color:colors.muted,fontSize:10,marginTop:2}, ring:{width:64,height:64,borderRadius:32,borderWidth:7,alignItems:"center",justifyContent:"center",backgroundColor:"#0B1009"}, ringBolt:{fontSize:24},
   errorCard:{borderColor:"#632E2E",borderWidth:1,borderRadius:14,padding:12,marginBottom:12},error:{color:colors.red}, sectionHeader:{flexDirection:"row",justifyContent:"space-between",alignItems:"center",marginTop:11,marginBottom:10},sectionLeft:{flexDirection:"row",alignItems:"center"},yellowBar:{width:3,height:20,borderRadius:2,backgroundColor:colors.yellow,marginRight:10},sectionTitle:{color:colors.text,fontWeight:"800",fontSize:17},sectionAction:{color:colors.yellow,fontSize:13},
-  workoutCard:{minHeight:620,borderWidth:1,borderColor:colors.border,borderRadius:20,overflow:"hidden",backgroundColor:"#080809",position:"relative"},workoutImage:{position:"absolute",right:0,top:0,width:"49%",height:"83%"},imageShade:{position:"absolute",right:0,top:0,width:"58%",height:"84%",backgroundColor:"rgba(0,0,0,.28)"},workoutContent:{padding:15,paddingTop:17},workoutHead:{flexDirection:"row",alignItems:"center",gap:13,marginBottom:13,maxWidth:"73%"},hexIcon:{width:54,height:54,borderWidth:1,borderColor:colors.yellow,borderRadius:17,alignItems:"center",justifyContent:"center",backgroundColor:"rgba(0,0,0,.55)"},hexSmall:{width:48,height:48,borderRadius:15},hexGlyph:{color:colors.yellow,fontWeight:"900",fontSize:18},workoutTitle:{color:colors.text,fontWeight:"900",fontSize:23},workoutMeta:{color:colors.muted,fontSize:11,marginTop:7},exerciseRow:{minHeight:76,maxWidth:"64%",flexDirection:"row",alignItems:"center",gap:11,borderBottomWidth:1,borderBottomColor:colors.borderSoft},exerciseIndex:{width:38,height:38,borderRadius:19,backgroundColor:"rgba(255,196,0,.08)",alignItems:"center",justifyContent:"center"},exerciseIndexText:{color:colors.yellow,fontWeight:"900",fontSize:21},exerciseName:{color:colors.text,fontWeight:"800",fontSize:14},exerciseDetail:{color:colors.muted,fontSize:12,marginTop:5},arrowCircle:{width:32,height:32,borderRadius:16,backgroundColor:"rgba(20,20,21,.85)",alignItems:"center",justifyContent:"center"},arrowText:{color:colors.text,fontSize:28,lineHeight:29},emptyWorkout:{color:colors.muted,maxWidth:"55%",paddingVertical:54},homeSessionGroups:{
-  paddingTop:10,
-  paddingBottom:10,
-  paddingRight:"38%"
-},
-
-homeSessionGroup:{
-  marginBottom:12
-},
-
-homeSessionRounds:{
-  color:colors.muted,
-  fontSize:12,
-  fontWeight:"800",
-  marginTop:-2,
-  marginBottom:5
-},
-
-homeSessionTitle:{
-  color:colors.yellow,
-  fontSize:14,
-  fontWeight:"900",
-  letterSpacing:0.5,
-  marginBottom:5
-},
-
-homeSessionLine:{
-  flexDirection:"row",
-  alignItems:"flex-start",
-  marginBottom:3
-},
-
-homeSessionBullet:{
-  color:colors.yellow,
-  fontSize:14,
-  fontWeight:"900",
-  marginRight:6,
-  lineHeight:19
-},
-
-homeSessionText:{
-  flex:1,
-  color:colors.text,
-  fontSize:12,
-  fontWeight:"700",
-  lineHeight:17
-},
-
-startButton:{height:57,borderRadius:10,backgroundColor:colors.yellow,alignItems:"center",justifyContent:"center",flexDirection:"row",gap:12,marginTop:15},play:{color:"#060606",fontSize:16},startText:{color:"#060606",fontWeight:"900",fontSize:13},
+  workoutCard:{minHeight:430,borderWidth:1,borderColor:colors.border,borderRadius:20,overflow:"hidden",backgroundColor:"#080809",position:"relative"},workoutImage:{position:"absolute",right:0,top:0,width:"49%",height:"83%"},imageShade:{position:"absolute",right:0,top:0,width:"58%",height:"84%",backgroundColor:"rgba(0,0,0,.28)"},workoutContent:{padding:15,paddingTop:17},workoutHead:{flexDirection:"row",alignItems:"center",gap:13,marginBottom:13,maxWidth:"73%"},hexIcon:{width:54,height:54,borderWidth:1,borderColor:colors.yellow,borderRadius:17,alignItems:"center",justifyContent:"center",backgroundColor:"rgba(0,0,0,.55)"},hexSmall:{width:48,height:48,borderRadius:15},hexGlyph:{color:colors.yellow,fontWeight:"900",fontSize:18},workoutTitle:{color:colors.text,fontWeight:"900",fontSize:23},workoutMeta:{color:colors.muted,fontSize:11,marginTop:7},exerciseRow:{minHeight:76,maxWidth:"64%",flexDirection:"row",alignItems:"center",gap:11,borderBottomWidth:1,borderBottomColor:colors.borderSoft},exerciseIndex:{width:38,height:38,borderRadius:19,backgroundColor:"rgba(255,196,0,.08)",alignItems:"center",justifyContent:"center"},exerciseIndexText:{color:colors.yellow,fontWeight:"900",fontSize:21},exerciseName:{color:colors.text,fontWeight:"800",fontSize:14},exerciseDetail:{color:colors.muted,fontSize:12,marginTop:5},arrowCircle:{width:32,height:32,borderRadius:16,backgroundColor:"rgba(20,20,21,.85)",alignItems:"center",justifyContent:"center"},arrowText:{color:colors.text,fontSize:28,lineHeight:29},emptyWorkout:{color:colors.muted,maxWidth:"55%",paddingVertical:54},startButton:{height:57,borderRadius:10,backgroundColor:colors.yellow,alignItems:"center",justifyContent:"center",flexDirection:"row",gap:12,marginTop:15},play:{color:"#060606",fontSize:16},startText:{color:"#060606",fontWeight:"900",fontSize:13},
   nextCard:{minHeight:100,borderWidth:1,borderColor:colors.border,borderRadius:18,backgroundColor:"#09090A",padding:14,flexDirection:"row",alignItems:"center",gap:12,marginTop:12},smallCap:{color:colors.muted,fontSize:10,letterSpacing:.4},nextTitle:{color:colors.text,fontSize:19,fontWeight:"800",marginTop:4},muted:{color:colors.muted,fontSize:12,marginTop:3},chevron:{color:colors.text,fontSize:38,paddingHorizontal:8},
   routineCard:{minHeight:126,borderWidth:1,borderColor:colors.border,borderRadius:18,backgroundColor:"#09090A",padding:14,flexDirection:"row",alignItems:"center"},streakBlock:{width:98,alignItems:"center"},fire:{fontSize:29},streakNumber:{color:colors.text,fontSize:28,fontWeight:"900",position:"absolute",right:7,top:0},streakDays:{color:colors.muted,fontSize:11,position:"absolute",right:3,top:34},routineDivider:{width:1,height:88,backgroundColor:colors.border,marginHorizontal:12},weekBlock:{flex:1},daysRow:{flexDirection:"row",justifyContent:"space-between"},dayCol:{alignItems:"center",gap:7},dayLabel:{color:colors.muted,fontSize:10},dayDot:{width:30,height:30,borderRadius:15,borderWidth:2,borderColor:colors.border,alignItems:"center",justifyContent:"center"},dayDone:{backgroundColor:"#3C8B1B",borderColor:"#3C8B1B"},dayToday:{borderColor:colors.yellow},dayCheck:{color:colors.text,fontWeight:"900"},routineMessage:{color:colors.muted,fontSize:11,marginTop:9},
   metricScroller:{gap:8,paddingRight:4},metricCard:{width:104,minHeight:145,borderRadius:16,borderWidth:1,borderColor:colors.border,backgroundColor:"#0A0A0B",padding:12,alignItems:"center"},metricIcon:{fontSize:26,marginBottom:8},metricLabel:{color:colors.muted,fontSize:9},metricValue:{color:colors.text,fontSize:24,fontWeight:"800",marginTop:8},metricState:{fontWeight:"800",fontSize:11,marginTop:6},

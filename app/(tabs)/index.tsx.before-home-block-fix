@@ -56,36 +56,21 @@ export default function HomeScreen() {
   if (loading) return <View style={styles.center}><ActivityIndicator color={colors.yellow}/></View>;
 
   const homeBlockName = (we: any) => {
-    const notes = String(
-      we?.exercises?.prescription_notes ??
-      we?.prescription_notes ??
+    const raw = String(
+      we?.block ??
+      we?.block_name ??
+      we?.block_type ??
+      we?.section ??
+      we?.category ??
       ""
-    ).trim().toUpperCase();
+    ).toUpperCase();
 
-    if (notes.startsWith("WARM UP")) return "WARM UP";
-    if (notes.startsWith("STRENGTH WORK")) return "STRENGTH WORK";
-    if (notes.startsWith("RENFO")) return "RENFO";
-    if (notes.startsWith("WOD")) return "WOD";
+    if (raw.includes("WARM")) return "WARM UP";
+    if (raw.includes("STRENGTH")) return "STRENGTH WORK";
+    if (raw.includes("RENFO") || raw.includes("REINFORC")) return "RENFO";
+    if (raw.includes("WOD")) return "WOD";
 
     return "AUTRE";
-  };
-
-  const homeBlockRounds = (block: string) => {
-    const first = previewExercises.find(
-      (we: any) => homeBlockName(we) === block
-    );
-
-    if (!first) return "";
-
-    const notes = String(
-      first?.exercises?.prescription_notes ??
-      first?.prescription_notes ??
-      ""
-    );
-
-    const match = notes.match(/(\d+)\s*rounds?/i);
-
-    return match ? `${match[1]} rounds` : "";
   };
 
   const cleanHomePrescription = (value: any) => {
@@ -104,72 +89,24 @@ export default function HomeScreen() {
   };
 
   const homeExerciseText = (we: any) => {
-    const ex = we?.exercises ?? {};
+    const ex = we?.exercises;
     const name =
       ex?.name ??
       we?.exercise_name ??
       we?.name ??
       "Exercice";
 
-    const notes = String(
-      ex?.prescription_notes ??
-      we?.prescription_notes ??
-      ""
-    );
-
-    const block = homeBlockName(we);
-
-    // --------------------------------------------------------
-    // WARM UP / WOD :
-    // prescription_notes contient déjà les infos utiles.
-    // On retire seulement le nom du bloc + le nombre de rounds.
-    // --------------------------------------------------------
-
-    if (block === "WARM UP" || block === "WOD") {
-      let detail = notes
-        .replace(
-          /^(WARM UP|WOD)\s*[—–-]?\s*/i,
-          ""
-        )
-        .replace(
-          /^\d+\s*rounds?\s*[—–-]?\s*/i,
-          ""
-        );
-
-      detail = cleanHomePrescription(detail);
-
-      if (!detail) return name;
-
-      if (
-        detail
-          .toLowerCase()
-          .includes(String(name).toLowerCase())
-      ) {
-        return detail;
-      }
-
-      return `${detail} ${name}`.trim();
-    }
-
-    // --------------------------------------------------------
-    // STRENGTH / RENFO :
-    // séries, reps, charge ou % depuis prescribed_sets
-    // --------------------------------------------------------
-
     const sets = we?.prescribed_sets ?? [];
     const first = sets[0];
 
     if (first) {
       const setCount = sets.length || "";
-
       const reps =
         first?.target_reps ??
         first?.reps ??
         "";
 
-      const loadKg =
-        first?.target_load_kg;
-
+      const loadKg = first?.target_load_kg;
       const loadPct =
         first?.target_load_percent ??
         first?.target_percentage ??
@@ -194,15 +131,23 @@ export default function HomeScreen() {
       return cleanHomePrescription(line);
     }
 
-    let detail = notes
-      .replace(
-        /^(STRENGTH WORK|RENFO)\s*[—–-]?\s*/i,
-        ""
-      );
+    const prescription = cleanHomePrescription(
+      we?.prescription_notes ??
+      we?.prescription ??
+      ""
+    );
 
-    detail = cleanHomePrescription(detail);
+    if (!prescription) return name;
 
-    return detail || name;
+    if (
+      prescription.toLowerCase().includes(
+        String(name).toLowerCase()
+      )
+    ) {
+      return prescription;
+    }
+
+    return `${prescription} ${name}`.trim();
   };
 
   const homeSessionGroups = [
@@ -284,12 +229,6 @@ export default function HomeScreen() {
                       ? "RENFORCEMENT"
                       : group.block}
                   </Text>
-
-                  {homeBlockRounds(group.block) ? (
-                    <Text style={styles.homeSessionRounds}>
-                      {homeBlockRounds(group.block)}
-                    </Text>
-                  ) : null}
 
                   {group.exercises.map(
                     (we: any, index: number) => (
@@ -394,19 +333,11 @@ const styles = StyleSheet.create({
   workoutCard:{minHeight:620,borderWidth:1,borderColor:colors.border,borderRadius:20,overflow:"hidden",backgroundColor:"#080809",position:"relative"},workoutImage:{position:"absolute",right:0,top:0,width:"49%",height:"83%"},imageShade:{position:"absolute",right:0,top:0,width:"58%",height:"84%",backgroundColor:"rgba(0,0,0,.28)"},workoutContent:{padding:15,paddingTop:17},workoutHead:{flexDirection:"row",alignItems:"center",gap:13,marginBottom:13,maxWidth:"73%"},hexIcon:{width:54,height:54,borderWidth:1,borderColor:colors.yellow,borderRadius:17,alignItems:"center",justifyContent:"center",backgroundColor:"rgba(0,0,0,.55)"},hexSmall:{width:48,height:48,borderRadius:15},hexGlyph:{color:colors.yellow,fontWeight:"900",fontSize:18},workoutTitle:{color:colors.text,fontWeight:"900",fontSize:23},workoutMeta:{color:colors.muted,fontSize:11,marginTop:7},exerciseRow:{minHeight:76,maxWidth:"64%",flexDirection:"row",alignItems:"center",gap:11,borderBottomWidth:1,borderBottomColor:colors.borderSoft},exerciseIndex:{width:38,height:38,borderRadius:19,backgroundColor:"rgba(255,196,0,.08)",alignItems:"center",justifyContent:"center"},exerciseIndexText:{color:colors.yellow,fontWeight:"900",fontSize:21},exerciseName:{color:colors.text,fontWeight:"800",fontSize:14},exerciseDetail:{color:colors.muted,fontSize:12,marginTop:5},arrowCircle:{width:32,height:32,borderRadius:16,backgroundColor:"rgba(20,20,21,.85)",alignItems:"center",justifyContent:"center"},arrowText:{color:colors.text,fontSize:28,lineHeight:29},emptyWorkout:{color:colors.muted,maxWidth:"55%",paddingVertical:54},homeSessionGroups:{
   paddingTop:10,
   paddingBottom:10,
-  paddingRight:"38%"
+  paddingRight:"46%"
 },
 
 homeSessionGroup:{
   marginBottom:12
-},
-
-homeSessionRounds:{
-  color:colors.muted,
-  fontSize:12,
-  fontWeight:"800",
-  marginTop:-2,
-  marginBottom:5
 },
 
 homeSessionTitle:{
@@ -434,9 +365,9 @@ homeSessionBullet:{
 homeSessionText:{
   flex:1,
   color:colors.text,
-  fontSize:12,
+  fontSize:13,
   fontWeight:"700",
-  lineHeight:17
+  lineHeight:19
 },
 
 startButton:{height:57,borderRadius:10,backgroundColor:colors.yellow,alignItems:"center",justifyContent:"center",flexDirection:"row",gap:12,marginTop:15},play:{color:"#060606",fontSize:16},startText:{color:"#060606",fontWeight:"900",fontSize:13},
