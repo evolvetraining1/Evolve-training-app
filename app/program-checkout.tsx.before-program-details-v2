@@ -1,0 +1,493 @@
+import { router, useLocalSearchParams } from "expo-router";
+import { useMemo, useState } from "react";
+import {
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+
+import { colors } from "@/src/theme";
+
+const PROGRAMS = {
+  "tactical-reconditioning": {
+    title: "TACTICAL RECONDITIONING",
+    price: 300,
+    description:
+      "Reconditionnement physique complet orienté capacité de travail, force, endurance et retour à l'effort.",
+    image: require("@/assets/tactical-reconditioning.png"),
+  },
+
+  "power-building": {
+    title: "POWER BUILDING",
+    price: 300,
+    description:
+      "Programme force et hypertrophie pour développer les performances sur les mouvements principaux tout en construisant du muscle.",
+    image: null,
+  },
+} as const;
+
+export default function ProgramCheckoutScreen() {
+  const params = useLocalSearchParams<{
+    programId?: string;
+  }>();
+
+  const program = useMemo(() => {
+    const id = String(params.programId ?? "");
+
+    if (id in PROGRAMS) {
+      return PROGRAMS[id as keyof typeof PROGRAMS];
+    }
+
+    return null;
+  }, [params.programId]);
+
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+
+  const [message, setMessage] = useState("");
+
+  function continueToPayment() {
+    if (
+      !firstName.trim() ||
+      !lastName.trim() ||
+      !email.trim()
+    ) {
+      setMessage(
+        "Renseigne au minimum ton prénom, ton nom et ton e-mail."
+      );
+      return;
+    }
+
+    if (!email.includes("@")) {
+      setMessage("Entre une adresse e-mail valide.");
+      return;
+    }
+
+    setMessage(
+      "Paiement sécurisé : prochaine étape."
+    );
+  }
+
+  if (!program) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.error}>
+          Programme introuvable.
+        </Text>
+
+        <Pressable
+          style={styles.backButton}
+          onPress={() => router.back()}
+        >
+          <Text style={styles.backText}>
+            ← RETOUR
+          </Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  return (
+    <KeyboardAvoidingView
+      style={styles.screen}
+      behavior={
+        Platform.OS === "ios" ? "padding" : undefined
+      }
+    >
+      <ScrollView
+        contentContainerStyle={styles.page}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <Pressable
+          style={styles.backButton}
+          onPress={() => router.back()}
+        >
+          <Text style={styles.backText}>
+            ← RETOUR
+          </Text>
+        </Pressable>
+
+        <Text style={styles.kicker}>
+          EVOLVE TRAINING
+        </Text>
+
+        <Text style={styles.pageTitle}>
+          Finaliser
+        </Text>
+
+        <Text style={styles.subtitle}>
+          Vérifie ton programme et renseigne tes informations.
+        </Text>
+
+        <View style={styles.programCard}>
+          {program.image ? (
+            <Image
+              source={program.image}
+              style={styles.programImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={styles.placeholder}>
+              <Text style={styles.placeholderSmall}>
+                EVOLVE TRAINING
+              </Text>
+
+              <Text style={styles.placeholderTitle}>
+                POWER BUILDING
+              </Text>
+            </View>
+          )}
+
+          <View style={styles.programContent}>
+            <Text style={styles.programTitle}>
+              {program.title}
+            </Text>
+
+            <Text style={styles.programDescription}>
+              {program.description}
+            </Text>
+
+            <View style={styles.priceRow}>
+              <Text style={styles.price}>
+                {program.price} €
+              </Text>
+
+              <Text style={styles.paymentType}>
+                PAIEMENT UNIQUE
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.formCard}>
+          <Text style={styles.sectionTitle}>
+            TES INFORMATIONS
+          </Text>
+
+          <Text style={styles.label}>
+            Prénom *
+          </Text>
+
+          <TextInput
+            value={firstName}
+            onChangeText={setFirstName}
+            placeholder="Prénom"
+            placeholderTextColor={colors.muted}
+            style={styles.input}
+          />
+
+          <Text style={styles.label}>
+            Nom *
+          </Text>
+
+          <TextInput
+            value={lastName}
+            onChangeText={setLastName}
+            placeholder="Nom"
+            placeholderTextColor={colors.muted}
+            style={styles.input}
+          />
+
+          <Text style={styles.label}>
+            E-mail *
+          </Text>
+
+          <TextInput
+            value={email}
+            onChangeText={setEmail}
+            placeholder="ton@email.fr"
+            placeholderTextColor={colors.muted}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            style={styles.input}
+          />
+
+          <Text style={styles.label}>
+            Téléphone
+          </Text>
+
+          <TextInput
+            value={phone}
+            onChangeText={setPhone}
+            placeholder="06..."
+            placeholderTextColor={colors.muted}
+            keyboardType="phone-pad"
+            style={styles.input}
+          />
+        </View>
+
+        <View style={styles.paymentCard}>
+          <Text style={styles.sectionTitle}>
+            PAIEMENT
+          </Text>
+
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>
+              Total
+            </Text>
+
+            <Text style={styles.totalPrice}>
+              {program.price} €
+            </Text>
+          </View>
+
+          <Text style={styles.secureText}>
+            Les informations bancaires seront saisies
+            uniquement sur la page sécurisée du prestataire
+            de paiement.
+          </Text>
+
+          <Pressable
+            onPress={continueToPayment}
+            style={({ pressed }) => [
+              styles.payButton,
+              pressed && { opacity: 0.82 },
+            ]}
+          >
+            <Text style={styles.payButtonText}>
+              CONTINUER VERS LE PAIEMENT
+            </Text>
+          </Pressable>
+
+          {!!message && (
+            <Text style={styles.message}>
+              {message}
+            </Text>
+          )}
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: "transparent",
+  },
+
+  page: {
+    paddingHorizontal: 22,
+    paddingTop: 18,
+    paddingBottom: 100,
+  },
+
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+
+  error: {
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: "900",
+  },
+
+  backButton: {
+    marginBottom: 22,
+  },
+
+  backText: {
+    color: colors.yellow,
+    fontSize: 15,
+    fontWeight: "900",
+  },
+
+  kicker: {
+    color: colors.yellow,
+    fontSize: 13,
+    fontWeight: "900",
+    letterSpacing: 2,
+  },
+
+  pageTitle: {
+    color: colors.text,
+    fontSize: 38,
+    fontWeight: "900",
+    marginTop: 7,
+  },
+
+  subtitle: {
+    color: colors.muted,
+    fontSize: 15,
+    lineHeight: 22,
+    marginTop: 7,
+    marginBottom: 24,
+  },
+
+  programCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    overflow: "hidden",
+    marginBottom: 20,
+  },
+
+  programImage: {
+    width: "100%",
+    height: 190,
+    backgroundColor: "#080809",
+  },
+
+  placeholder: {
+    height: 190,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#080809",
+  },
+
+  placeholderSmall: {
+    color: colors.yellow,
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 2,
+    marginBottom: 8,
+  },
+
+  placeholderTitle: {
+    color: colors.text,
+    fontSize: 28,
+    fontWeight: "900",
+  },
+
+  programContent: {
+    padding: 18,
+  },
+
+  programTitle: {
+    color: colors.text,
+    fontSize: 21,
+    fontWeight: "900",
+  },
+
+  programDescription: {
+    color: colors.muted,
+    fontSize: 13,
+    lineHeight: 20,
+    marginTop: 8,
+  },
+
+  priceRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    marginTop: 16,
+  },
+
+  price: {
+    color: colors.yellow,
+    fontSize: 28,
+    fontWeight: "900",
+  },
+
+  paymentType: {
+    color: colors.muted,
+    fontSize: 10,
+    fontWeight: "800",
+  },
+
+  formCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    padding: 18,
+    marginBottom: 20,
+  },
+
+  sectionTitle: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: "900",
+    letterSpacing: 1,
+    marginBottom: 16,
+  },
+
+  label: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: "800",
+    marginBottom: 7,
+    marginTop: 10,
+  },
+
+  input: {
+    minHeight: 54,
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: "#101012",
+    color: colors.text,
+    paddingHorizontal: 14,
+    fontSize: 16,
+  },
+
+  paymentCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    padding: 18,
+  },
+
+  totalRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+
+  totalLabel: {
+    color: colors.text,
+    fontSize: 17,
+    fontWeight: "900",
+  },
+
+  totalPrice: {
+    color: colors.yellow,
+    fontSize: 27,
+    fontWeight: "900",
+  },
+
+  secureText: {
+    color: colors.muted,
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 15,
+  },
+
+  payButton: {
+    minHeight: 58,
+    borderRadius: 14,
+    backgroundColor: colors.yellow,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 20,
+  },
+
+  payButtonText: {
+    color: colors.black,
+    fontSize: 13,
+    fontWeight: "900",
+    letterSpacing: 0.3,
+  },
+
+  message: {
+    color: colors.yellow,
+    fontSize: 12,
+    fontWeight: "800",
+    textAlign: "center",
+    marginTop: 14,
+  },
+});

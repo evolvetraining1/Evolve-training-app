@@ -52,30 +52,36 @@ export default function HomeScreen() {
   useEffect(() => { load(); }, [load]);
 
   const score = recoveryScore(checkin);
-  const availableSessions = sessions.filter(
-    (s: any) => s.status !== "completed" && s.status !== "skipped"
-  );
-
-  const selectedProgram = myPrograms.find(
-    (program: any) => program.id === selectedProgramId
-  ) ?? myPrograms[0] ?? null;
-
-  const selectedProgramSessions = selectedProgram
-    ? availableSessions.filter(
-        (session: any) =>
-          session?.workout_templates?.program_id === selectedProgram.id
-      )
-    : availableSessions;
-
-  const next = selectedProgramSessions[0] ?? null;
-  const afterNext = selectedProgramSessions[1] ?? null;
-
+  const next = sessions.find(s => s.status !== "completed" && s.status !== "skipped");
+  const afterNext = sessions.filter(s => s.status !== "completed" && s.status !== "skipped")[1];
   const template:any = next?.workout_templates;
   const previewExercises = nextDetail?.workoutExercises ?? [];
   const checkinDates = useMemo(() => new Set(recentCheckins.map((x:any) => x.checkin_date)), [recentCheckins]);
   const streak = recentCheckins.length;
 
   
+  const selectedProgram =
+    myPrograms.find((program: any) => program.id === selectedProgramId) ??
+    myPrograms[0] ??
+    null;
+
+  const selectedProgramSession =
+    sessions.find((session: any) => {
+      const programId =
+        session?.program_id ??
+        session?.workout_templates?.program_id ??
+        session?.workout_template?.program_id ??
+        null;
+
+      return selectedProgram
+        ? programId === selectedProgram.id
+        : true;
+    }) ?? null;
+
+  const displayedSession =
+    selectedProgramSession ??
+    (selectedProgramId ? null : sessions?.[0] ?? null);
+
   async function switchProgram(programId: string) {
     if (!programId || programId === selectedProgramId) return;
 

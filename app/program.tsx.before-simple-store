@@ -1,0 +1,329 @@
+import { router } from "expo-router";
+import {
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+
+import { colors } from "@/src/theme";
+
+const PROGRAMS = [
+  {
+    id: "tactical-reconditioning",
+    title: "TACTICAL RECONDITIONING",
+    description:
+      "Une programmation complète conçue pour développer force utile, endurance, capacité de travail et résilience. Tactical Reconditioning combine renforcement musculaire, conditionnement métabolique et travail fonctionnel pour construire une préparation physique polyvalente et exigeante.",
+    price: 300,
+    sessions: "4 à 5 séances / semaine",
+    duration: "60 à 75 min / séance",
+    level: "Intermédiaire à avancé",
+    image: require("@/assets/tactical-reconditioning.png"),
+  },
+  {
+    id: "power-building",
+    title: "POWER BUILDING",
+    description:
+      "Une programmation hybride force et hypertrophie pensée pour augmenter les performances sur les mouvements fondamentaux tout en développant la masse musculaire. Le travail combine mouvements lourds, volume ciblé et progression structurée.",
+    price: 300,
+    sessions: "4 à 5 séances / semaine",
+    duration: "60 à 90 min / séance",
+    level: "Intermédiaire",
+    image: null,
+  },
+];
+
+export default function ProgramScreen() {
+  return (
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.page}
+      showsVerticalScrollIndicator={false}
+    >
+      <Pressable
+        onPress={() => router.back()}
+        style={styles.back}
+      >
+        <Text style={styles.backText}>← RETOUR</Text>
+      </Pressable>
+
+      <Text style={styles.kicker}>EVOLVE TRAINING</Text>
+
+      <Text style={styles.title}>
+        Programmes
+      </Text>
+
+      <Text style={styles.subtitle}>
+        Choisis la programmation adaptée à ton objectif.
+      </Text>
+
+      <View style={styles.programList}>
+        {PROGRAMS.map((program) => (
+          <View
+            key={program.id}
+            style={styles.programCard}
+          >
+            {program.image ? (
+              <Image
+                source={program.image}
+                style={styles.programImage}
+                resizeMode="contain"
+              />
+            ) : (
+              <View style={styles.placeholder}>
+                <Text style={styles.placeholderKicker}>
+                  EVOLVE TRAINING
+                </Text>
+                <Text style={styles.placeholderTitle}>
+                  POWER
+                </Text>
+                <Text style={styles.placeholderTitle}>
+                  BUILDING
+                </Text>
+              </View>
+            )}
+
+            <View style={styles.programBody}>
+              <Text style={styles.programTitle}>
+                {program.title}
+              </Text>
+
+              <Text style={styles.programDescription}>
+                {program.description}
+              </Text>
+
+              <View style={styles.programStats}>
+                <View style={styles.programStat}>
+                  <Text style={styles.programStatLabel}>
+                    SÉANCES / SEMAINE
+                  </Text>
+                  <Text style={styles.programStatValue}>
+                    {program.sessions}
+                  </Text>
+                </View>
+
+                <View style={styles.programStat}>
+                  <Text style={styles.programStatLabel}>
+                    DURÉE MOYENNE
+                  </Text>
+                  <Text style={styles.programStatValue}>
+                    {program.duration}
+                  </Text>
+                </View>
+
+                <View style={styles.programStat}>
+                  <Text style={styles.programStatLabel}>
+                    NIVEAU
+                  </Text>
+                  <Text style={styles.programStatValue}>
+                    {program.level}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.priceRow}>
+                <Text style={styles.price}>
+                  {program.price} €
+                </Text>
+
+                <Text style={styles.paymentLabel}>
+                  PAIEMENT UNIQUE
+                </Text>
+              </View>
+
+              <Pressable
+                style={({ pressed }) => [
+                  styles.button,
+                  pressed && { opacity: 0.82 },
+                ]}
+                onPress={() =>
+                  router.push({
+                    pathname: "/program-checkout",
+                    params: {
+                      programId: program.id,
+                    },
+                  })
+                }
+              >
+                <Text style={styles.buttonText}>
+                  VOIR LE PROGRAMME
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        ))}
+      </View>
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: "transparent",
+  },
+
+  page: {
+    paddingHorizontal: 22,
+    paddingTop: 18,
+    paddingBottom: 110,
+  },
+
+  back: {
+    marginBottom: 24,
+  },
+
+  backText: {
+    color: colors.yellow,
+    fontSize: 15,
+    fontWeight: "900",
+  },
+
+  kicker: {
+    color: colors.yellow,
+    fontSize: 13,
+    fontWeight: "900",
+    letterSpacing: 2.2,
+    marginBottom: 8,
+  },
+
+  title: {
+    color: colors.text,
+    fontSize: 38,
+    lineHeight: 42,
+    fontWeight: "900",
+  },
+
+  subtitle: {
+    color: colors.muted,
+    fontSize: 16,
+    lineHeight: 23,
+    marginTop: 8,
+    marginBottom: 26,
+  },
+
+  programList: {
+    gap: 24,
+  },
+
+  programCard: {
+    overflow: "hidden",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+
+  programImage: {
+    width: "100%",
+    height: 390,
+    backgroundColor: "#080809",
+  },
+
+  placeholder: {
+    height: 215,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#080809",
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+
+  placeholderKicker: {
+    color: colors.yellow,
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 2,
+    marginBottom: 10,
+  },
+
+  placeholderTitle: {
+    color: colors.text,
+    fontSize: 32,
+    lineHeight: 34,
+    fontWeight: "900",
+    letterSpacing: 1,
+  },
+
+  programBody: {
+    padding: 18,
+  },
+
+  programTitle: {
+    color: colors.text,
+    fontSize: 22,
+    lineHeight: 26,
+    fontWeight: "900",
+  },
+
+  programDescription: {
+    color: colors.muted,
+    fontSize: 14,
+    lineHeight: 21,
+    marginTop: 9,
+  },
+
+  programStats: {
+    marginTop: 18,
+    gap: 13,
+  },
+
+  programStat: {
+    borderLeftWidth: 3,
+    borderLeftColor: colors.yellow,
+    paddingLeft: 11,
+  },
+
+  programStatLabel: {
+    color: colors.yellow,
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 0.8,
+  },
+
+  programStatValue: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: "800",
+    marginTop: 3,
+  },
+
+  priceRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    marginTop: 18,
+  },
+
+  price: {
+    color: colors.yellow,
+    fontSize: 28,
+    fontWeight: "900",
+  },
+
+  paymentLabel: {
+    color: colors.muted,
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.8,
+    marginBottom: 4,
+  },
+
+  button: {
+    height: 56,
+    borderRadius: 14,
+    marginTop: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.yellow,
+  },
+
+  buttonText: {
+    color: colors.black,
+    fontSize: 14,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+  },
+});

@@ -22,14 +22,7 @@ const PROGRAMS = [
     id: "power-building",
     title: "POWER BUILDING",
     price: 300,
-    image: require("@/assets/power-building.png"),
-  },
-
-  {
-    id: "protocole-2pm",
-    title: "PROTOCOLE 2PM",
-    price: 200,
-    image: require("@/assets/protocole-2pm.png"),
+    image: null,
   },
 ];
 

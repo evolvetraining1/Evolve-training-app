@@ -25,7 +25,7 @@ export async function getMyUpcomingSessions() {
     .select(`
       id, scheduled_for, status, started_at, completed_at, session_rpe,
       workout_template_id,
-      workout_templates ( id, name, notes, estimated_minutes, program_id )
+      workout_templates ( id, name, notes, estimated_minutes )
     `)
     .eq("athlete_id", id)
     .order("scheduled_for", { ascending: true })
