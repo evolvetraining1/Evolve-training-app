@@ -1,0 +1,238 @@
+import { router } from "expo-router";
+import {
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+
+import { colors } from "@/src/theme";
+
+const PROGRAMS = [
+  {
+    id: "tactical-reconditioning",
+    title: "TACTICAL RECONDITIONING",
+    price: 300,
+    image: require("@/assets/tactical-reconditioning.png"),
+  },
+
+  {
+    id: "power-building",
+    title: "POWER BUILDING",
+    price: 300,
+    image: require("@/assets/power-building.png"),
+  },
+
+  {
+    id: "protocole-2pm",
+    title: "PROTOCOLE 2PM",
+    price: 200,
+    image: require("@/assets/protocole-2pm.png"),
+  },
+];
+
+export default function ProgramScreen() {
+  return (
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.page}
+      showsVerticalScrollIndicator={false}
+    >
+      <Pressable
+        onPress={() => router.replace("/(tabs)")}
+        style={styles.back}
+      >
+        <Text style={styles.backText}>
+          ← RETOUR
+        </Text>
+      </Pressable>
+
+      <Text style={styles.kicker}>
+        EVOLVE TRAINING
+      </Text>
+
+      <Text style={styles.title}>
+        Programmes
+      </Text>
+
+      <Text style={styles.subtitle}>
+        Choisis ta programmation.
+      </Text>
+
+      <View style={styles.programList}>
+        {PROGRAMS.map((program) => (
+          <Pressable
+            key={program.id}
+            style={({ pressed }) => [
+              styles.programCard,
+              pressed && { opacity: 0.86 },
+            ]}
+            onPress={() =>
+              router.push({
+                pathname: "/program-checkout",
+                params: {
+                  programId: program.id,
+                },
+              })
+            }
+          >
+            {program.image ? (
+              <Image
+                source={program.image}
+                style={styles.programImage}
+                resizeMode="contain"
+              />
+            ) : (
+              <View style={styles.placeholder}>
+                <Text style={styles.placeholderKicker}>
+                  EVOLVE TRAINING
+                </Text>
+
+                <Text style={styles.placeholderTitle}>
+                  POWER
+                </Text>
+
+                <Text style={styles.placeholderTitle}>
+                  BUILDING
+                </Text>
+              </View>
+            )}
+
+            <View style={styles.priceArea}>
+              <Text style={styles.programTitle}>
+                {program.title}
+              </Text>
+
+              <View style={styles.priceRow}>
+                <Text style={styles.price}>
+                  {program.price} €
+                </Text>
+
+                <Text style={styles.tapLabel}>
+                  VOIR →
+                </Text>
+              </View>
+            </View>
+          </Pressable>
+        ))}
+      </View>
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: "transparent",
+  },
+
+  page: {
+    paddingHorizontal: 22,
+    paddingTop: 18,
+    paddingBottom: 110,
+  },
+
+  back: {
+    marginBottom: 24,
+  },
+
+  backText: {
+    color: colors.yellow,
+    fontSize: 15,
+    fontWeight: "900",
+  },
+
+  kicker: {
+    color: colors.yellow,
+    fontSize: 13,
+    fontWeight: "900",
+    letterSpacing: 2.2,
+    marginBottom: 8,
+  },
+
+  title: {
+    color: colors.text,
+    fontSize: 38,
+    lineHeight: 42,
+    fontWeight: "900",
+  },
+
+  subtitle: {
+    color: colors.muted,
+    fontSize: 16,
+    marginTop: 8,
+    marginBottom: 26,
+  },
+
+  programList: {
+    gap: 24,
+  },
+
+  programCard: {
+    overflow: "hidden",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+
+  programImage: {
+    width: "100%",
+    height: 390,
+    backgroundColor: "#080809",
+  },
+
+  placeholder: {
+    height: 390,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#080809",
+  },
+
+  placeholderKicker: {
+    color: colors.yellow,
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 2,
+    marginBottom: 12,
+  },
+
+  placeholderTitle: {
+    color: colors.text,
+    fontSize: 36,
+    lineHeight: 38,
+    fontWeight: "900",
+  },
+
+  priceArea: {
+    padding: 18,
+  },
+
+  programTitle: {
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: "900",
+  },
+
+  priceRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    marginTop: 12,
+  },
+
+  price: {
+    color: colors.yellow,
+    fontSize: 30,
+    fontWeight: "900",
+  },
+
+  tapLabel: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: "900",
+    marginBottom: 4,
+  },
+});

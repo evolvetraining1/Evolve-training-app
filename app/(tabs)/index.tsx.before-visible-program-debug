@@ -11,8 +11,7 @@ import SideMenu from "@/src/components/SideMenu";
 import { colors } from "@/src/theme";
 import {
   getLatestPerformance, getMyProfile, getMyUpcomingSessions, getRecentCheckins, getMyProgramsWithSelection, setSelectedProgramId,
-  getSessionDetail, getTodayCheckin,
-  getProgramDetail
+  getSessionDetail, getTodayCheckin
 } from "@/src/lib/api";
 import { displayDuration, recoveryLabel, recoveryScore } from "@/src/lib/dashboard";
 
@@ -35,7 +34,6 @@ export default function HomeScreen() {
   const [selectedProgramId, setSelectedProgramIdState] =
     useState<string | null>(null);
   const [switchingProgram, setSwitchingProgram] = useState(false);
-  const [selectedProgramTemplates, setSelectedProgramTemplates] = useState<any[]>([]);
 
 
   const load = useCallback(async () => {
@@ -128,38 +126,6 @@ export default function HomeScreen() {
     (program: any) => program.id === selectedProgramId
   ) ?? myPrograms[0] ?? null;
 
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadSelectedProgramTemplates() {
-      if (!selectedProgram?.id) {
-        setSelectedProgramTemplates([]);
-        return;
-      }
-
-      try {
-        const detail = await getProgramDetail(String(selectedProgram.id));
-
-        if (!cancelled) {
-          setSelectedProgramTemplates(detail?.workouts ?? []);
-        }
-      } catch (e) {
-        console.error("PROGRAM TEMPLATES LOAD ERROR", e);
-
-        if (!cancelled) {
-          setSelectedProgramTemplates([]);
-        }
-      }
-    }
-
-    loadSelectedProgramTemplates();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedProgram?.id]);
-
   const selectedProgramSessions = selectedProgram
     ? availableSessions.filter(
         (session: any) =>
@@ -170,10 +136,7 @@ export default function HomeScreen() {
   const next = selectedProgramSessions[0] ?? null;
   const afterNext = selectedProgramSessions[1] ?? null;
 
-  const template:any =
-    next?.workout_templates ??
-    selectedProgramTemplates[0] ??
-    null;
+  const template:any = next?.workout_templates;
   const previewExercises = nextDetail?.workoutExercises ?? [];
   const checkinDates = useMemo(() => new Set(recentCheckins.map((x:any) => x.checkin_date)), [recentCheckins]);
   const streak = recentCheckins.length;
@@ -476,28 +439,9 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
                 </ScrollView>
 
         <Pressable
-          disabled={!next && !template?.id}
-          onPress={() => {
-            if (next?.id) {
-              router.push({
-                pathname: "/workout",
-                params: { sessionId: next.id },
-              });
-              return;
-            }
-
-            if (template?.id) {
-              router.push({
-                pathname: "/program-workout",
-                params: { workoutId: template.id },
-              });
-            }
-          }}
-          style={[
-            styles.startButton,
-            !next && !template?.id && { opacity: .45 }
-          ]}
-        >
+              disabled={!next}
+              onPress={() => next && router.push({ pathname: "/workout", params: { sessionId: next.id } })}
+              style={[styles.startButton, !next && { opacity: .45 }]}>
               <Text style={styles.play}>▶</Text><Text style={styles.startText}>{next?.status === "in_progress" ? "REPRENDRE LA SÉANCE" : "COMMENCER LA SÉANCE"}</Text>
             </Pressable>
           </View>
@@ -545,6 +489,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
           <View style={{ alignItems: "flex-end", minWidth: 55 }}><Text style={styles.prUp}>{performance?.deltaKg ? `↑ ${performance.deltaKg} kg` : ""}</Text></View>
         </View>
       
+
       {/* ===== MES PROGRAMMES ===== */}
 
       {myPrograms.length > 0 ? (
