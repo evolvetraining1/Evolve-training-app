@@ -39,14 +39,80 @@ export default function HomeScreen() {
   const load = useCallback(async () => {
     try {
       setError(null);
-      const [p, s, c, rc, perf] = await Promise.all([
-        getMyProfile(), getMyUpcomingSessions(), getTodayCheckin(), getRecentCheckins(7), getLatestPerformance()
-      ]);
-      setProfile(p); setSessions(s); setCheckin(c); setRecentCheckins(rc); setPerformance(perf);
-      const active = s.find((x:any) => x.status !== "completed" && x.status !== "skipped");
-      if (active?.id) setNextDetail(await getSessionDetail(active.id)); else setNextDetail(null);
-    } catch (e:any) { setError(e?.message ?? "Impossible de charger les données"); }
-    finally { setLoading(false); setRefreshing(false); }
+
+      const [p, sessionsData, c, rc, perf, programData] =
+        await Promise.all([
+          getMyProfile(),
+          getMyUpcomingSessions(),
+          getTodayCheckin(),
+          getRecentCheckins(7),
+          getLatestPerformance(),
+          getMyProgramsWithSelection(),
+        ]);
+
+      setProfile(p);
+      setSessions(sessionsData);
+      setCheckin(c);
+      setRecentCheckins(rc);
+      setPerformance(perf);
+
+      const ownedPrograms = programData?.programs ?? [];
+
+      console.log("=== HOME PROGRAM DEBUG ===");
+      console.log("programData:", JSON.stringify(programData));
+      console.log("ownedPrograms:", JSON.stringify(ownedPrograms));
+      console.log("ownedPrograms count:", ownedPrograms.length);
+
+      setMyPrograms(ownedPrograms);
+
+      const savedProgramId =
+        programData?.selectedProgramId &&
+        ownedPrograms.some(
+          (program: any) =>
+            String(program.id) ===
+            String(programData.selectedProgramId)
+        )
+          ? String(programData.selectedProgramId)
+          : ownedPrograms[0]?.id
+            ? String(ownedPrograms[0].id)
+            : null;
+
+      setSelectedProgramIdState(savedProgramId);
+
+      const filteredSessions = savedProgramId
+        ? sessionsData.filter(
+            (session: any) =>
+              String(session?.workout_templates?.program_id ?? "") ===
+              String(savedProgramId)
+          )
+        : sessionsData;
+
+      const active =
+        filteredSessions.find(
+          (session: any) =>
+            session.status !== "completed" &&
+            session.status !== "skipped"
+        ) ??
+        filteredSessions[0] ??
+        null;
+
+      if (active?.id) {
+        setNextDetail(await getSessionDetail(active.id));
+      } else {
+        setNextDetail(null);
+      }
+
+    } catch (e: any) {
+      console.error("HOME LOAD ERROR", e);
+
+      setError(
+        e?.message ??
+          "Impossible de charger les données"
+      );
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -423,7 +489,6 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
           <View style={{ alignItems: "flex-end", minWidth: 55 }}><Text style={styles.prUp}>{performance?.deltaKg ? `↑ ${performance.deltaKg} kg` : ""}</Text></View>
         </View>
       
-
       {/* ===== MES PROGRAMMES ===== */}
 
       {myPrograms.length > 0 ? (
