@@ -9,9 +9,9 @@ type LocalSet = {
   prescribedId?: string | null;
   workoutExerciseId: string;
   setNumber: number;
-  reps: number;
-  load: number;
-  rpe: number;
+  reps: string;
+  load: string;
+  rpe: string;
   done: boolean;
 };
 
@@ -38,9 +38,9 @@ export default function WorkoutScreen() {
             prescribedId: ps.id,
             workoutExerciseId: we.id,
             setNumber: ps.set_number,
-            reps: existing?.reps ?? ps.target_reps ?? 0,
-            load: Number(existing?.load_kg ?? ps.target_load_kg ?? 0),
-            rpe: Number(existing?.rpe ?? ps.target_rpe ?? 8),
+            reps: existing?.reps != null ? String(existing.reps) : ps.target_reps != null ? String(ps.target_reps) : "",
+            load: existing?.load_kg != null ? String(existing.load_kg) : ps.target_load_kg != null ? String(ps.target_load_kg) : "",
+            rpe: existing?.rpe != null ? String(existing.rpe) : ps.target_rpe != null ? String(ps.target_rpe) : "",
             done: existing?.completed ?? false,
           };
         });
@@ -68,9 +68,9 @@ export default function WorkoutScreen() {
         workout_exercise_id: exerciseId,
         prescribed_set_id: item.prescribedId,
         set_number: item.setNumber,
-        reps: item.reps,
-        load_kg: item.load,
-        rpe: item.rpe,
+        reps: Number(String(item.reps).replace(",", ".")) || 0,
+        load_kg: String(item.load).includes("%") ? 0 : (Number(String(item.load).replace(",", ".")) || 0),
+        rpe: String(item.rpe).trim() ? Number(String(item.rpe).replace(",", ".")) : null,
         completed: next,
       });
     } catch (e: any) {
@@ -174,7 +174,7 @@ export default function WorkoutScreen() {
                           value={String(item.reps)}
                           onChangeText={(v) =>
                             patch(we.id, item.setNumber, {
-                              reps: Number(v || 0),
+                              reps: v,
                             })
                           }
                         />
@@ -185,7 +185,7 @@ export default function WorkoutScreen() {
                           value={String(item.load)}
                           onChangeText={(v) =>
                             patch(we.id, item.setNumber, {
-                              load: Number(v.replace(",", ".") || 0),
+                              load: v,
                             })
                           }
                         />
@@ -196,7 +196,7 @@ export default function WorkoutScreen() {
                           value={String(item.rpe)}
                           onChangeText={(v) =>
                             patch(we.id, item.setNumber, {
-                              rpe: Number(v.replace(",", ".") || 0),
+                              rpe: v,
                             })
                           }
                         />
