@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { router, useLocalSearchParams } from "expo-router";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Card, PrimaryButton, ScreenHeader } from "@/src/components/ui";
 import { colors } from "@/src/theme";
-import { completeWorkoutSession, getSessionDetail, savePerformedSet, startWorkoutSession } from "@/src/lib/api";
+import { completeWorkoutSession, getNextWorkoutSession, getSessionDetail, savePerformedSet, startWorkoutSession } from "@/src/lib/api";
 
 type LocalSet = {
   prescribedId?: string | null;
@@ -250,18 +250,34 @@ export default function WorkoutScreen() {
     }
   }
 
-  async function finish() {
-    const all = Object.values(sets).flat();
+  function getTrackableSets() {
+    const trackableExerciseIds = new Set(
+      (detail?.workoutExercises ?? [])
+        .filter((we: any) => {
+          const notes = String(we?.prescription_notes ?? "")
+            .trim()
+            .toUpperCase();
 
-    if (!all.length || !all.every((s) => s.done)) {
-      setMessage("Valide toutes les séries avant de terminer.");
-      return;
-    }
+          // Warm-up et WOD sont présentés sous forme de résumé :
+          // ils ne bloquent donc pas la validation finale.
+          return !notes.startsWith("WARM UP") && !notes.startsWith("WOD");
+        })
+        .map((we: any) => we.id)
+    );
+
+    return Object.values(sets)
+      .flat()
+      .filter((item) => trackableExerciseIds.has(item.workoutExerciseId));
+  }
+
+  async function finalizeWorkout() {
+    const all = Object.values(sets).flat();
 
     try {
       setMessage("");
 
-      // Resauvegarde toutes les valeurs actuelles avant de clôturer
+      // On sauvegarde exactement l'état réel des séries.
+      // Une série non cochée reste non complétée.
       await Promise.all(
         all.map((item) =>
           savePerformedSet({
@@ -276,14 +292,26 @@ export default function WorkoutScreen() {
             rpe: String(item.rpe).trim()
               ? Number(String(item.rpe).replace(",", "."))
               : null,
-            completed: true,
+            completed: item.done,
           })
         )
       );
 
       await completeWorkoutSession(sessionId!);
 
-      router.replace("/(tabs)");
+      // Cherche la séance suivante du même programme :
+      // semaine puis jour.
+      const nextSession = await getNextWorkoutSession(sessionId!);
+
+      if (nextSession?.id) {
+        router.replace({
+          pathname: "/workout",
+          params: { sessionId: nextSession.id },
+        });
+      } else {
+        // Fin du programme ou aucune prochaine séance prévue.
+        router.replace("/(tabs)");
+      }
     } catch (e: any) {
       console.error("FINISH WORKOUT ERROR", e);
       setMessage(
@@ -291,6 +319,37 @@ export default function WorkoutScreen() {
           "Impossible de terminer la séance."
       );
     }
+  }
+
+  function finish() {
+    const trackable = getTrackableSets();
+    const remaining = trackable.filter((item) => !item.done).length;
+
+    if (remaining > 0) {
+      Alert.alert(
+        "Séance incomplète",
+        `${remaining} ${
+          remaining === 1 ? "série n'est pas validée" : "séries ne sont pas validées"
+        }. Terminer quand même la séance ?`,
+        [
+          {
+            text: "ANNULER",
+            style: "cancel",
+          },
+          {
+            text: "TERMINER QUAND MÊME",
+            style: "destructive",
+            onPress: () => {
+              void finalizeWorkout();
+            },
+          },
+        ]
+      );
+
+      return;
+    }
+
+    void finalizeWorkout();
   }
 
   if (loading) return <View style={styles.center}><ActivityIndicator /></View>;
@@ -503,7 +562,7 @@ export default function WorkoutScreen() {
           ));
       })()}
 
-      <PrimaryButton label="TERMINER LA SÉANCE" onPress={finish} />
+      <PrimaryButton label="VALIDER LA SÉANCE" onPress={finish} />
       {message ? <Text style={styles.message}>{message}</Text> : null}
     </ScrollView>
   );

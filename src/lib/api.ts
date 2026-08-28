@@ -101,6 +101,87 @@ export async function completeWorkoutSession(sessionId: string, sessionRpe?: num
   return data;
 }
 
+
+export async function getNextWorkoutSession(sessionId: string) {
+  const { data: current, error: currentError } = await supabase
+    .from("workout_sessions")
+    .select(`
+      id,
+      athlete_id,
+      workout_template_id,
+      workout_templates!inner(
+        program_id,
+        week_number,
+        day_number,
+        name
+      )
+    `)
+    .eq("id", sessionId)
+    .single();
+
+  if (currentError) throw currentError;
+  if (!current) return null;
+
+  const currentTemplate: any = Array.isArray((current as any).workout_templates)
+    ? (current as any).workout_templates[0]
+    : (current as any).workout_templates;
+
+  if (!currentTemplate?.program_id) return null;
+
+  const { data: candidates, error } = await supabase
+    .from("workout_sessions")
+    .select(`
+      id,
+      workout_template_id,
+      scheduled_for,
+      created_at,
+      status,
+      workout_templates!inner(
+        program_id,
+        week_number,
+        day_number,
+        name
+      )
+    `)
+    .eq("athlete_id", (current as any).athlete_id)
+    .eq("status", "planned")
+    .eq("workout_templates.program_id", currentTemplate.program_id)
+    .neq("id", sessionId);
+
+  if (error) throw error;
+
+  const currentWeek = Number(currentTemplate.week_number ?? 0);
+  const currentDay = Number(currentTemplate.day_number ?? 0);
+
+  const ordered = (candidates ?? [])
+    .map((session: any) => {
+      const template = Array.isArray(session.workout_templates)
+        ? session.workout_templates[0]
+        : session.workout_templates;
+
+      return {
+        session,
+        week: Number(template?.week_number ?? 0),
+        day: Number(template?.day_number ?? 0),
+      };
+    })
+    .filter(
+      ({ week, day }) =>
+        week > currentWeek ||
+        (week === currentWeek && day > currentDay)
+    )
+    .sort((a, b) => {
+      if (a.week !== b.week) return a.week - b.week;
+      if (a.day !== b.day) return a.day - b.day;
+
+      return String(a.session.created_at ?? "").localeCompare(
+        String(b.session.created_at ?? "")
+      );
+    });
+
+  return ordered[0]?.session ?? null;
+}
+
 export async function savePerformedSet(input: {
   workout_session_id: string;
   workout_exercise_id: string;
