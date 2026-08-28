@@ -13,7 +13,8 @@ import {
   getLatestPerformance, getMyProfile, getMyUpcomingSessions, getRecentCheckins, getMyProgramsWithSelection, setSelectedProgramId,
   getSessionDetail, getTodayCheckin,
   getProgramDetail,
-  getWorkoutTemplateDetail
+  getWorkoutTemplateDetail,
+  getOrCreateWorkoutSession
 } from "@/src/lib/api";
 import { displayDuration, recoveryLabel, recoveryScore } from "@/src/lib/dashboard";
 
@@ -128,8 +129,29 @@ export default function HomeScreen() {
   );
 
   const score = recoveryScore(checkin);
+
+  // Un template est considéré terminé dès qu'au moins une de ses sessions
+  // a été validée ou passée. Cela neutralise les anciennes sessions doublons.
+  const finishedTemplateIds = new Set(
+    sessions
+      .filter(
+        (session: any) =>
+          session.status === "completed" ||
+          session.status === "skipped"
+      )
+      .map((session: any) =>
+        String(session.workout_template_id ?? "")
+      )
+      .filter(Boolean)
+  );
+
   const availableSessions = sessions.filter(
-    (s: any) => s.status !== "completed" && s.status !== "skipped"
+    (session: any) =>
+      session.status !== "completed" &&
+      session.status !== "skipped" &&
+      !finishedTemplateIds.has(
+        String(session.workout_template_id ?? "")
+      )
   );
 
   const selectedProgram = myPrograms.find(
@@ -169,18 +191,68 @@ export default function HomeScreen() {
   }, [selectedProgram?.id]);
 
   const selectedProgramSessions = selectedProgram
-    ? availableSessions.filter(
-        (session: any) =>
-          session?.workout_templates?.program_id === selectedProgram.id
-      )
+    ? availableSessions
+        .filter(
+          (session: any) =>
+            String(session?.workout_templates?.program_id ?? "") ===
+            String(selectedProgram.id)
+        )
+        // Sécurité supplémentaire contre les doublons planned/in_progress :
+        // une seule session par template.
+        .filter(
+          (session: any, index: number, all: any[]) =>
+            index ===
+            all.findIndex(
+              (candidate: any) =>
+                String(candidate.workout_template_id) ===
+                String(session.workout_template_id)
+            )
+        )
+        .sort((a: any, b: any) => {
+          const aWeek = Number(a?.workout_templates?.week_number ?? 999);
+          const bWeek = Number(b?.workout_templates?.week_number ?? 999);
+
+          if (aWeek !== bWeek) return aWeek - bWeek;
+
+          const aDay = Number(a?.workout_templates?.day_number ?? 999);
+          const bDay = Number(b?.workout_templates?.day_number ?? 999);
+
+          if (aDay !== bDay) return aDay - bDay;
+
+          return String(a?.scheduled_for ?? "").localeCompare(
+            String(b?.scheduled_for ?? "")
+          );
+        })
     : availableSessions;
+
+  // Templates du programme dans l'ordre Semaine -> Jour.
+  const orderedProgramTemplates = [...selectedProgramTemplates].sort(
+    (a: any, b: any) => {
+      const aWeek = Number(a?.week_number ?? 999);
+      const bWeek = Number(b?.week_number ?? 999);
+
+      if (aWeek !== bWeek) return aWeek - bWeek;
+
+      return (
+        Number(a?.day_number ?? 999) -
+        Number(b?.day_number ?? 999)
+      );
+    }
+  );
+
+  // Premier template pas encore validé.
+  const firstUnfinishedTemplate =
+    orderedProgramTemplates.find(
+      (item: any) =>
+        !finishedTemplateIds.has(String(item.id))
+    ) ?? null;
 
   const next = selectedProgramSessions[0] ?? null;
   const afterNext = selectedProgramSessions[1] ?? null;
 
-  const template:any =
+  const template: any =
     next?.workout_templates ??
-    selectedProgramTemplates[0] ??
+    firstUnfinishedTemplate ??
     null;
 
 
@@ -531,10 +603,20 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
             }
 
             if (template?.id) {
-              router.push({
-                pathname: "/program-workout",
-                params: { workoutId: template.id },
-              });
+              getOrCreateWorkoutSession(String(template.id))
+                .then((session) => {
+                  router.push({
+                    pathname: "/workout",
+                    params: { sessionId: session.id },
+                  });
+                })
+                .catch((e) => {
+                  console.error("CREATE WORKOUT SESSION ERROR", e);
+                  setError(
+                    e?.message ??
+                      "Impossible de démarrer cette séance."
+                  );
+                });
             }
           }}
           style={[

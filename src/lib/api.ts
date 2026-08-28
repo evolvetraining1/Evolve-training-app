@@ -25,7 +25,15 @@ export async function getMyUpcomingSessions() {
     .select(`
       id, scheduled_for, status, started_at, completed_at, session_rpe,
       workout_template_id,
-      workout_templates ( id, name, notes, estimated_minutes, program_id )
+      workout_templates (
+        id,
+        name,
+        notes,
+        estimated_minutes,
+        program_id,
+        week_number,
+        day_number
+      )
     `)
     .eq("athlete_id", id)
     .order("scheduled_for", { ascending: true })
@@ -693,4 +701,38 @@ export async function getMyProgramsWithSelection() {
     programs,
     selectedProgramId,
   };
+}
+
+export async function getOrCreateWorkoutSession(workoutTemplateId: string) {
+  const athleteId = await currentUserId();
+
+  // Réutilise une session existante non terminée pour ce template.
+  const { data: existing, error: existingError } = await supabase
+    .from("workout_sessions")
+    .select("id, status, scheduled_for, workout_template_id")
+    .eq("athlete_id", athleteId)
+    .eq("workout_template_id", workoutTemplateId)
+    .in("status", ["planned", "in_progress"])
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (existingError) throw existingError;
+  if (existing) return existing;
+
+  // Sinon crée une vraie session exécutable.
+  const { data: created, error: createError } = await supabase
+    .from("workout_sessions")
+    .insert({
+      athlete_id: athleteId,
+      workout_template_id: workoutTemplateId,
+      status: "planned",
+      scheduled_for: new Date().toISOString(),
+    })
+    .select("id, status, scheduled_for, workout_template_id")
+    .single();
+
+  if (createError) throw createError;
+
+  return created;
 }
