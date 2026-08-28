@@ -4,10 +4,12 @@ import { ImageBackground, StyleSheet } from "react-native";
 import { SessionProvider } from "@/src/store/session";
 import { AuthProvider } from "@/src/store/auth";
 import { colors } from "@/src/theme";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 export default function RootLayout() {
   return (
-    <ImageBackground
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ImageBackground
       source={require("../assets/evolve-concrete-dark.png")}
       style={styles.background}
       resizeMode="cover"
@@ -29,7 +31,8 @@ export default function RootLayout() {
         </Stack>
       </SessionProvider>
     </AuthProvider>
-    </ImageBackground>
+      </ImageBackground>
+    </GestureHandlerRootView>
   );
 }
 
