@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { SymbolView } from "expo-symbols";
 import {
   ActivityIndicator, Image, Pressable, RefreshControl, ScrollView,
@@ -119,7 +119,13 @@ export default function HomeScreen() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useFocusEffect(
+    useCallback(() => {
+      load();
+
+      return () => {};
+    }, [load])
+  );
 
   const score = recoveryScore(checkin);
   const availableSessions = sessions.filter(

@@ -252,12 +252,45 @@ export default function WorkoutScreen() {
 
   async function finish() {
     const all = Object.values(sets).flat();
+
     if (!all.length || !all.every((s) => s.done)) {
       setMessage("Valide toutes les séries avant de terminer.");
       return;
     }
-    await completeWorkoutSession(sessionId!);
-    router.replace("/(tabs)/stats");
+
+    try {
+      setMessage("");
+
+      // Resauvegarde toutes les valeurs actuelles avant de clôturer
+      await Promise.all(
+        all.map((item) =>
+          savePerformedSet({
+            workout_session_id: sessionId!,
+            workout_exercise_id: item.workoutExerciseId,
+            prescribed_set_id: item.prescribedId,
+            set_number: item.setNumber,
+            reps: Number(String(item.reps).replace(",", ".")) || 0,
+            load_kg: String(item.load).includes("%")
+              ? 0
+              : Number(String(item.load).replace(",", ".")) || 0,
+            rpe: String(item.rpe).trim()
+              ? Number(String(item.rpe).replace(",", "."))
+              : null,
+            completed: true,
+          })
+        )
+      );
+
+      await completeWorkoutSession(sessionId!);
+
+      router.replace("/(tabs)");
+    } catch (e: any) {
+      console.error("FINISH WORKOUT ERROR", e);
+      setMessage(
+        e?.message ??
+          "Impossible de terminer la séance."
+      );
+    }
   }
 
   if (loading) return <View style={styles.center}><ActivityIndicator /></View>;
@@ -364,15 +397,13 @@ export default function WorkoutScreen() {
                           key={we.id}
                           style={styles.phaseSummaryExercise}
                         >
-                          <Text style={styles.phaseSummaryName}>
-                            {we.exercises?.name ?? "Exercice"}
-                          </Text>
-
-                          {we.prescription_notes ? (
-                            <Text style={styles.phaseSummaryPrescription}>
-                              {we.prescription_notes}
-                            </Text>
-                          ) : null}
+                          <Text style={styles.phaseSummaryLine}>
+                                {exerciseDisplayLine(
+                                  we.exercises?.name,
+                                  we.prescription_notes,
+                                  block
+                                )}
+                              </Text>
 
                           {we.exercises?.instructions ? (
                             <Text style={styles.phaseSummaryInstructions}>
@@ -386,13 +417,13 @@ export default function WorkoutScreen() {
                 ) : (
                   grouped[block].map((we: any) => (
                     <Card key={we.id} style={styles.exerciseCard}>
-                      <Text style={styles.exerciseName}>
-                        {we.exercises?.name ?? "Exercice"}
-                      </Text>
-
-                      <Text style={styles.muted}>
-                        {we.prescription_notes ?? ""}
-                      </Text>
+                      <Text style={styles.exerciseLine}>
+                          {exerciseDisplayLine(
+                            we.exercises?.name,
+                            we.prescription_notes,
+                            block
+                          )}
+                        </Text>
 
                       {(sets[we.id] ?? []).length > 0 && (
                         <View style={styles.tableHeader}>
@@ -608,7 +639,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 7,
-    marginTop: 10,
+    marginTop: 14,
     marginBottom: 7,
   },
 
@@ -617,7 +648,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "900",
     textAlign: "center",
-    letterSpacing: 0.4,
+    letterSpacing: 0.5,
   },
 
   seriesHeader: {
@@ -630,12 +661,47 @@ const styles = StyleSheet.create({
 
   checkHeader: {
     width: 42,
+    alignItems: "center",
   },
 
-  row: { flexDirection: "row", alignItems: "center", gap: 7, marginBottom: 9 },
-  number: { width: 24, color: colors.text, fontWeight: "900", textAlign: "center" },
-  input: { flex: 1, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.text, paddingVertical: 10, textAlign: "center", fontWeight: "800" },
-  check: { width: 42, height: 42, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2, alignItems: "center", justifyContent: "center" },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    marginBottom: 9,
+  },
+
+  number: {
+    width: 42,
+    color: colors.text,
+    fontWeight: "900",
+    textAlign: "center",
+  },
+
+  input: {
+    flex: 1,
+    minWidth: 0,
+    height: 42,
+    backgroundColor: colors.surface2,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 10,
+    color: colors.text,
+    textAlign: "center",
+    fontWeight: "800",
+    paddingHorizontal: 4,
+  },
+
+  check: {
+    width: 42,
+    height: 42,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   done: { backgroundColor: colors.green, borderColor: colors.green },
   checkText: { color: "#111", fontSize: 20, fontWeight: "900" },
   message: { color: colors.yellow, textAlign: "center", marginTop: 12, fontWeight: "800" },
