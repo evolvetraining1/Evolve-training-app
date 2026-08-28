@@ -216,6 +216,15 @@ export default function HomeScreen() {
   const [selectedTemplateDetail, setSelectedTemplateDetail] = useState<any>(null);
 
 
+  const orderedVisibleDashboardWidgets = dashboardWidgets.filter(
+    (widget) => widget.visible
+  );
+
+  const dashboardWidgetOrder = (id: DashboardWidgetId) => {
+    const index = orderedVisibleDashboardWidgets.findIndex((widget) => widget.id === id);
+    return index === -1 ? 999 : index;
+  };
+
   const dashboardWidgetVisible = (id: DashboardWidgetId) =>
     dashboardWidgets.some(
       (widget) => widget.id === id && widget.visible
@@ -772,6 +781,10 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
 
         {error ? <View style={styles.errorCard}><Text style={styles.error}>{error}</Text></View> : null}
 
+        {orderedVisibleDashboardWidgets.map((widget) => (
+          <View key={widget.id}>
+            {widget.id === "workout" ? (
+              <>
         <SectionTitle title="SÉANCE DU JOUR" />
         <Pressable
           onLongPress={() => setDashboardEditMode(true)}
@@ -779,9 +792,12 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
           style={styles.workoutCard}
         >
           {dashboardEditMode ? (
-            <View style={styles.dashboardHandleWorkout}>
+            <Pressable
+              onPress={() => setMovingWidgetId("workout")}
+              style={styles.dashboardHandleWorkout}
+            >
               <Text style={styles.dashboardHandleText}>≡</Text>
-            </View>
+            </Pressable>
           ) : null}
           <Image source={require("@/assets/workout-male-faded.png")} style={styles.workoutImage} resizeMode="cover" />
           <View style={styles.imageShade} />
@@ -889,6 +905,11 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
           </View>
         </Pressable>
 
+              </>
+            ) : null}
+
+            {widget.id === "nextWorkout" ? (
+              <>
         <Pressable
           onLongPress={() => setDashboardEditMode(true)}
           delayLongPress={450}
@@ -920,6 +941,11 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
           <Text style={styles.chevron}>›</Text>
         </Pressable>
 
+              </>
+            ) : null}
+
+            {widget.id === "routine" ? (
+              <>
         <SectionTitle title="SUIVI DE ROUTINE" action="Voir le suivi  →" onAction={() => router.push("/(tabs)/journal")} />
         <Pressable
           onLongPress={() => setDashboardEditMode(true)}
@@ -956,6 +982,11 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
           </View>
         </Pressable>
 
+              </>
+            ) : null}
+
+            {widget.id === "today" ? (
+              <>
         <View style={styles.dashboardSectionWrap}>
           <SectionTitle title="AUJOURD’HUI" action="Voir le suivi  →" onAction={() => router.push("/(tabs)/journal")} />
 
@@ -986,6 +1017,11 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
         </ScrollView>
         </View>
 
+              </>
+            ) : null}
+
+            {widget.id === "performance" ? (
+              <>
         <SectionTitle title="DERNIÈRES PERFORMANCES" action="Voir tout  →" onAction={() => router.push("/(tabs)/stats")} />
         <Pressable
           onLongPress={() => setDashboardEditMode(true)}
@@ -1017,6 +1053,11 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
       
       {/* ===== WIDGETS OPTIONNELS ===== */}
 
+                    </>
+            ) : null}
+
+            {widget.id === "nutrition" ? (
+              <>
       {dashboardWidgetVisible("nutrition") ? (
         <Pressable
           onLongPress={() => setDashboardEditMode(true)}
@@ -1069,6 +1110,11 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
       ) : null}
 
 
+                    </>
+            ) : null}
+
+            {widget.id === "messaging" ? (
+              <>
       {dashboardWidgetVisible("messaging") ? (
         <Pressable
           onLongPress={() => setDashboardEditMode(true)}
@@ -1109,6 +1155,11 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
       ) : null}
 
 
+                    </>
+            ) : null}
+
+            {widget.id === "oneRM" ? (
+              <>
       {dashboardWidgetVisible("oneRM") ? (
         <Pressable
           onLongPress={() => setDashboardEditMode(true)}
@@ -1152,6 +1203,11 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
       ) : null}
 
 
+                    </>
+            ) : null}
+
+            {widget.id === "macros" ? (
+              <>
       {dashboardWidgetVisible("macros") ? (
         <Pressable
           onLongPress={() => setDashboardEditMode(true)}
@@ -1273,6 +1329,11 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
       ) : null}
 
 
+              </>
+            ) : null}
+
+            {widget.id === "programs" ? (
+              <>
       {/* ===== MES PROGRAMMES ===== */}
 
       {myPrograms.length > 0 ? (
@@ -1290,9 +1351,12 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
                 <Text style={styles.dashboardRemoveSmallText}>×</Text>
               </Pressable>
 
-              <View style={styles.dashboardHandleSide}>
+              <Pressable
+                onPress={() => setMovingWidgetId("programs")}
+                style={styles.dashboardHandleSide}
+              >
                 <Text style={styles.dashboardHandleText}>≡</Text>
-              </View>
+              </Pressable>
             </>
           ) : null}
           <Text style={styles.programSwitcherTitle}>
@@ -1352,8 +1416,12 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
           ) : null}
         </Pressable>
       ) : null}
+              </>
+            ) : null}
+          </View>
+        ))}
 
-</ScrollView>
+      </ScrollView>
 
       {dashboardEditMode && movingWidgetId ? (
         <View style={styles.widgetMovePanel}>
