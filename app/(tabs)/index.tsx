@@ -12,7 +12,8 @@ import { colors } from "@/src/theme";
 import {
   getLatestPerformance, getMyProfile, getMyUpcomingSessions, getRecentCheckins, getMyProgramsWithSelection, setSelectedProgramId,
   getSessionDetail, getTodayCheckin,
-  getProgramDetail
+  getProgramDetail,
+  getWorkoutTemplateDetail
 } from "@/src/lib/api";
 import { displayDuration, recoveryLabel, recoveryScore } from "@/src/lib/dashboard";
 
@@ -36,6 +37,7 @@ export default function HomeScreen() {
     useState<string | null>(null);
   const [switchingProgram, setSwitchingProgram] = useState(false);
   const [selectedProgramTemplates, setSelectedProgramTemplates] = useState<any[]>([]);
+  const [selectedTemplateDetail, setSelectedTemplateDetail] = useState<any>(null);
 
 
   const load = useCallback(async () => {
@@ -174,7 +176,41 @@ export default function HomeScreen() {
     next?.workout_templates ??
     selectedProgramTemplates[0] ??
     null;
-  const previewExercises = nextDetail?.workoutExercises ?? [];
+
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSelectedTemplateDetail() {
+      if (!template?.id || next?.id) {
+        setSelectedTemplateDetail(null);
+        return;
+      }
+
+      try {
+        const detail = await getWorkoutTemplateDetail(String(template.id));
+
+        if (!cancelled) {
+          setSelectedTemplateDetail(detail);
+        }
+      } catch (e) {
+        console.error("TEMPLATE DETAIL LOAD ERROR", e);
+
+        if (!cancelled) {
+          setSelectedTemplateDetail(null);
+        }
+      }
+    }
+
+    loadSelectedTemplateDetail();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [template?.id, next?.id]);
+  const previewExercises = next?.id
+    ? (nextDetail?.workoutExercises ?? [])
+    : (selectedTemplateDetail?.workoutExercises ?? []);
   const checkinDates = useMemo(() => new Set(recentCheckins.map((x:any) => x.checkin_date)), [recentCheckins]);
   const streak = recentCheckins.length;
 
@@ -183,6 +219,8 @@ export default function HomeScreen() {
     if (!programId || programId === selectedProgramId) return;
 
     try {
+      setNextDetail(null);
+      setSelectedTemplateDetail(null);
       setSwitchingProgram(true);
 
       await setSelectedProgramId(programId);
@@ -425,7 +463,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
           showsVerticalScrollIndicator={false}
           overScrollMode="never"
         >
-{next ? (
+{(next || template) ? (
           previewExercises.length ? (
             <View style={styles.homeSessionGroups}>
               {homeSessionGroups.map((group) => (
