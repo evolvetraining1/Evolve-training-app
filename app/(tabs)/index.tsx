@@ -6,6 +6,12 @@ import {
   StyleSheet, Text, TextInput, View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  NestableDraggableFlatList,
+  NestableScrollContainer,
+  RenderItemParams,
+} from "react-native-draggable-flatlist";
+
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import BrandLogo from "@/src/components/BrandLogo";
 import SideMenu from "@/src/components/SideMenu";
@@ -219,6 +225,11 @@ export default function HomeScreen() {
   const orderedVisibleDashboardWidgets = dashboardWidgets.filter(
     (widget) => widget.visible
   );
+
+  const saveDraggedWidgetOrder = (visibleWidgets: DashboardWidget[]) => {
+    const hiddenWidgets = dashboardWidgets.filter((widget) => !widget.visible);
+    saveDashboardWidgets([...visibleWidgets, ...hiddenWidgets]);
+  };
 
   const dashboardWidgetOrder = (id: DashboardWidgetId) => {
     const index = orderedVisibleDashboardWidgets.findIndex((widget) => widget.id === id);
@@ -714,7 +725,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
   return (
     <View style={styles.root}>
       <SideMenu visible={menuOpen} onClose={() => setMenuOpen(false)} role={profile?.role} />
-      <ScrollView
+      <NestableScrollContainer
         contentContainerStyle={styles.page}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl tintColor={colors.yellow} refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }}/>}>
@@ -781,8 +792,16 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
 
         {error ? <View style={styles.errorCard}><Text style={styles.error}>{error}</Text></View> : null}
 
-        {orderedVisibleDashboardWidgets.map((widget) => (
-          <View key={widget.id}>
+        <NestableDraggableFlatList
+          data={orderedVisibleDashboardWidgets}
+          keyExtractor={(item) => item.id}
+          scrollEnabled={false}
+          onDragEnd={({ data }) => saveDraggedWidgetOrder(data)}
+          renderItem={({ item: widget, drag, isActive }: RenderItemParams<DashboardWidget>) => (
+          <View
+            key={widget.id}
+            style={{ opacity: isActive ? 0.92 : 1 }}
+          >
             {widget.id === "workout" ? (
               <>
         <SectionTitle title="SÉANCE DU JOUR" />
@@ -793,7 +812,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
         >
           {dashboardEditMode ? (
             <Pressable
-              onPress={() => setMovingWidgetId("workout")}
+              onLongPress={drag}
               style={styles.dashboardHandleWorkout}
             >
               <Text style={styles.dashboardHandleText}>≡</Text>
@@ -925,7 +944,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
               </Pressable>
 
               <Pressable
-                onPress={() => setMovingWidgetId("nextWorkout")}
+                onLongPress={drag}
                 style={styles.dashboardHandleSide}
               >
                 <Text style={styles.dashboardHandleText}>≡</Text>
@@ -962,7 +981,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
               </Pressable>
 
               <Pressable
-                onPress={() => setMovingWidgetId("routine")}
+                onLongPress={drag}
                 style={styles.dashboardHandleSide}
               >
                 <Text style={styles.dashboardHandleText}>≡</Text>
@@ -1000,7 +1019,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
               </Pressable>
 
               <Pressable
-                onPress={() => setMovingWidgetId("today")}
+                onLongPress={drag}
                 style={styles.dashboardHandleSection}
               >
                 <Text style={styles.dashboardHandleText}>≡</Text>
@@ -1038,7 +1057,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
               </Pressable>
 
               <Pressable
-                onPress={() => setMovingWidgetId("performance")}
+                onLongPress={drag}
                 style={styles.dashboardHandleSide}
               >
                 <Text style={styles.dashboardHandleText}>≡</Text>
@@ -1074,7 +1093,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
               </Pressable>
 
               <Pressable
-                onPress={() => setMovingWidgetId("nutrition")}
+                onLongPress={drag}
                 style={styles.dashboardHandleSide}
               >
                 <Text style={styles.dashboardHandleText}>≡</Text>
@@ -1133,7 +1152,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
               </Pressable>
 
               <Pressable
-                onPress={() => setMovingWidgetId("messaging")}
+                onLongPress={drag}
                 style={styles.dashboardHandleSide}
               >
                 <Text style={styles.dashboardHandleText}>≡</Text>
@@ -1178,7 +1197,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
               </Pressable>
 
               <Pressable
-                onPress={() => setMovingWidgetId("oneRM")}
+                onLongPress={drag}
                 style={styles.dashboardHandleSide}
               >
                 <Text style={styles.dashboardHandleText}>≡</Text>
@@ -1224,7 +1243,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
               </Pressable>
 
               <Pressable
-                onPress={() => setMovingWidgetId("macros")}
+                onLongPress={drag}
                 style={styles.dashboardHandleSide}
               >
                 <Text style={styles.dashboardHandleText}>≡</Text>
@@ -1352,7 +1371,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
               </Pressable>
 
               <Pressable
-                onPress={() => setMovingWidgetId("programs")}
+                onLongPress={drag}
                 style={styles.dashboardHandleSide}
               >
                 <Text style={styles.dashboardHandleText}>≡</Text>
@@ -1419,9 +1438,10 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
               </>
             ) : null}
           </View>
-        ))}
+          )}
+        />
 
-      </ScrollView>
+      </NestableScrollContainer>
 
       {dashboardEditMode && movingWidgetId ? (
         <View style={styles.widgetMovePanel}>
