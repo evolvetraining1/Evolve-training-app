@@ -775,7 +775,26 @@ export async function getOrCreateWorkoutSession(workoutTemplateId: string) {
     .select("id, status, scheduled_for, workout_template_id")
     .single();
 
-  if (createError) throw createError;
+  if (createError) {
+    // Deux appels simultanés peuvent tenter de créer la même session.
+    // L'index unique Supabase bloque le doublon (Postgres 23505).
+    // Dans ce cas, on récupère simplement la session créée par l'autre appel.
+    if (createError.code === "23505") {
+      const { data: concurrentSession, error: concurrentError } = await supabase
+        .from("workout_sessions")
+        .select("id, status, scheduled_for, workout_template_id")
+        .eq("athlete_id", athleteId)
+        .eq("workout_template_id", workoutTemplateId)
+        .in("status", ["planned", "in_progress"])
+        .limit(1)
+        .maybeSingle();
+
+      if (concurrentError) throw concurrentError;
+      if (concurrentSession) return concurrentSession;
+    }
+
+    throw createError;
+  }
 
   return created;
 }
