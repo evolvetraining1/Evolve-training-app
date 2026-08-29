@@ -333,11 +333,12 @@ export default function MessagingScreen() {
         .from("messages")
         .select("*")
         .eq("conversation_id", conversation.id)
-        .order("created_at", { ascending: true });
+        .order("created_at", { ascending: false })
+        .limit(100);
 
       if (historyError) throw historyError;
 
-      const loadedMessages = (history ?? []) as Message[];
+      const loadedMessages = ([...(history ?? [])].reverse()) as Message[];
       setMessages(loadedMessages);
 
       const signedEntries = await Promise.all(
