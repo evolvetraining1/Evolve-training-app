@@ -89,7 +89,8 @@ function buildFallbackSets(we: any): LocalSet[] {
 
   if (setRepMatch) {
     setCount = Number(setRepMatch[1]);
-    reps = setRepMatch[2].replace(/\s+/g, "");
+    const prescribedReps = setRepMatch[2].replace(/\s+/g, "");
+    reps = /[-–]/.test(prescribedReps) ? "" : prescribedReps;
   }
 
   // 3 rounds — 10 reps
@@ -119,7 +120,9 @@ function buildFallbackSets(we: any): LocalSet[] {
   );
 
   if (percentMatch) {
-    load = `${percentMatch[1].replace(",", ".")}%`;
+    // Le pourcentage reste visible dans la prescription.
+    // L'athlète saisit ici la charge réellement utilisée en kg.
+    load = "";
   } else {
     // Charge en kg
     const kgMatch = notes.match(
@@ -161,6 +164,70 @@ function buildFallbackSets(we: any): LocalSet[] {
     rpe,
     done: false,
   }));
+}
+
+function parsePerformedValues(item: LocalSet) {
+  const repsRaw = String(item.reps).trim();
+
+  let reps = 0;
+
+  if (repsRaw) {
+    if (!/^\d+$/.test(repsRaw)) {
+      throw new Error(
+        `Série ${item.setNumber} : indique un nombre entier de répétitions.`
+      );
+    }
+
+    reps = Number(repsRaw);
+  }
+
+  const loadRaw = String(item.load).trim();
+
+  let loadKg = 0;
+
+  if (loadRaw) {
+    if (loadRaw.includes("%")) {
+      throw new Error(
+        `Série ${item.setNumber} : remplace le pourcentage par la charge réellement utilisée en kg.`
+      );
+    }
+
+    const parsedLoad = Number(loadRaw.replace(",", "."));
+
+    if (!Number.isFinite(parsedLoad) || parsedLoad < 0) {
+      throw new Error(
+        `Série ${item.setNumber} : charge invalide.`
+      );
+    }
+
+    loadKg = parsedLoad;
+  }
+
+  const rpeRaw = String(item.rpe).trim();
+
+  let rpe: number | null = null;
+
+  if (rpeRaw) {
+    const parsedRpe = Number(rpeRaw.replace(",", "."));
+
+    if (
+      !Number.isFinite(parsedRpe) ||
+      parsedRpe < 1 ||
+      parsedRpe > 10
+    ) {
+      throw new Error(
+        `Série ${item.setNumber} : le RPE doit être compris entre 1 et 10.`
+      );
+    }
+
+    rpe = parsedRpe;
+  }
+
+  return {
+    reps,
+    load_kg: loadKg,
+    rpe,
+  };
 }
 
 export default function WorkoutScreen() {
@@ -239,9 +306,7 @@ export default function WorkoutScreen() {
         workout_exercise_id: exerciseId,
         prescribed_set_id: item.prescribedId,
         set_number: item.setNumber,
-        reps: Number(String(item.reps).replace(",", ".")) || 0,
-        load_kg: String(item.load).includes("%") ? 0 : (Number(String(item.load).replace(",", ".")) || 0),
-        rpe: String(item.rpe).trim() ? Number(String(item.rpe).replace(",", ".")) : null,
+        ...parsePerformedValues(item),
         completed: next,
       });
     } catch (e: any) {
@@ -284,13 +349,7 @@ export default function WorkoutScreen() {
             workout_exercise_id: item.workoutExerciseId,
             prescribed_set_id: item.prescribedId,
             set_number: item.setNumber,
-            reps: Number(String(item.reps).replace(",", ".")) || 0,
-            load_kg: String(item.load).includes("%")
-              ? 0
-              : Number(String(item.load).replace(",", ".")) || 0,
-            rpe: String(item.rpe).trim()
-              ? Number(String(item.rpe).replace(",", "."))
-              : null,
+            ...parsePerformedValues(item),
             completed: item.done,
           })
         )
