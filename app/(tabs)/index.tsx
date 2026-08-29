@@ -307,21 +307,75 @@ export default function HomeScreen() {
     try {
       setError(null);
 
-      const [p, sessionsData, c, rc, perf, programData] =
-        await Promise.all([
-          getMyProfile(),
-          getMyUpcomingSessions(),
-          getTodayCheckin(),
-          getRecentCheckins(7),
-          getLatestPerformance(),
-          getMyProgramsWithSelection(),
-        ]);
+      const results = await Promise.allSettled([
+        getMyProfile(),
+        getMyUpcomingSessions(),
+        getTodayCheckin(),
+        getRecentCheckins(7),
+        getLatestPerformance(),
+        getMyProgramsWithSelection(),
+      ]);
+
+      const [
+        profileResult,
+        sessionsResult,
+        checkinResult,
+        recentCheckinsResult,
+        performanceResult,
+        programsResult,
+      ] = results;
+
+      const p =
+        profileResult.status === "fulfilled"
+          ? profileResult.value
+          : null;
+
+      const sessionsData =
+        sessionsResult.status === "fulfilled"
+          ? sessionsResult.value
+          : [];
+
+      const c =
+        checkinResult.status === "fulfilled"
+          ? checkinResult.value
+          : null;
+
+      const rc =
+        recentCheckinsResult.status === "fulfilled"
+          ? recentCheckinsResult.value
+          : [];
+
+      const perf =
+        performanceResult.status === "fulfilled"
+          ? performanceResult.value
+          : null;
+
+      const programData =
+        programsResult.status === "fulfilled"
+          ? programsResult.value
+          : null;
 
       setProfile(p);
       setSessions(sessionsData);
       setCheckin(c);
       setRecentCheckins(rc);
       setPerformance(perf);
+
+      const failedLoads = results.filter(
+        (result) => result.status === "rejected"
+      );
+
+      if (failedLoads.length) {
+        failedLoads.forEach((result) => {
+          if (result.status === "rejected") {
+            console.error("HOME PARTIAL LOAD ERROR", result.reason);
+          }
+        });
+
+        setError(
+          "Certaines données n’ont pas pu être chargées."
+        );
+      }
 
       const ownedPrograms = programData?.programs ?? [];
 
