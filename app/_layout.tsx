@@ -3,39 +3,39 @@ import { StatusBar } from "expo-status-bar";
 import { ImageBackground, StyleSheet } from "react-native";
 import { SessionProvider } from "@/src/store/session";
 import { AuthProvider } from "@/src/store/auth";
-import { colors } from "@/src/theme";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ImageBackground
-      source={require("../assets/evolve-concrete-dark.png")}
-      style={styles.background}
-      resizeMode="cover"
-    >
-      <AuthProvider>
-      <SessionProvider>
-        <StatusBar style="light" />
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "transparent" } }}>
-          <Stack.Screen name="index" />
-          <Stack.Screen name="login" />
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="workout" />
-          <Stack.Screen name="program" />
-          <Stack.Screen name="program-workout" />
-          <Stack.Screen name="nutrition" />
-          <Stack.Screen name="coach" />
-          <Stack.Screen name="coach-workout" />
-          <Stack.Screen name="invite" />
-        </Stack>
-      </SessionProvider>
-    </AuthProvider>
+        source={require("../assets/evolve-concrete-dark.png")}
+        style={styles.background}
+        resizeMode="cover"
+      >
+        <AuthProvider>
+          <SessionProvider>
+            <StatusBar style="light" />
+            <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "transparent" } }}>
+              <Stack.Screen name="index" />
+              <Stack.Screen name="login" />
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen name="workout" />
+              <Stack.Screen name="program" />
+              <Stack.Screen name="program-workout" />
+              <Stack.Screen name="nutrition" />
+              <Stack.Screen name="messaging" />
+              <Stack.Screen name="rm-calculator" />
+              <Stack.Screen name="coach" />
+              <Stack.Screen name="coach-workout" />
+              <Stack.Screen name="invite" />
+            </Stack>
+          </SessionProvider>
+        </AuthProvider>
       </ImageBackground>
     </GestureHandlerRootView>
   );
 }
-
 
 const styles = StyleSheet.create({
   background: {
