@@ -409,7 +409,14 @@ export default function MessagingScreen() {
       media_url: storagePath,
     });
 
-    if (sendError) throw sendError;
+    if (sendError) {
+      await supabase.storage
+        .from("chat-media")
+        .remove([storagePath])
+        .catch(() => {});
+
+      throw sendError;
+    }
   }
 
   async function pickMedia() {
@@ -564,7 +571,14 @@ export default function MessagingScreen() {
           media_duration: durationSeconds,
         });
 
-      if (sendError) throw sendError;
+      if (sendError) {
+        await supabase.storage
+          .from("chat-media")
+          .remove([storagePath])
+          .catch(() => {});
+
+        throw sendError;
+      }
 
       setTimeout(() => {
         scrollRef.current?.scrollToEnd({ animated: true });
