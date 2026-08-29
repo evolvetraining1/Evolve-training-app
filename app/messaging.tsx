@@ -304,9 +304,27 @@ export default function MessagingScreen() {
           .select("id")
           .single();
 
-        if (createError) throw createError;
+        if (createError) {
+          // Si coach et athlète créent la conversation simultanément,
+          // l'index unique bloque le second INSERT.
+          // On récupère alors la conversation créée par l'autre appel.
+          if (createError.code === "23505") {
+            const { data: concurrentConversation, error: concurrentError } =
+              await supabase
+                .from("conversations")
+                .select("id")
+                .eq("coach_id", coachId)
+                .eq("athlete_id", athleteId)
+                .single();
 
-        conversation = created;
+            if (concurrentError) throw concurrentError;
+            conversation = concurrentConversation;
+          } else {
+            throw createError;
+          }
+        } else {
+          conversation = created;
+        }
       }
 
       setConversationId(conversation.id);
