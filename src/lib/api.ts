@@ -21,6 +21,8 @@ export async function getMyProfile() {
 
 export async function getMyUpcomingSessions() {
   const id = await currentUserId();
+  const today = localDateString();
+
   const { data, error } = await supabase
     .from("workout_sessions")
     .select(`
@@ -37,9 +39,13 @@ export async function getMyUpcomingSessions() {
       )
     `)
     .eq("athlete_id", id)
+    .in("status", ["planned", "in_progress"])
+    .or(`status.eq.in_progress,scheduled_for.gte.${today}`)
     .order("scheduled_for", { ascending: true })
-    .limit(20);
+    .limit(50);
+
   if (error) throw error;
+
   return data ?? [];
 }
 
