@@ -116,6 +116,7 @@ export default function MessagingScreen() {
   const [error, setError] = useState("");
 
   const scrollRef = useRef<ScrollView>(null);
+  const messagesRef = useRef<Message[]>([]);
 
   useEffect(() => {
     bootstrap();
@@ -127,6 +128,52 @@ export default function MessagingScreen() {
       allowsRecording: true,
     }).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  useEffect(() => {
+    if (!conversationId) return;
+
+    const refreshSignedMediaUrls = async () => {
+      const mediaMessages = messagesRef.current.filter(
+        (m) =>
+          (m.type === "image" ||
+            m.type === "video" ||
+            m.type === "audio") &&
+          m.media_url
+      );
+
+      if (!mediaMessages.length) return;
+
+      const refreshed = await Promise.all(
+        mediaMessages.map(async (m) => {
+          try {
+            const url = await getSignedMediaUrl(m.media_url!);
+            return [m.id, url] as const;
+          } catch {
+            return null;
+          }
+        })
+      );
+
+      const entries = refreshed.filter(Boolean) as [string, string][];
+
+      if (entries.length) {
+        setMediaUrls((current) => ({
+          ...current,
+          ...Object.fromEntries(entries),
+        }));
+      }
+    };
+
+    const interval = setInterval(() => {
+      void refreshSignedMediaUrls();
+    }, 45 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, [conversationId]);
 
   useEffect(() => {
     if (!conversationId) return;
