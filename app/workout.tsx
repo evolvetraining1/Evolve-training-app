@@ -273,11 +273,10 @@ export default function WorkoutScreen() {
   async function finalizeWorkout() {
     const all = Object.values(sets).flat();
 
-    try {
-      setMessage("");
+    setMessage("");
 
-      // On sauvegarde exactement l'état réel des séries.
-      // Une série non cochée reste non complétée.
+    // Étape 1 : sauvegarder toutes les séries avant de terminer la séance.
+    try {
       await Promise.all(
         all.map((item) =>
           savePerformedSet({
@@ -296,11 +295,31 @@ export default function WorkoutScreen() {
           })
         )
       );
+    } catch (e: any) {
+      console.error("SAVE WORKOUT SETS ERROR", e);
+      setMessage(
+        e?.message ??
+          "Impossible d'enregistrer toutes les séries. La séance n'a pas été terminée."
+      );
+      return;
+    }
 
+    // Étape 2 : seulement après une sauvegarde réussie, terminer la séance.
+    try {
       await completeWorkoutSession(sessionId!);
+    } catch (e: any) {
+      console.error("COMPLETE WORKOUT ERROR", e);
+      setMessage(
+        e?.message ??
+          "Les séries sont enregistrées, mais la séance n'a pas pu être terminée."
+      );
+      return;
+    }
 
-      // Cherche la séance suivante du même programme :
-      // semaine puis jour.
+    // Étape 3 : la séance est désormais terminée en base.
+    // Une erreur de récupération/navigation ne doit plus être présentée
+    // comme un échec de validation de la séance.
+    try {
       const nextSession = await getNextWorkoutSession(sessionId!);
 
       if (nextSession?.id) {
@@ -309,15 +328,11 @@ export default function WorkoutScreen() {
           params: { sessionId: nextSession.id },
         });
       } else {
-        // Fin du programme ou aucune prochaine séance prévue.
         router.replace("/(tabs)");
       }
-    } catch (e: any) {
-      console.error("FINISH WORKOUT ERROR", e);
-      setMessage(
-        e?.message ??
-          "Impossible de terminer la séance."
-      );
+    } catch (e) {
+      console.error("POST WORKOUT NAVIGATION ERROR", e);
+      router.replace("/(tabs)");
     }
   }
 
