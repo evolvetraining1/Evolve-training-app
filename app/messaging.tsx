@@ -428,14 +428,39 @@ export default function MessagingScreen() {
     localUri: string,
     kind: "image" | "video",
     mimeType?: string | null,
-    fileName?: string | null
+    fileName?: string | null,
+    fileSize?: number | null
   ) {
     if (!conversationId || !userId) {
       throw new Error("Conversation indisponible.");
     }
 
+    const maxBytes =
+      kind === "image"
+        ? 10 * 1024 * 1024
+        : 50 * 1024 * 1024;
+
+    const maxLabel = kind === "image" ? "10 Mo" : "50 Mo";
+
+    if (fileSize != null && fileSize > maxBytes) {
+      throw new Error(
+        `${kind === "image" ? "L'image" : "La vidéo"} dépasse la taille maximale autorisée (${maxLabel}).`
+      );
+    }
+
     const response = await fetch(localUri);
+
+    if (!response.ok) {
+      throw new Error("Impossible de lire le média sélectionné.");
+    }
+
     const blob = await response.blob();
+
+    if (blob.size > maxBytes) {
+      throw new Error(
+        `${kind === "image" ? "L'image" : "La vidéo"} dépasse la taille maximale autorisée (${maxLabel}).`
+      );
+    }
 
     const extension =
       fileName?.split(".").pop()?.toLowerCase() ||
@@ -524,7 +549,8 @@ export default function MessagingScreen() {
         asset.uri,
         type,
         asset.mimeType,
-        asset.fileName
+        asset.fileName,
+        asset.fileSize
       );
 
       await sendMediaMessage(type, path);
