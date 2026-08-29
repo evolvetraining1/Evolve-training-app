@@ -277,16 +277,52 @@ export async function getLatestPerformance() {
   const rows: any[] = data ?? [];
   if (!rows.length) return null;
   const latest: any = rows[0];
-  const score = (r: any) => Number(r.load_kg || 0) * (1 + Number(r.reps || 0) / 30);
+
+  const getExercise = (row: any) => {
+    const workoutExercise = Array.isArray(row.workout_exercises)
+      ? row.workout_exercises[0]
+      : row.workout_exercises;
+
+    return Array.isArray(workoutExercise?.exercises)
+      ? workoutExercise.exercises[0]
+      : workoutExercise?.exercises;
+  };
+
+  const latestExercise = getExercise(latest);
+  const latestExerciseId = latestExercise?.id ?? null;
+
+  const score = (r: any) =>
+    Number(r.load_kg || 0) * (1 + Number(r.reps || 0) / 30);
+
   const latestScore = score(latest);
-  const previousBest = Math.max(0, ...rows.slice(1).map(score));
+
+  const previousSameExercise = rows
+    .slice(1)
+    .filter((row) => {
+      const exercise = getExercise(row);
+      return latestExerciseId != null && exercise?.id === latestExerciseId;
+    });
+
+  const previousBest = previousSameExercise.length
+    ? Math.max(...previousSameExercise.map(score))
+    : 0;
+
   return {
-    exerciseName: latest.workout_exercises?.exercises?.name ?? "Performance",
+    exerciseName: latestExercise?.name ?? "Performance",
     reps: Number(latest.reps || 0),
     loadKg: Number(latest.load_kg || 0),
     estimated1rm: Math.round(latestScore * 2) / 2,
-    isPR: latestScore >= previousBest && latestScore > 0,
-    deltaKg: Math.max(0, Math.round((latestScore - previousBest) * 2) / 2),
+    isPR: latestScore > 0 && (
+      previousSameExercise.length === 0 ||
+      latestScore > previousBest
+    ),
+    deltaKg:
+      previousSameExercise.length === 0
+        ? 0
+        : Math.max(
+            0,
+            Math.round((latestScore - previousBest) * 2) / 2
+          ),
     createdAt: latest.created_at,
   };
 }
