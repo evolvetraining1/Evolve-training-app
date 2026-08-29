@@ -24,6 +24,7 @@ import {
   getOrCreateWorkoutSession
 } from "@/src/lib/api";
 import { displayDuration, recoveryLabel, recoveryScore } from "@/src/lib/dashboard";
+import { localDateString } from "@/src/lib/date";
 
 const DAYS = ["L", "M", "M", "J", "V", "S", "D"];
 
@@ -311,7 +312,7 @@ export default function HomeScreen() {
         getMyProfile(),
         getMyUpcomingSessions(),
         getTodayCheckin(),
-        getRecentCheckins(7),
+        getRecentCheckins(365),
         getLatestPerformance(),
         getMyProgramsWithSelection(),
       ]);
@@ -605,8 +606,22 @@ export default function HomeScreen() {
   const previewExercises = next?.id
     ? (nextDetail?.workoutExercises ?? [])
     : (selectedTemplateDetail?.workoutExercises ?? []);
-  const checkinDates = useMemo(() => new Set(recentCheckins.map((x:any) => x.checkin_date)), [recentCheckins]);
-  const streak = recentCheckins.length;
+  const checkinDates = useMemo(
+    () => new Set(recentCheckins.map((x: any) => x.checkin_date)),
+    [recentCheckins]
+  );
+
+  const streak = useMemo(() => {
+    let count = 0;
+    const cursor = new Date();
+
+    while (checkinDates.has(localDateString(cursor))) {
+      count += 1;
+      cursor.setDate(cursor.getDate() - 1);
+    }
+
+    return count;
+  }, [checkinDates]);
 
   
   async function switchProgram(programId: string) {
@@ -1070,7 +1085,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
           <View style={styles.weekBlock}>
             <View style={styles.daysRow}>{DAYS.map((d, i) => {
               const date = new Date(); date.setDate(date.getDate() - (6-i));
-              const key = date.toISOString().slice(0,10); const done = checkinDates.has(key);
+              const key = localDateString(date); const done = checkinDates.has(key);
               const isToday = i === 6;
               return <View key={i} style={styles.dayCol}><Text style={[styles.dayLabel,isToday&&{color:colors.yellow}]}>{d}</Text><View style={[styles.dayDot, done&&styles.dayDone, isToday&&!done&&styles.dayToday]}><Text style={styles.dayCheck}>{done ? "✓" : ""}</Text></View></View>;
             })}</View>
