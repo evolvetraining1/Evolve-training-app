@@ -4,6 +4,7 @@ import {
   Alert,
   Image,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -14,15 +15,6 @@ import {
 } from "react-native";
 import { router } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
-import {
-  AudioModule,
-  RecordingPresets,
-  setAudioModeAsync,
-  useAudioPlayer,
-  useAudioRecorder,
-  useAudioRecorderState,
-} from "expo-audio";
-import { VideoView, useVideoPlayer } from "expo-video";
 
 import { colors } from "@/src/theme";
 import { supabase } from "@/src/lib/supabase";
@@ -54,126 +46,35 @@ type Message = {
   read_at: string | null;
 };
 
-
-function AudioMessage({ uri }: { uri: string }) {
-  const player = useAudioPlayer(uri);
-
-  return (
-    <Pressable
-      style={styles.audioMessage}
-      onPress={() => {
-        try {
-          player.seekTo(0);
-          player.play();
-        } catch {}
-      }}
-    >
-      <Text style={styles.audioPlay}>▶</Text>
-
-      <View style={styles.audioInfo}>
-        <Text style={styles.audioTitle}>MESSAGE VOCAL</Text>
-        <Text style={styles.audioSubtitle}>
-          Appuyer pour écouter
-        </Text>
-      </View>
-    </Pressable>
-  );
-}
-
-
-function VideoMessage({ uri }: { uri: string }) {
-  const player = useVideoPlayer(uri);
-
-  return (
-    <VideoView
-      style={styles.messageVideo}
-      player={player}
-      nativeControls
-      contentFit="cover"
-      surfaceType="textureView"
-    />
-  );
-}
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
 
 export default function MessagingScreen() {
-  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
-  const audioRecorderState = useAudioRecorderState(audioRecorder);
   const [userId, setUserId] = useState("");
   const [role, setRole] = useState("");
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
-
   const [messages, setMessages] = useState<Message[]>([]);
   const [mediaUrls, setMediaUrls] = useState<Record<string, string>>({});
   const [text, setText] = useState("");
-
   const [loading, setLoading] = useState(true);
   const [chatLoading, setChatLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [mediaSending, setMediaSending] = useState(false);
-  const [voiceSending, setVoiceSending] = useState(false);
   const [error, setError] = useState("");
 
   const scrollRef = useRef<ScrollView>(null);
   const messagesRef = useRef<Message[]>([]);
+  const openRequestRef = useRef(0);
 
   useEffect(() => {
-    bootstrap();
-  }, []);
-
-  useEffect(() => {
-    setAudioModeAsync({
-      playsInSilentMode: true,
-      allowsRecording: true,
-    }).catch(() => {});
+    void bootstrap();
   }, []);
 
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
-
-  useEffect(() => {
-    if (!conversationId) return;
-
-    const refreshSignedMediaUrls = async () => {
-      const mediaMessages = messagesRef.current.filter(
-        (m) =>
-          (m.type === "image" ||
-            m.type === "video" ||
-            m.type === "audio") &&
-          m.media_url
-      );
-
-      if (!mediaMessages.length) return;
-
-      const refreshed = await Promise.all(
-        mediaMessages.map(async (m) => {
-          try {
-            const url = await getSignedMediaUrl(m.media_url!);
-            return [m.id, url] as const;
-          } catch {
-            return null;
-          }
-        })
-      );
-
-      const entries = refreshed.filter(Boolean) as [string, string][];
-
-      if (entries.length) {
-        setMediaUrls((current) => ({
-          ...current,
-          ...Object.fromEntries(entries),
-        }));
-      }
-    };
-
-    const interval = setInterval(() => {
-      void refreshSignedMediaUrls();
-    }, 45 * 60 * 1000);
-
-    return () => clearInterval(interval);
-  }, [conversationId]);
 
   useEffect(() => {
     if (!conversationId) return;
@@ -196,13 +97,8 @@ export default function MessagingScreen() {
             return [...current, incoming];
           });
 
-          if (
-            (incoming.type === "image" ||
-              incoming.type === "video" ||
-              incoming.type === "audio") &&
-            incoming.media_url
-          ) {
-            getSignedMediaUrl(incoming.media_url)
+          if (isMediaMessage(incoming) && incoming.media_url) {
+            void getSignedMediaUrl(incoming.media_url)
               .then((url) => {
                 setMediaUrls((current) => ({
                   ...current,
@@ -220,9 +116,47 @@ export default function MessagingScreen() {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [conversationId]);
+
+  useEffect(() => {
+    if (!conversationId) return;
+
+    const refreshSignedMediaUrls = async () => {
+      const mediaMessages = messagesRef.current.filter(isMediaMessage);
+      if (!mediaMessages.length) return;
+
+      const entries = await Promise.all(
+        mediaMessages.map(async (message) => {
+          if (!message.media_url) return null;
+          try {
+            return [message.id, await getSignedMediaUrl(message.media_url)] as const;
+          } catch {
+            return null;
+          }
+        })
+      );
+
+      const valid = entries.filter(Boolean) as [string, string][];
+      if (valid.length) {
+        setMediaUrls((current) => ({ ...current, ...Object.fromEntries(valid) }));
+      }
+    };
+
+    const interval = setInterval(() => {
+      void refreshSignedMediaUrls();
+    }, 45 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, [conversationId]);
+
+  function isMediaMessage(message: Message) {
+    return (
+      (message.type === "image" || message.type === "video" || message.type === "audio") &&
+      Boolean(message.media_url)
+    );
+  }
 
   async function bootstrap() {
     try {
@@ -260,7 +194,6 @@ export default function MessagingScreen() {
         if (relError) throw relError;
 
         const ids = (rels ?? []).map((r: any) => r.athlete_id);
-
         if (!ids.length) {
           setContacts([]);
           return;
@@ -276,9 +209,7 @@ export default function MessagingScreen() {
         setContacts(
           (profiles ?? []).map((p: Profile) => ({
             id: p.id,
-            name:
-              [p.first_name, p.last_name].filter(Boolean).join(" ") ||
-              "Athlète",
+            name: [p.first_name, p.last_name].filter(Boolean).join(" ") || "Athlète",
             role: "Athlète",
           }))
         );
@@ -292,7 +223,6 @@ export default function MessagingScreen() {
         if (relError) throw relError;
 
         const ids = (rels ?? []).map((r: any) => r.coach_id);
-
         if (!ids.length) {
           setContacts([]);
           return;
@@ -308,9 +238,7 @@ export default function MessagingScreen() {
         setContacts(
           (profiles ?? []).map((p: Profile) => ({
             id: p.id,
-            name:
-              [p.first_name, p.last_name].filter(Boolean).join(" ") ||
-              "Coach",
+            name: [p.first_name, p.last_name].filter(Boolean).join(" ") || "Coach",
             role: "Coach",
           }))
         );
@@ -323,11 +251,14 @@ export default function MessagingScreen() {
   }
 
   async function openContact(contact: Contact) {
+    const requestId = ++openRequestRef.current;
+
     try {
       setSelectedContact(contact);
       setChatLoading(true);
       setError("");
       setMessages([]);
+      setMediaUrls({});
 
       const coachId = role === "coach" ? userId : contact.id;
       const athleteId = role === "coach" ? contact.id : userId;
@@ -344,35 +275,28 @@ export default function MessagingScreen() {
       if (!conversation) {
         const { data: created, error: createError } = await supabase
           .from("conversations")
-          .insert({
-            coach_id: coachId,
-            athlete_id: athleteId,
-          })
+          .insert({ coach_id: coachId, athlete_id: athleteId })
           .select("id")
           .single();
 
         if (createError) {
-          // Si coach et athlète créent la conversation simultanément,
-          // l'index unique bloque le second INSERT.
-          // On récupère alors la conversation créée par l'autre appel.
-          if (createError.code === "23505") {
-            const { data: concurrentConversation, error: concurrentError } =
-              await supabase
-                .from("conversations")
-                .select("id")
-                .eq("coach_id", coachId)
-                .eq("athlete_id", athleteId)
-                .single();
+          if (createError.code !== "23505") throw createError;
 
-            if (concurrentError) throw concurrentError;
-            conversation = concurrentConversation;
-          } else {
-            throw createError;
-          }
+          const { data: concurrentConversation, error: concurrentError } = await supabase
+            .from("conversations")
+            .select("id")
+            .eq("coach_id", coachId)
+            .eq("athlete_id", athleteId)
+            .single();
+
+          if (concurrentError) throw concurrentError;
+          conversation = concurrentConversation;
         } else {
           conversation = created;
         }
       }
+
+      if (requestId !== openRequestRef.current) return;
 
       setConversationId(conversation.id);
 
@@ -384,45 +308,59 @@ export default function MessagingScreen() {
         .limit(100);
 
       if (historyError) throw historyError;
+      if (requestId !== openRequestRef.current) return;
 
-      const loadedMessages = ([...(history ?? [])].reverse()) as Message[];
+      const loadedMessages = [...(history ?? [])].reverse() as Message[];
       setMessages(loadedMessages);
+      setChatLoading(false);
 
-      const signedEntries = await Promise.all(
-        loadedMessages
-          .filter(
-            (m) =>
-              (m.type === "image" ||
-                m.type === "video" ||
-                m.type === "audio") &&
-              m.media_url
-          )
-          .map(async (m) => {
-            try {
-              const url = await getSignedMediaUrl(m.media_url!);
-              return [m.id, url] as const;
-            } catch {
-              return null;
-            }
-          })
-      );
-
-      setMediaUrls(
-        Object.fromEntries(
-          signedEntries.filter(Boolean) as [string, string][]
-        )
-      );
+      // Les URLs signées ne doivent pas bloquer l'ouverture de la conversation.
+      void loadMediaUrls(loadedMessages, requestId);
 
       setTimeout(() => {
-        scrollRef.current?.scrollToEnd({ animated: false });
+        if (requestId === openRequestRef.current) {
+          scrollRef.current?.scrollToEnd({ animated: false });
+        }
       }, 100);
     } catch (e: any) {
-      setError(e?.message ?? "Impossible d'ouvrir la conversation.");
-    } finally {
-      setChatLoading(false);
+      if (requestId === openRequestRef.current) {
+        setError(e?.message ?? "Impossible d'ouvrir la conversation.");
+        setChatLoading(false);
+      }
     }
   }
 
+  async function loadMediaUrls(list: Message[], requestId: number) {
+    const mediaMessages = list.filter(isMediaMessage);
+    if (!mediaMessages.length) return;
+
+    const entries = await Promise.all(
+      mediaMessages.map(async (message) => {
+        if (!message.media_url) return null;
+        try {
+          return [message.id, await getSignedMediaUrl(message.media_url)] as const;
+        } catch {
+          return null;
+        }
+      })
+    );
+
+    if (requestId !== openRequestRef.current) return;
+
+    const valid = entries.filter(Boolean) as [string, string][];
+    if (valid.length) {
+      setMediaUrls((current) => ({ ...current, ...Object.fromEntries(valid) }));
+    }
+  }
+
+  async function getSignedMediaUrl(path: string) {
+    const { data, error } = await supabase.storage
+      .from("chat-media")
+      .createSignedUrl(path, 60 * 60);
+
+    if (error) throw error;
+    return data.signedUrl;
+  }
 
   async function uploadChatMedia(
     localUri: string,
@@ -431,82 +369,48 @@ export default function MessagingScreen() {
     fileName?: string | null,
     fileSize?: number | null
   ) {
-    if (!conversationId || !userId) {
-      throw new Error("Conversation indisponible.");
-    }
+    if (!conversationId || !userId) throw new Error("Conversation indisponible.");
 
-    const maxBytes =
-      kind === "image"
-        ? 10 * 1024 * 1024
-        : 50 * 1024 * 1024;
-
+    const maxBytes = kind === "image" ? MAX_IMAGE_BYTES : MAX_VIDEO_BYTES;
     const maxLabel = kind === "image" ? "10 Mo" : "50 Mo";
 
     if (fileSize != null && fileSize > maxBytes) {
-      throw new Error(
-        `${kind === "image" ? "L'image" : "La vidéo"} dépasse la taille maximale autorisée (${maxLabel}).`
-      );
+      throw new Error(`${kind === "image" ? "L'image" : "La vidéo"} dépasse la taille maximale autorisée (${maxLabel}).`);
     }
 
     const response = await fetch(localUri);
-
-    if (!response.ok) {
-      throw new Error("Impossible de lire le média sélectionné.");
-    }
+    if (!response.ok) throw new Error("Impossible de lire le média sélectionné.");
 
     const blob = await response.blob();
-
     if (blob.size > maxBytes) {
-      throw new Error(
-        `${kind === "image" ? "L'image" : "La vidéo"} dépasse la taille maximale autorisée (${maxLabel}).`
-      );
+      throw new Error(`${kind === "image" ? "L'image" : "La vidéo"} dépasse la taille maximale autorisée (${maxLabel}).`);
     }
 
-    const extension =
-      fileName?.split(".").pop()?.toLowerCase() ||
-      (kind === "image" ? "jpg" : "mp4");
+    const extension = fileName?.split(".").pop()?.toLowerCase() || (kind === "image" ? "jpg" : "mp4");
+    const path = `${conversationId}/${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${extension}`;
 
-    const path =
-      `${conversationId}/${userId}/${Date.now()}-${Math.random()
-        .toString(36)
-        .slice(2)}.${extension}`;
+    const { error } = await supabase.storage.from("chat-media").upload(path, blob, {
+      contentType: mimeType || (kind === "image" ? "image/jpeg" : "video/mp4"),
+      upsert: false,
+    });
 
-    const { error: uploadError } = await supabase.storage
-      .from("chat-media")
-      .upload(path, blob, {
-        contentType:
-          mimeType ||
-          (kind === "image" ? "image/jpeg" : "video/mp4"),
-        upsert: false,
-      });
-
-    if (uploadError) throw uploadError;
-
+    if (error) throw error;
     return path;
   }
 
-  async function sendMediaMessage(
-    type: "image" | "video",
-    storagePath: string
-  ) {
-    if (!conversationId) {
-      throw new Error("Conversation indisponible.");
-    }
+  async function sendMediaMessage(type: "image" | "video", storagePath: string) {
+    if (!conversationId) throw new Error("Conversation indisponible.");
 
-    const { error: sendError } = await supabase.from("messages").insert({
+    const { error } = await supabase.from("messages").insert({
       conversation_id: conversationId,
       sender_id: userId,
       type,
       media_url: storagePath,
     });
 
-    if (sendError) {
-      await supabase.storage
-        .from("chat-media")
-        .remove([storagePath])
-        .catch(() => {});
-
-      throw sendError;
+    if (error) {
+      await supabase.storage.from("chat-media").remove([storagePath]).catch(() => {});
+      throw error;
     }
   }
 
@@ -515,15 +419,10 @@ export default function MessagingScreen() {
 
     try {
       setError("");
-
-      const permission =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
       if (!permission.granted) {
-        Alert.alert(
-          "Autorisation nécessaire",
-          "Evolve Training a besoin d'accéder à tes photos et vidéos."
-        );
+        Alert.alert("Autorisation nécessaire", "Evolve Training a besoin d'accéder à tes photos et vidéos.");
         return;
       }
 
@@ -537,170 +436,20 @@ export default function MessagingScreen() {
       if (result.canceled || !result.assets?.length) return;
 
       const asset = result.assets[0];
-
-      const type =
-        asset.type === "video"
-          ? "video"
-          : "image";
+      const type = asset.type === "video" ? "video" : "image";
 
       setMediaSending(true);
-
-      const path = await uploadChatMedia(
-        asset.uri,
-        type,
-        asset.mimeType,
-        asset.fileName,
-        asset.fileSize
-      );
-
+      const path = await uploadChatMedia(asset.uri, type, asset.mimeType, asset.fileName, asset.fileSize);
       await sendMediaMessage(type, path);
-
-      setTimeout(() => {
-        scrollRef.current?.scrollToEnd({ animated: true });
-      }, 100);
     } catch (e: any) {
-      setError(
-        e?.message ??
-          "Impossible d'envoyer ce média."
-      );
+      setError(e?.message ?? "Impossible d'envoyer ce média.");
     } finally {
       setMediaSending(false);
     }
   }
 
-  async function getSignedMediaUrl(path: string) {
-    const { data, error: signedError } =
-      await supabase.storage
-        .from("chat-media")
-        .createSignedUrl(path, 60 * 60);
-
-    if (signedError) throw signedError;
-
-    return data.signedUrl;
-  }
-
-
-  async function startVoiceRecording() {
-    if (!conversationId || voiceSending) return;
-
-    try {
-      setError("");
-
-      const permission =
-        await AudioModule.requestRecordingPermissionsAsync();
-
-      if (!permission.granted) {
-        Alert.alert(
-          "Microphone",
-          "Evolve Training a besoin du microphone pour enregistrer un message vocal."
-        );
-        return;
-      }
-
-      await setAudioModeAsync({
-        playsInSilentMode: true,
-        allowsRecording: true,
-      });
-
-      await audioRecorder.prepareToRecordAsync();
-      audioRecorder.record();
-    } catch (e: any) {
-      setError(
-        e?.message ??
-          "Impossible de démarrer l'enregistrement."
-      );
-    }
-  }
-
-  async function stopVoiceRecording() {
-    if (!audioRecorderState.isRecording || voiceSending) return;
-
-    try {
-      setVoiceSending(true);
-      setError("");
-
-      await audioRecorder.stop();
-
-      const uri = audioRecorder.uri;
-
-      if (!uri) {
-        throw new Error("Aucun enregistrement audio disponible.");
-      }
-
-      if (!conversationId || !userId) {
-        throw new Error("Conversation indisponible.");
-      }
-
-      const response = await fetch(uri);
-      const blob = await response.blob();
-
-      const storagePath =
-        `${conversationId}/${userId}/${Date.now()}-${Math.random()
-          .toString(36)
-          .slice(2)}.m4a`;
-
-      const { error: uploadError } =
-        await supabase.storage
-          .from("chat-media")
-          .upload(storagePath, blob, {
-            contentType: "audio/mp4",
-            upsert: false,
-          });
-
-      if (uploadError) throw uploadError;
-
-      const durationSeconds = Math.max(
-        1,
-        Math.round((audioRecorderState.durationMillis || 0) / 1000)
-      );
-
-      const { error: sendError } =
-        await supabase.from("messages").insert({
-          conversation_id: conversationId,
-          sender_id: userId,
-          type: "audio",
-          media_url: storagePath,
-          media_duration: durationSeconds,
-        });
-
-      if (sendError) {
-        await supabase.storage
-          .from("chat-media")
-          .remove([storagePath])
-          .catch(() => {});
-
-        throw sendError;
-      }
-
-      setTimeout(() => {
-        scrollRef.current?.scrollToEnd({ animated: true });
-      }, 100);
-    } catch (e: any) {
-      setError(
-        e?.message ??
-          "Impossible d'envoyer le message vocal."
-      );
-    } finally {
-      setVoiceSending(false);
-
-      setAudioModeAsync({
-        playsInSilentMode: true,
-        allowsRecording: false,
-      }).catch(() => {});
-    }
-  }
-
-  async function toggleVoiceRecording() {
-    if (audioRecorderState.isRecording) {
-      await stopVoiceRecording();
-    } else {
-      await startVoiceRecording();
-    }
-  }
-
   async function sendText() {
     const body = text.trim();
-
     if (!body || !conversationId || sending) return;
 
     try {
@@ -708,16 +457,16 @@ export default function MessagingScreen() {
       setError("");
       setText("");
 
-      const { error: sendError } = await supabase.from("messages").insert({
+      const { error } = await supabase.from("messages").insert({
         conversation_id: conversationId,
         sender_id: userId,
         type: "text",
         content: body,
       });
 
-      if (sendError) {
+      if (error) {
         setText(body);
-        throw sendError;
+        throw error;
       }
     } catch (e: any) {
       setError(e?.message ?? "Impossible d'envoyer le message.");
@@ -727,11 +476,20 @@ export default function MessagingScreen() {
   }
 
   function backFromChat() {
+    ++openRequestRef.current;
     setSelectedContact(null);
     setConversationId(null);
     setMessages([]);
     setMediaUrls({});
     setError("");
+  }
+
+  function openMedia(message: Message) {
+    const url = mediaUrls[message.id];
+    if (!url) return;
+    void Linking.openURL(url).catch(() => {
+      setError("Impossible d'ouvrir ce média.");
+    });
   }
 
   if (loading) {
@@ -745,51 +503,32 @@ export default function MessagingScreen() {
   if (!selectedContact) {
     return (
       <ScrollView contentContainerStyle={styles.page}>
-        <Text style={styles.back} onPress={() => router.back()}>
-          ← RETOUR
-        </Text>
+        <Text style={styles.back} onPress={() => router.back()}>← RETOUR</Text>
 
         <ScreenHeader
           eyebrow="EVOLVE TRAINING"
           title="Messagerie"
-          subtitle={
-            role === "coach"
-              ? "Échange avec tes athlètes."
-              : "Échange directement avec ton coach."
-          }
+          subtitle={role === "coach" ? "Échange avec tes athlètes." : "Échange directement avec ton coach."}
         />
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
-
         <Text style={styles.sectionTitle}>CONVERSATIONS</Text>
 
         {!contacts.length ? (
           <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>
-              Aucune conversation disponible
-            </Text>
-            <Text style={styles.emptyText}>
-              Une relation coach-athlète active est nécessaire.
-            </Text>
+            <Text style={styles.emptyTitle}>Aucune conversation disponible</Text>
+            <Text style={styles.emptyText}>Une relation coach-athlète active est nécessaire.</Text>
           </View>
         ) : (
           contacts.map((contact) => (
-            <Pressable
-              key={contact.id}
-              style={styles.contactCard}
-              onPress={() => openContact(contact)}
-            >
+            <Pressable key={contact.id} style={styles.contactCard} onPress={() => void openContact(contact)}>
               <View style={styles.avatar}>
-                <Text style={styles.avatarText}>
-                  {contact.name.charAt(0).toUpperCase()}
-                </Text>
+                <Text style={styles.avatarText}>{contact.name.charAt(0).toUpperCase()}</Text>
               </View>
-
-              <View style={{ flex: 1 }}>
+              <View style={styles.contactIdentity}>
                 <Text style={styles.contactName}>{contact.name}</Text>
                 <Text style={styles.contactRole}>{contact.role}</Text>
               </View>
-
               <Text style={styles.chevron}>›</Text>
             </Pressable>
           ))
@@ -804,23 +543,12 @@ export default function MessagingScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View style={styles.chatHeader}>
-        <Pressable onPress={backFromChat}>
+        <Pressable onPress={backFromChat} hitSlop={10}>
           <Text style={styles.chatBack}>‹</Text>
         </Pressable>
-
         <View style={styles.chatHeaderIdentity}>
           <Text style={styles.chatName}>{selectedContact.name}</Text>
           <Text style={styles.chatRole}>{selectedContact.role}</Text>
-        </View>
-
-        <View style={styles.callActions}>
-          <Pressable style={styles.callButton}>
-            <Text style={styles.callIcon}>☎</Text>
-          </Pressable>
-
-          <Pressable style={styles.callButton}>
-            <Text style={styles.callIcon}>▣</Text>
-          </Pressable>
         </View>
       </View>
 
@@ -834,71 +562,50 @@ export default function MessagingScreen() {
           style={styles.messageArea}
           contentContainerStyle={styles.messageContent}
           keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
           {!messages.length ? (
             <View style={styles.firstMessage}>
               <Text style={styles.firstTitle}>CONVERSATION EVOLVE</Text>
-              <Text style={styles.firstText}>
-                Envoie ton premier message.
-              </Text>
+              <Text style={styles.firstText}>Envoie ton premier message.</Text>
             </View>
           ) : null}
 
           {messages.map((message) => {
             const mine = message.sender_id === userId;
+            const mediaUrl = mediaUrls[message.id];
 
             return (
-              <View
-                key={message.id}
-                style={[
-                  styles.messageRow,
-                  mine ? styles.messageRowMine : styles.messageRowOther,
-                ]}
-              >
-                <View
-                  style={[
-                    styles.bubble,
-                    mine ? styles.bubbleMine : styles.bubbleOther,
-                  ]}
-                >
+              <View key={message.id} style={[styles.messageRow, mine ? styles.messageRowMine : styles.messageRowOther]}>
+                <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleOther]}>
                   {message.type === "text" ? (
-                    <Text
-                      style={[
-                        styles.messageText,
-                        mine && styles.messageTextMine,
-                      ]}
-                    >
-                      {message.content}
-                    </Text>
-                  ) : message.type === "image" &&
-                    mediaUrls[message.id] ? (
-                    <Image
-                      source={{ uri: mediaUrls[message.id] }}
-                      style={styles.messageImage}
-                      resizeMode="cover"
-                    />
-                  ) : message.type === "video" &&
-                    mediaUrls[message.id] ? (
-                    <VideoMessage uri={mediaUrls[message.id]} />
-                  ) : message.type === "audio" &&
-                    mediaUrls[message.id] ? (
-                    <AudioMessage uri={mediaUrls[message.id]} />
+                    <Text style={[styles.messageText, mine && styles.messageTextMine]}>{message.content}</Text>
+                  ) : message.type === "image" && mediaUrl ? (
+                    <Pressable onPress={() => openMedia(message)}>
+                      <Image source={{ uri: mediaUrl }} style={styles.messageImage} resizeMode="cover" />
+                    </Pressable>
+                  ) : message.type === "video" && mediaUrl ? (
+                    <Pressable style={styles.mediaCard} onPress={() => openMedia(message)}>
+                      <Text style={styles.mediaIcon}>▶</Text>
+                      <View style={styles.mediaInfo}>
+                        <Text style={styles.mediaTitle}>VIDÉO</Text>
+                        <Text style={styles.mediaSubtitle}>Appuyer pour ouvrir</Text>
+                      </View>
+                    </Pressable>
+                  ) : message.type === "audio" && mediaUrl ? (
+                    <Pressable style={styles.mediaCard} onPress={() => openMedia(message)}>
+                      <Text style={styles.mediaIcon}>◉</Text>
+                      <View style={styles.mediaInfo}>
+                        <Text style={styles.mediaTitle}>MESSAGE VOCAL</Text>
+                        <Text style={styles.mediaSubtitle}>Appuyer pour ouvrir</Text>
+                      </View>
+                    </Pressable>
                   ) : (
-                    <Text style={styles.messageText}>
-                      Chargement du média...
-                    </Text>
+                    <Text style={styles.messageText}>Média indisponible</Text>
                   )}
 
-                  <Text
-                    style={[
-                      styles.messageTime,
-                      mine && styles.messageTimeMine,
-                    ]}
-                  >
-                    {new Date(message.created_at).toLocaleTimeString("fr-FR", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
+                  <Text style={[styles.messageTime, mine && styles.messageTimeMine]}>
+                    {new Date(message.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
                   </Text>
                 </View>
               </View>
@@ -909,29 +616,9 @@ export default function MessagingScreen() {
         </ScrollView>
       )}
 
-      {audioRecorderState.isRecording ? (
-        <View style={styles.recordingBar}>
-          <Text style={styles.recordingDot}>●</Text>
-          <Text style={styles.recordingText}>
-            ENREGISTREMENT EN COURS
-          </Text>
-          <Text style={styles.recordingTime}>
-            {Math.floor(
-              (audioRecorderState.durationMillis || 0) / 1000
-            )} s
-          </Text>
-        </View>
-      ) : null}
-
       <View style={styles.composer}>
-        <Pressable
-          style={styles.mediaButton}
-          onPress={pickMedia}
-          disabled={mediaSending}
-        >
-          <Text style={styles.mediaButtonText}>
-            {mediaSending ? "…" : "＋"}
-          </Text>
+        <Pressable style={styles.mediaButton} onPress={() => void pickMedia()} disabled={mediaSending}>
+          <Text style={styles.mediaButtonText}>{mediaSending ? "…" : "＋"}</Text>
         </Pressable>
 
         <TextInput
@@ -941,414 +628,70 @@ export default function MessagingScreen() {
           placeholderTextColor={colors.muted}
           style={styles.textInput}
           multiline
+          maxLength={2000}
+          editable={!sending}
         />
 
-        {text.trim() ? (
-          <Pressable style={styles.sendButton} onPress={sendText}>
-            <Text style={styles.sendButtonText}>↑</Text>
-          </Pressable>
-        ) : (
-          <Pressable style={styles.voiceButton}>
-            <Text style={styles.voiceButtonText}>●</Text>
-          </Pressable>
-        )}
+        <Pressable
+          style={[styles.sendButton, (!text.trim() || sending) && styles.sendButtonDisabled]}
+          onPress={() => void sendText()}
+          disabled={!text.trim() || sending}
+        >
+          <Text style={styles.sendButtonText}>{sending ? "…" : "↑"}</Text>
+        </Pressable>
       </View>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  page: {
-    padding: 20,
-    paddingTop: 58,
-    paddingBottom: 120,
-    backgroundColor: "transparent",
-  },
-
-  center: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: colors.bg,
-  },
-
-  back: {
-    color: colors.yellow,
-    fontWeight: "900",
-    marginBottom: 18,
-  },
-
-  sectionTitle: {
-    color: colors.text,
-    fontSize: 20,
-    fontWeight: "900",
-    letterSpacing: 1.4,
-    marginBottom: 14,
-  },
-
-  contactCard: {
-    minHeight: 84,
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    borderRadius: 20,
-    padding: 14,
-    marginBottom: 12,
-  },
-
-  avatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.yellow,
-    backgroundColor: colors.surface2,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 14,
-  },
-
-  avatarText: {
-    color: colors.yellow,
-    fontSize: 22,
-    fontWeight: "900",
-  },
-
-  contactName: {
-    color: colors.text,
-    fontSize: 18,
-    fontWeight: "900",
-  },
-
-  contactRole: {
-    color: colors.muted,
-    marginTop: 4,
-  },
-
-  chevron: {
-    color: colors.text,
-    fontSize: 34,
-  },
-
-  emptyCard: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    borderRadius: 20,
-    padding: 22,
-  },
-
-  emptyTitle: {
-    color: colors.text,
-    fontSize: 18,
-    fontWeight: "900",
-  },
-
-  emptyText: {
-    color: colors.muted,
-    lineHeight: 21,
-    marginTop: 8,
-  },
-
-  error: {
-    color: "#ff6464",
-    textAlign: "center",
-    marginVertical: 10,
-  },
-
-  chatPage: {
-    flex: 1,
-    backgroundColor: colors.bg,
-  },
-
-  chatHeader: {
-    minHeight: 94,
-    paddingTop: 36,
-    paddingHorizontal: 14,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    backgroundColor: "#090909",
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  chatBack: {
-    color: colors.yellow,
-    fontSize: 40,
-    marginRight: 8,
-  },
-
-  chatHeaderIdentity: {
-    flex: 1,
-  },
-
-  chatName: {
-    color: colors.text,
-    fontSize: 18,
-    fontWeight: "900",
-  },
-
-  chatRole: {
-    color: colors.muted,
-    fontSize: 12,
-    marginTop: 2,
-  },
-
-  callActions: {
-    flexDirection: "row",
-    gap: 8,
-  },
-
-  callButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 13,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  callIcon: {
-    color: colors.yellow,
-    fontSize: 18,
-    fontWeight: "900",
-  },
-
-  messageArea: {
-    flex: 1,
-  },
-
-  messageContent: {
-    padding: 16,
-    paddingBottom: 28,
-  },
-
-  firstMessage: {
-    alignItems: "center",
-    marginVertical: 30,
-  },
-
-  firstTitle: {
-    color: colors.yellow,
-    fontSize: 12,
-    fontWeight: "900",
-    letterSpacing: 1.4,
-  },
-
-  firstText: {
-    color: colors.muted,
-    marginTop: 5,
-  },
-
-  messageRow: {
-    width: "100%",
-    marginVertical: 4,
-  },
-
-  messageRowMine: {
-    alignItems: "flex-end",
-  },
-
-  messageRowOther: {
-    alignItems: "flex-start",
-  },
-
-  bubble: {
-    maxWidth: "82%",
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-
-  bubbleMine: {
-    backgroundColor: colors.yellow,
-    borderBottomRightRadius: 5,
-  },
-
-  bubbleOther: {
-    backgroundColor: colors.surface2,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderBottomLeftRadius: 5,
-  },
-
-  messageText: {
-    color: colors.text,
-    fontSize: 16,
-    lineHeight: 21,
-  },
-
-
-  messageImage: {
-    width: 220,
-    height: 220,
-    borderRadius: 14,
-    backgroundColor: "#111",
-  },
-
-  messageVideo: {
-    width: 240,
-    height: 180,
-    borderRadius: 14,
-    overflow: "hidden",
-    backgroundColor: "#111",
-  },
-
-  messageTextMine: {
-    color: "#111",
-  },
-
-  messageTime: {
-    color: colors.muted,
-    fontSize: 10,
-    marginTop: 5,
-    alignSelf: "flex-end",
-  },
-
-  messageTimeMine: {
-    color: "#4b3b00",
-  },
-
-  composer: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: 8,
-    paddingHorizontal: 10,
-    paddingTop: 9,
-    paddingBottom: Platform.OS === "android" ? 18 : 28,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: "#090909",
-  },
-
-  mediaButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  mediaButtonText: {
-    color: colors.yellow,
-    fontSize: 26,
-  },
-
-  textInput: {
-    flex: 1,
-    minHeight: 42,
-    maxHeight: 110,
-    backgroundColor: colors.surface2,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 18,
-    color: colors.text,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    fontSize: 15,
-  },
-
-  sendButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: colors.yellow,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  sendButtonText: {
-    color: "#111",
-    fontSize: 24,
-    fontWeight: "900",
-  },
-
-  voiceButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.yellow,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  voiceButtonRecording: {
-    borderColor: "#ff4646",
-    backgroundColor: "#2a1010",
-  },
-
-  recordingBar: {
-    minHeight: 44,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 18,
-    gap: 8,
-    backgroundColor: "#160b0b",
-    borderTopWidth: 1,
-    borderTopColor: "#4a2020",
-  },
-
-  recordingDot: {
-    color: "#ff4646",
-    fontSize: 16,
-  },
-
-  recordingText: {
-    color: "#ff7070",
-    fontSize: 12,
-    fontWeight: "900",
-    letterSpacing: 1,
-    flex: 1,
-  },
-
-  recordingTime: {
-    color: colors.text,
-    fontSize: 13,
-    fontWeight: "900",
-  },
-
-  audioMessage: {
-    minWidth: 210,
-    minHeight: 62,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-
-  audioPlay: {
-    color: colors.yellow,
-    fontSize: 25,
-    fontWeight: "900",
-  },
-
-  audioInfo: {
-    flex: 1,
-  },
-
-  audioTitle: {
-    color: colors.text,
-    fontSize: 13,
-    fontWeight: "900",
-    letterSpacing: 0.8,
-  },
-
-  audioSubtitle: {
-    color: colors.muted,
-    fontSize: 12,
-    marginTop: 3,
-  },
-
-  voiceButtonText: {
-    color: colors.yellow,
-    fontSize: 15,
-  },
+  page: { padding: 20, paddingTop: 58, paddingBottom: 120, backgroundColor: "transparent" },
+  center: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.bg },
+  back: { color: colors.yellow, fontWeight: "900", marginBottom: 18 },
+  sectionTitle: { color: colors.text, fontSize: 20, fontWeight: "900", letterSpacing: 1.4, marginBottom: 14 },
+  contactCard: { minHeight: 84, flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, borderRadius: 20, padding: 14, marginBottom: 12 },
+  avatar: { width: 52, height: 52, borderRadius: 16, borderWidth: 1, borderColor: colors.yellow, backgroundColor: colors.surface2, alignItems: "center", justifyContent: "center", marginRight: 14 },
+  avatarText: { color: colors.yellow, fontSize: 22, fontWeight: "900" },
+  contactIdentity: { flex: 1 },
+  contactName: { color: colors.text, fontSize: 18, fontWeight: "900" },
+  contactRole: { color: colors.muted, marginTop: 4 },
+  chevron: { color: colors.text, fontSize: 34 },
+  emptyCard: { borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, borderRadius: 20, padding: 22 },
+  emptyTitle: { color: colors.text, fontSize: 18, fontWeight: "900" },
+  emptyText: { color: colors.muted, lineHeight: 21, marginTop: 8 },
+  error: { color: "#ff6464", textAlign: "center", marginVertical: 10 },
+  chatPage: { flex: 1, backgroundColor: colors.bg },
+  chatHeader: { minHeight: 82, paddingTop: 30, paddingHorizontal: 14, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: "#090909", flexDirection: "row", alignItems: "center" },
+  chatBack: { color: colors.yellow, fontSize: 40, marginRight: 8 },
+  chatHeaderIdentity: { flex: 1 },
+  chatName: { color: colors.text, fontSize: 18, fontWeight: "900" },
+  chatRole: { color: colors.muted, fontSize: 12, marginTop: 2 },
+  messageArea: { flex: 1 },
+  messageContent: { padding: 16, paddingBottom: 28 },
+  firstMessage: { alignItems: "center", marginVertical: 30 },
+  firstTitle: { color: colors.yellow, fontSize: 12, fontWeight: "900", letterSpacing: 1.4 },
+  firstText: { color: colors.muted, marginTop: 5 },
+  messageRow: { width: "100%", marginVertical: 4 },
+  messageRowMine: { alignItems: "flex-end" },
+  messageRowOther: { alignItems: "flex-start" },
+  bubble: { maxWidth: "82%", borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10 },
+  bubbleMine: { backgroundColor: colors.yellow, borderBottomRightRadius: 5 },
+  bubbleOther: { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderBottomLeftRadius: 5 },
+  messageText: { color: colors.text, fontSize: 16, lineHeight: 21 },
+  messageTextMine: { color: "#111" },
+  messageImage: { width: 220, height: 220, borderRadius: 14, backgroundColor: "#111" },
+  mediaCard: { minWidth: 210, minHeight: 64, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 12, paddingVertical: 10 },
+  mediaIcon: { color: colors.yellow, fontSize: 25, fontWeight: "900" },
+  mediaInfo: { flex: 1 },
+  mediaTitle: { color: colors.text, fontSize: 13, fontWeight: "900", letterSpacing: 0.8 },
+  mediaSubtitle: { color: colors.muted, fontSize: 12, marginTop: 3 },
+  messageTime: { color: colors.muted, fontSize: 10, marginTop: 5, alignSelf: "flex-end" },
+  messageTimeMine: { color: "#4b3b00" },
+  composer: { flexDirection: "row", alignItems: "flex-end", gap: 8, paddingHorizontal: 10, paddingTop: 9, paddingBottom: Platform.OS === "android" ? 18 : 28, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: "#090909" },
+  mediaButton: { width: 42, height: 42, borderRadius: 14, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
+  mediaButtonText: { color: colors.yellow, fontSize: 26 },
+  textInput: { flex: 1, minHeight: 42, maxHeight: 110, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderRadius: 18, color: colors.text, paddingHorizontal: 14, paddingVertical: 10, fontSize: 15 },
+  sendButton: { width: 42, height: 42, borderRadius: 14, backgroundColor: colors.yellow, alignItems: "center", justifyContent: "center" },
+  sendButtonDisabled: { opacity: 0.45 },
+  sendButtonText: { color: "#111", fontSize: 24, fontWeight: "900" },
 });
