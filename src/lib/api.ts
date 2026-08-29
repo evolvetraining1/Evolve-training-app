@@ -223,14 +223,14 @@ export async function getTodayCheckin() {
 }
 
 export async function upsertTodayCheckin(input: {
-  sleep_minutes?: number;
-  sleep_quality?: number;
-  fatigue?: number;
-  stress?: number;
-  soreness?: number;
-  motivation?: number;
-  pain?: number;
-  notes?: string;
+  sleep_minutes?: number | null;
+  sleep_quality?: number | null;
+  fatigue?: number | null;
+  stress?: number | null;
+  soreness?: number | null;
+  motivation?: number | null;
+  pain?: number | null;
+  notes?: string | null;
 }) {
   const id = await currentUserId();
   const today = new Date().toISOString().slice(0, 10);

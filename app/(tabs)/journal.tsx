@@ -523,14 +523,14 @@ export default function JournalScreen() {
       await upsertTodayCheckin({
         sleep_minutes:
           sleepHours == null
-            ? 0
+            ? null
             : Math.round(sleepHours * 60),
-        sleep_quality: getValue("sleep_quality") ?? 0,
-        fatigue: getValue("fatigue") ?? 0,
-        stress: getValue("stress") ?? 0,
-        soreness: getValue("soreness") ?? 0,
-        motivation: getValue("motivation") ?? 0,
-        pain: getValue("pain") ?? 0,
+        sleep_quality: getValue("sleep_quality"),
+        fatigue: getValue("fatigue"),
+        stress: getValue("stress"),
+        soreness: getValue("soreness"),
+        motivation: getValue("motivation"),
+        pain: getValue("pain"),
       });
 
       setValues(valuesToSave);
