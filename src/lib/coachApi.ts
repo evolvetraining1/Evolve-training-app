@@ -213,61 +213,19 @@ export async function assignProgramAndSchedule(input: {
   athleteId: string;
   startsOn: string; // YYYY-MM-DD
 }) {
-  // 1. Attribuer le programme
-  const assignment = await assignProgramToAthlete({
-    programId: input.programId,
-    athleteId: input.athleteId,
-    startsOn: input.startsOn,
-  });
+  const { data, error } = await supabase.rpc(
+    "assign_program_and_schedule",
+    {
+      p_program_id: input.programId,
+      p_athlete_id: input.athleteId,
+      p_starts_on: input.startsOn,
+    }
+  );
 
-  // 2. Récupérer les séances du programme
-  const { data: templates, error: templatesError } = await supabase
-    .from("workout_templates")
-    .select("id, week_number, day_number, name")
-    .eq("program_id", input.programId)
-    .order("week_number", { ascending: true })
-    .order("day_number", { ascending: true });
-
-  if (templatesError) throw templatesError;
-
-  if (!templates?.length) {
-    throw new Error("Ce programme ne contient aucune séance.");
+  if (error) throw error;
+  if (!data) {
+    throw new Error("Impossible d'attribuer le programme.");
   }
 
-  // On travaille à midi UTC pour éviter les décalages de date liés aux fuseaux.
-  const [year, month, day] = input.startsOn.split("-").map(Number);
-
-  const rows = templates.map((template: any) => {
-    const date = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
-
-    // Exemple :
-    // semaine 1 jour 1 = date de début
-    // semaine 1 jour 2 = +1 jour
-    // semaine 2 jour 1 = +7 jours
-    const offset =
-      (Number(template.week_number) - 1) * 7 +
-      (Number(template.day_number) - 1);
-
-    date.setUTCDate(date.getUTCDate() + offset);
-
-    return {
-      athlete_id: input.athleteId,
-      workout_template_id: template.id,
-      scheduled_for: date.toISOString().slice(0, 10),
-      status: "planned",
-    };
-  });
-
-  // 3. Créer toutes les séances
-  const { data: sessions, error: sessionsError } = await supabase
-    .from("workout_sessions")
-    .insert(rows)
-    .select();
-
-  if (sessionsError) throw sessionsError;
-
-  return {
-    assignment,
-    sessions: sessions ?? [],
-  };
+  return data;
 }
