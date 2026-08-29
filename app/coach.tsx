@@ -12,6 +12,7 @@ import {
   getCoachPrograms,
   assignProgramAndSchedule,
 } from "@/src/lib/coachApi";
+import { localDateString } from "@/src/lib/date";
 
 export default function CoachScreen() {
   const [athletes, setAthletes] = useState<any[]>([]);
@@ -25,7 +26,7 @@ export default function CoachScreen() {
   const [selectedAthleteId, setSelectedAthleteId] = useState("");
   const [selectedProgramId, setSelectedProgramId] = useState("");
   const [startDate, setStartDate] = useState(
-    new Date().toISOString().slice(0, 10)
+    localDateString()
   );
 
   async function refresh() {

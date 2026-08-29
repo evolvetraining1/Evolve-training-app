@@ -1,4 +1,5 @@
 import { supabase } from "@/src/lib/supabase";
+import { localDateString } from "@/src/lib/date";
 
 async function currentUserId() {
   const { data, error } = await supabase.auth.getUser();
@@ -211,7 +212,7 @@ export async function savePerformedSet(input: {
 
 export async function getTodayCheckin() {
   const id = await currentUserId();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateString();
   const { data, error } = await supabase
     .from("daily_checkins")
     .select("*")
@@ -233,7 +234,7 @@ export async function upsertTodayCheckin(input: {
   notes?: string | null;
 }) {
   const id = await currentUserId();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateString();
   const { data, error } = await supabase
     .from("daily_checkins")
     .upsert({ athlete_id: id, checkin_date: today, ...input }, { onConflict: "athlete_id,checkin_date" })
@@ -252,7 +253,7 @@ export async function getRecentCheckins(days = 7) {
     .from("daily_checkins")
     .select("checkin_date, sleep_minutes, sleep_quality, fatigue, stress, soreness, motivation, pain")
     .eq("athlete_id", id)
-    .gte("checkin_date", since.toISOString().slice(0, 10))
+    .gte("checkin_date", localDateString(since))
     .order("checkin_date", { ascending: true });
   if (error) throw error;
   return data ?? [];
@@ -547,14 +548,14 @@ export async function getAthleteStatsDashboard() {
 
   const since = new Date();
   since.setDate(since.getDate() - 30);
-  const sinceDate = since.toISOString().slice(0, 10);
+  const sinceDate = localDateString(since);
 
   const { data: recentSessions, error: recentError } = await supabase
     .from("workout_sessions")
     .select("id, status, scheduled_for")
     .eq("athlete_id", uid)
     .gte("scheduled_for", sinceDate)
-    .lte("scheduled_for", new Date().toISOString().slice(0, 10));
+    .lte("scheduled_for", localDateString());
 
   if (recentError) throw recentError;
 

@@ -14,6 +14,7 @@ import { Card, Label, PrimaryButton, ScreenHeader } from "@/src/components/ui";
 import { colors } from "@/src/theme";
 import { supabase } from "@/src/lib/supabase";
 import { upsertTodayCheckin } from "@/src/lib/api";
+import { localDateString } from "@/src/lib/date";
 
 type Routine = {
   id: string;
@@ -52,7 +53,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  return localDateString();
 }
 
 function clamp(value: number, min = 0, max = 1) {

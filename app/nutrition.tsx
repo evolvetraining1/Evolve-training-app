@@ -18,6 +18,7 @@ import {
 import { Card, Label, PrimaryButton, ScreenHeader } from "@/src/components/ui";
 import { colors } from "@/src/theme";
 import { supabase } from "@/src/lib/supabase";
+import { localDateString } from "@/src/lib/date";
 
 const ciqualFoods = require("../src/data/ciqual-foods.json");
 
@@ -64,7 +65,7 @@ const meals: { key: MealType; label: string }[] = [
 ];
 
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  return localDateString();
 }
 
 function numberValue(value: string) {

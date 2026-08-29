@@ -12,6 +12,7 @@ import {
   getCoachPrograms,
   scheduleWorkout,
 } from "@/src/lib/coachApi";
+import { localDateString } from "@/src/lib/date";
 
 type SetDraft = {
   reps: string;
@@ -40,7 +41,7 @@ export default function CoachWorkoutScreen() {
   const [weekNumber, setWeekNumber] = useState("1");
   const [dayNumber, setDayNumber] = useState("1");
   const [estimatedMinutes, setEstimatedMinutes] = useState("60");
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(localDateString());
   const [sets, setSets] = useState<SetDraft[]>([
     emptySet(), emptySet(), emptySet(), emptySet(), emptySet()
   ]);
