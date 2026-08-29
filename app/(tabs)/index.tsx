@@ -829,7 +829,6 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
           <View style={styles.logoWrap}><BrandLogo compact /></View>
           <Pressable style={styles.squareButton}>
             <SymbolView name={{ ios: "bell", android: "notifications_none" }} size={18} tintColor={colors.text} />
-            <View style={styles.notification}><Text style={styles.notificationText}>2</Text></View>
           </Pressable>
         </View>
 
