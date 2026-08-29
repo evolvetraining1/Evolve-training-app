@@ -195,13 +195,39 @@ export default function StatsScreen() {
   const load = useCallback(async () => {
     try {
       setError("");
-      const [data, history] = await Promise.all([
+      const [statsResult, historyResult] = await Promise.allSettled([
         getAthleteStatsDashboard(),
         getExercisePerformanceHistory(),
       ]);
 
+      const data =
+        statsResult.status === "fulfilled"
+          ? statsResult.value
+          : null;
+
+      const history =
+        historyResult.status === "fulfilled"
+          ? historyResult.value
+          : [];
+
       setStats(data);
       setExerciseHistory(history);
+
+      const failedLoads = [statsResult, historyResult].filter(
+        (result) => result.status === "rejected"
+      );
+
+      if (failedLoads.length) {
+        failedLoads.forEach((result) => {
+          if (result.status === "rejected") {
+            console.error("STATS PARTIAL LOAD ERROR", result.reason);
+          }
+        });
+
+        setError(
+          "Certaines statistiques n’ont pas pu être chargées."
+        );
+      }
     } catch (e: any) {
       setError(e?.message ?? "Erreur lors du chargement des statistiques.");
     } finally {
