@@ -182,6 +182,21 @@ export default function ProgramWorkoutScreen() {
     );
   }
 
+  if (error) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.errorText}>{error}</Text>
+
+        <Text
+          style={styles.back}
+          onPress={() => router.back()}
+        >
+          ← RETOUR
+        </Text>
+      </View>
+    );
+  }
+
   return (
     <ScrollView
       style={styles.screen}
@@ -355,7 +370,9 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
     alignItems: "center",
     justifyContent: "center",
+    paddingHorizontal: 24,
   },
+
   hero: {
     alignItems: "center",
     paddingHorizontal: 10,
@@ -626,5 +643,9 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: "#F5A299",
+    fontSize: 16,
+    fontWeight: "800",
+    textAlign: "center",
+    marginBottom: 20,
   },
 });
