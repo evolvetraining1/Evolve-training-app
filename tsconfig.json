@@ -15,5 +15,11 @@
     "**/*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
+  ],
+  "exclude": [
+    "backups",
+    "**/*.before-*",
+    "**/*.stable-*",
+    "tsconfig.json.before-*"
   ]
 }
