@@ -94,16 +94,29 @@ export default function HomeScreen() {
         const parsed = JSON.parse(saved);
 
         if (Array.isArray(parsed)) {
-          const savedById = new Map(
-            parsed.map((item: DashboardWidget) => [item.id, item])
+          const defaultById = new Map(
+            DEFAULT_DASHBOARD_WIDGETS.map((item) => [item.id, item])
           );
 
-          const merged = DEFAULT_DASHBOARD_WIDGETS.map((item) => ({
-            ...item,
-            ...(savedById.get(item.id) ?? {}),
-          }));
+          const restored: DashboardWidget[] = parsed
+            .filter(
+              (item: DashboardWidget) =>
+                item &&
+                typeof item.id === "string" &&
+                defaultById.has(item.id)
+            )
+            .map((item: DashboardWidget) => ({
+              ...defaultById.get(item.id)!,
+              ...item,
+            }));
 
-          setDashboardWidgets(merged);
+          const restoredIds = new Set(restored.map((item) => item.id));
+
+          const newWidgets = DEFAULT_DASHBOARD_WIDGETS.filter(
+            (item) => !restoredIds.has(item.id)
+          );
+
+          setDashboardWidgets([...restored, ...newWidgets]);
         }
       })
       .catch((e) => {
@@ -227,8 +240,18 @@ export default function HomeScreen() {
   );
 
   const saveDraggedWidgetOrder = (visibleWidgets: DashboardWidget[]) => {
-    const hiddenWidgets = dashboardWidgets.filter((widget) => !widget.visible);
-    saveDashboardWidgets([...visibleWidgets, ...hiddenWidgets]);
+    let visibleIndex = 0;
+
+    const merged = dashboardWidgets.map((widget) => {
+      if (!widget.visible) return widget;
+
+      const reordered = visibleWidgets[visibleIndex];
+      visibleIndex += 1;
+
+      return reordered ?? widget;
+    });
+
+    saveDashboardWidgets(merged);
   };
 
   const dashboardWidgetOrder = (id: DashboardWidgetId) => {
