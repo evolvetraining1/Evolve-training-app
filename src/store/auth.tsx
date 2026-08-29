@@ -17,17 +17,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setLoading(false);
-    });
+    let mounted = true;
+
+    async function loadInitialSession() {
+      try {
+        const { data, error } = await supabase.auth.getSession();
+
+        if (error) throw error;
+
+        if (mounted) {
+          setSession(data.session);
+        }
+      } catch (error) {
+        console.error("AUTH INITIAL SESSION ERROR", error);
+
+        if (mounted) {
+          setSession(null);
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadInitialSession();
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, next) => {
+      if (!mounted) return;
+
       setSession(next);
       setLoading(false);
     });
 
-    return () => listener.subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
   const value = useMemo<AuthContextValue>(() => ({
