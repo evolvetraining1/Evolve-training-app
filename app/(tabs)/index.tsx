@@ -307,10 +307,6 @@ export default function HomeScreen() {
 
       const ownedPrograms = programData?.programs ?? [];
 
-      console.log("=== HOME PROGRAM DEBUG ===");
-      console.log("programData:", JSON.stringify(programData));
-      console.log("ownedPrograms:", JSON.stringify(ownedPrograms));
-      console.log("ownedPrograms count:", ownedPrograms.length);
 
       setMyPrograms(ownedPrograms);
 
