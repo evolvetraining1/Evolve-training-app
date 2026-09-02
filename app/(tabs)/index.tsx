@@ -841,7 +841,6 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
         <NestableDraggableFlatList
           data={orderedVisibleDashboardWidgets}
           keyExtractor={(item) => item.id}
-          scrollEnabled={false}
           onDragEnd={({ data }) => saveDraggedWidgetOrder(data)}
           renderItem={({ item: widget, drag, isActive }: RenderItemParams<DashboardWidget>) => (
           <View
