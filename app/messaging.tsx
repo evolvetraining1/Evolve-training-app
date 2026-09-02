@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Image, InteractionManager, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { router } from "expo-router";
 import { colors } from "@/src/theme";
 import { supabase } from "@/src/lib/supabase";
@@ -14,7 +14,13 @@ const MAX_VIDEO_BYTES=50*1024*1024;
 export default function MessagingScreen(){
  const [userId,setUserId]=useState(""); const [role,setRole]=useState(""); const [contacts,setContacts]=useState<Contact[]>([]); const [selectedContact,setSelectedContact]=useState<Contact|null>(null); const [conversationId,setConversationId]=useState<string|null>(null); const [messages,setMessages]=useState<Message[]>([]); const [mediaUrls,setMediaUrls]=useState<Record<string,string>>({}); const [text,setText]=useState(""); const [loading,setLoading]=useState(true); const [chatLoading,setChatLoading]=useState(false); const [sending,setSending]=useState(false); const [mediaSending,setMediaSending]=useState(false); const [error,setError]=useState("");
  const scrollRef=useRef<ScrollView>(null); const messagesRef=useRef<Message[]>([]); const openRequestRef=useRef(0);
- useEffect(()=>{void bootstrap();},[]); useEffect(()=>{messagesRef.current=messages;},[messages]);
+ useEffect(()=>{
+  const task=InteractionManager.runAfterInteractions(()=>{
+    void bootstrap();
+  });
+  return()=>task.cancel();
+ },[]);
+ useEffect(()=>{messagesRef.current=messages;},[messages]);
  useEffect(()=>{if(!conversationId)return; const channel=supabase.channel(`messages:${conversationId}`).on("postgres_changes",{event:"INSERT",schema:"public",table:"messages",filter:`conversation_id=eq.${conversationId}`},payload=>{const incoming=payload.new as Message; setMessages(current=>current.some(m=>m.id===incoming.id)?current:[...current,incoming]); if(isMediaMessage(incoming)&&incoming.media_url){void getSignedMediaUrl(incoming.media_url).then(url=>setMediaUrls(current=>({...current,[incoming.id]:url}))).catch(()=>{});} setTimeout(()=>scrollRef.current?.scrollToEnd({animated:true}),80);}).subscribe(); return()=>{void supabase.removeChannel(channel);};},[conversationId]);
  useEffect(()=>{if(!conversationId)return; const interval=setInterval(()=>{void loadMediaUrls(messagesRef.current,openRequestRef.current);},45*60*1000); return()=>clearInterval(interval);},[conversationId]);
  function isMediaMessage(message:Message){return (message.type==="image"||message.type==="video"||message.type==="audio")&&Boolean(message.media_url);}
