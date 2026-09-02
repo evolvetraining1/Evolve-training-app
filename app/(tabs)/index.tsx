@@ -878,7 +878,8 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
             <ScrollView
           style={styles.homeWorkoutScroll}
           contentContainerStyle={styles.homeWorkoutScrollContent}
-          nestedScrollEnabled
+          nestedScrollEnabled={!dashboardEditMode}
+          scrollEnabled={!dashboardEditMode}
           showsVerticalScrollIndicator={false}
           overScrollMode="never"
         >
