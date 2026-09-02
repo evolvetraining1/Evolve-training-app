@@ -418,11 +418,10 @@ export default function HomeScreen() {
         filteredSessions[0] ??
         null;
 
-      if (active?.id) {
-        setNextDetail(await getSessionDetail(active.id));
-      } else {
-        setNextDetail(null);
-      }
+      // Ne pas bloquer le chargement initial du dashboard
+      // sur les détails complets de la séance.
+      // Le détail est chargé séparément par l'effet dédié.
+      setNextDetail(null);
 
     } catch (e: any) {
       console.error("HOME LOAD ERROR", e);
@@ -603,6 +602,39 @@ export default function HomeScreen() {
       cancelled = true;
     };
   }, [template?.id, next?.id]);
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadNextDetail() {
+      if (!next?.id || !next?.workout_template_id) {
+        setNextDetail(null);
+        return;
+      }
+
+      try {
+        const detail = await getWorkoutTemplateDetail(
+          String(next.workout_template_id)
+        );
+
+        if (!cancelled) {
+          setNextDetail(detail);
+        }
+      } catch (e) {
+        console.error("NEXT WORKOUT DETAIL LOAD ERROR", e);
+
+        if (!cancelled) {
+          setNextDetail(null);
+        }
+      }
+    }
+
+    loadNextDetail();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [next?.id, next?.workout_template_id]);
+
   const previewExercises = next?.id
     ? (nextDetail?.workoutExercises ?? [])
     : (selectedTemplateDetail?.workoutExercises ?? []);
