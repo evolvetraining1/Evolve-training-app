@@ -852,7 +852,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
               <>
         <SectionTitle title="SÉANCE DU JOUR" />
         <Pressable
-          onLongPress={() => setDashboardEditMode(true)}
+          onLongPress={dashboardEditMode ? undefined : () => setDashboardEditMode(true)}
           delayLongPress={450}
           style={styles.workoutCard}
         >
@@ -976,7 +976,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
             {widget.id === "nextWorkout" ? (
               <>
         <Pressable
-          onLongPress={() => setDashboardEditMode(true)}
+          onLongPress={dashboardEditMode ? undefined : () => setDashboardEditMode(true)}
           delayLongPress={450}
           style={styles.nextCard}
         >
@@ -1013,7 +1013,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
               <>
         <SectionTitle title="SUIVI DE ROUTINE" action="Voir le suivi  →" onAction={() => router.push("/(tabs)/journal")} />
         <Pressable
-          onLongPress={() => setDashboardEditMode(true)}
+          onLongPress={dashboardEditMode ? undefined : () => setDashboardEditMode(true)}
           delayLongPress={450}
           style={styles.routineCard}
         >
@@ -1089,7 +1089,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
               <>
         <SectionTitle title="DERNIÈRES PERFORMANCES" action="Voir tout  →" onAction={() => router.push("/(tabs)/stats")} />
         <Pressable
-          onLongPress={() => setDashboardEditMode(true)}
+          onLongPress={dashboardEditMode ? undefined : () => setDashboardEditMode(true)}
           delayLongPress={450}
           style={styles.performanceCard}
         >
@@ -1125,7 +1125,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
               <>
       {dashboardWidgetVisible("nutrition") ? (
         <Pressable
-          onLongPress={() => setDashboardEditMode(true)}
+          onLongPress={dashboardEditMode ? undefined : () => setDashboardEditMode(true)}
           delayLongPress={450}
           style={styles.miniWidget}
         >
@@ -1182,7 +1182,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
               <>
       {dashboardWidgetVisible("messaging") ? (
         <Pressable
-          onLongPress={() => setDashboardEditMode(true)}
+          onLongPress={dashboardEditMode ? undefined : () => setDashboardEditMode(true)}
           delayLongPress={450}
           disabled={dashboardEditMode}
           onPress={() => router.push("/messaging" as any)}
@@ -1227,7 +1227,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
               <>
       {dashboardWidgetVisible("oneRM") ? (
         <Pressable
-          onLongPress={() => setDashboardEditMode(true)}
+          onLongPress={dashboardEditMode ? undefined : () => setDashboardEditMode(true)}
           delayLongPress={450}
           disabled={dashboardEditMode}
           onPress={() => router.push("/rm-calculator" as any)}
@@ -1275,7 +1275,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
               <>
       {dashboardWidgetVisible("macros") ? (
         <Pressable
-          onLongPress={() => setDashboardEditMode(true)}
+          onLongPress={dashboardEditMode ? undefined : () => setDashboardEditMode(true)}
           delayLongPress={450}
           style={styles.miniMacroWidget}
         >
@@ -1403,7 +1403,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
 
       {myPrograms.length > 0 ? (
         <Pressable
-          onLongPress={() => setDashboardEditMode(true)}
+          onLongPress={dashboardEditMode ? undefined : () => setDashboardEditMode(true)}
           delayLongPress={450}
           style={styles.programSwitcher}
         >
