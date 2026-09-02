@@ -77,9 +77,6 @@ export default function HomeScreen() {
 
   const [dashboardEditMode, setDashboardEditMode] = useState(false);
   const [widgetPickerOpen, setWidgetPickerOpen] = useState(false);
-  const [movingWidgetId, setMovingWidgetId] =
-    useState<DashboardWidgetId | null>(null);
-
   const [nutritionQuickSearch, setNutritionQuickSearch] = useState("");
   const [macroWeight, setMacroWeight] = useState("");
   const [macroGoal, setMacroGoal] =
@@ -148,76 +145,6 @@ export default function HomeScreen() {
           ? { ...widget, visible: !widget.visible }
           : widget
       );
-
-      saveDashboardWidgets(updated);
-    },
-    [dashboardWidgets, saveDashboardWidgets]
-  );
-
-  const moveDashboardWidget = useCallback(
-    (id: DashboardWidgetId, direction: -1 | 1) => {
-      const index = dashboardWidgets.findIndex(
-        (widget) => widget.id === id
-      );
-
-      const target = index + direction;
-
-      if (
-        index < 0 ||
-        target < 0 ||
-        target >= dashboardWidgets.length
-      ) {
-        return;
-      }
-
-      const updated = [...dashboardWidgets];
-      const [moved] = updated.splice(index, 1);
-      updated.splice(target, 0, moved);
-
-      saveDashboardWidgets(updated);
-    },
-    [dashboardWidgets, saveDashboardWidgets]
-  );
-
-  const moveWidgetTo = useCallback(
-    (id: DashboardWidgetId, direction: -1 | 1) => {
-      const visibleWidgets =
-        dashboardWidgets.filter((widget) => widget.visible);
-
-      const currentVisibleIndex =
-        visibleWidgets.findIndex((widget) => widget.id === id);
-
-      const targetVisibleIndex =
-        currentVisibleIndex + direction;
-
-      if (
-        currentVisibleIndex === -1 ||
-        targetVisibleIndex < 0 ||
-        targetVisibleIndex >= visibleWidgets.length
-      ) {
-        return;
-      }
-
-      const targetId =
-        visibleWidgets[targetVisibleIndex].id;
-
-      const currentIndex =
-        dashboardWidgets.findIndex((widget) => widget.id === id);
-
-      const targetIndex =
-        dashboardWidgets.findIndex(
-          (widget) => widget.id === targetId
-        );
-
-      if (currentIndex === -1 || targetIndex === -1) {
-        return;
-      }
-
-      const updated = [...dashboardWidgets];
-
-      const temp = updated[currentIndex];
-      updated[currentIndex] = updated[targetIndex];
-      updated[targetIndex] = temp;
 
       saveDashboardWidgets(updated);
     },
@@ -1565,37 +1492,6 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
         />
 
       </NestableScrollContainer>
-
-      {dashboardEditMode && movingWidgetId ? (
-        <View style={styles.widgetMovePanel}>
-
-          <Pressable
-            onPress={() => moveWidgetTo(movingWidgetId, -1)}
-            style={styles.widgetMoveAction}
-          >
-            <Text style={styles.widgetMoveArrow}>↑</Text>
-            <Text style={styles.widgetMoveLabel}>MONTER</Text>
-          </Pressable>
-
-          <View style={styles.widgetMoveSeparator} />
-
-          <Pressable
-            onPress={() => moveWidgetTo(movingWidgetId, 1)}
-            style={styles.widgetMoveAction}
-          >
-            <Text style={styles.widgetMoveArrow}>↓</Text>
-            <Text style={styles.widgetMoveLabel}>DESCENDRE</Text>
-          </Pressable>
-
-          <Pressable
-            onPress={() => setMovingWidgetId(null)}
-            style={styles.widgetMoveClose}
-          >
-            <Text style={styles.widgetMoveCloseText}>×</Text>
-          </Pressable>
-
-        </View>
-      ) : null}
 
       <Modal
         visible={widgetPickerOpen}
