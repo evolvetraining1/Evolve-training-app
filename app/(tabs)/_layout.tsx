@@ -1,5 +1,5 @@
 import { Redirect, Tabs } from "expo-router";
-import { ActivityIndicator, Text, View, ColorValue} from "react-native";
+import { ActivityIndicator, Text, View } from "react-native";
 import { colors } from "@/src/theme";
 import { useAuth } from "@/src/store/auth";
 
@@ -11,12 +11,13 @@ export default function TabsLayout(){
   return <Tabs screenOptions={{
     headerShown:false,
     tabBarStyle:{backgroundColor:"#0A0A0B",borderTopColor:colors.border,height:78,paddingTop:7,paddingBottom:8},
-    tabBarLabelStyle:{fontSize:11,fontWeight:"700"},
+    tabBarLabelStyle:{fontSize:10,fontWeight:"700"},
     tabBarActiveTintColor:colors.yellow,
     tabBarInactiveTintColor:colors.muted,
     sceneStyle:{backgroundColor:"transparent"}
   }}>
     <Tabs.Screen name="index" options={{title:"Accueil",tabBarIcon:({color})=>icon("⌂", String(color))}}/>
+    <Tabs.Screen name="library" options={{title:"Bibliothèque",tabBarIcon:({color})=>icon("⌘", String(color))}}/>
     <Tabs.Screen name="training" options={{title:"Programme",tabBarIcon:({color})=>icon("▣", String(color))}}/>
     <Tabs.Screen name="stats" options={{title:"Stats",tabBarIcon:({color})=>icon("▥", String(color))}}/>
     <Tabs.Screen name="profile" options={{title:"Profil",tabBarIcon:({color})=>icon("♙", String(color))}}/>
