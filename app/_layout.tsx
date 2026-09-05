@@ -1,11 +1,31 @@
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { ImageBackground, StyleSheet } from "react-native";
+import { AppState, ImageBackground, Platform, StyleSheet } from "react-native";
+import { useEffect } from "react";
+import * as NavigationBar from "expo-navigation-bar";
 import { SessionProvider } from "@/src/store/session";
 import { AuthProvider } from "@/src/store/auth";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 export default function RootLayout() {
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+
+    const hideNavigationBar = () => {
+      void NavigationBar.setVisibilityAsync("hidden").catch(() => {});
+    };
+
+    hideNavigationBar();
+
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        hideNavigationBar();
+      }
+    });
+
+    return () => subscription.remove();
+  }, []);
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ImageBackground
