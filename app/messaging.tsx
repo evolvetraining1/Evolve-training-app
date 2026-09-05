@@ -1,4 +1,8 @@
 import { useEffect, useRef, useState } from "react";
+import * as FileSystemLegacy from "expo-file-system/legacy";
+import { fetch as expoFetch } from "expo/fetch";
+import { decode } from "base64-arraybuffer";
+import { File } from "expo-file-system";
 import { ActivityIndicator, Alert, Image, InteractionManager, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { router } from "expo-router";
 import { colors } from "@/src/theme";
@@ -35,7 +39,34 @@ export default function MessagingScreen(){
  async function openContact(contact:Contact){const requestId=++openRequestRef.current;try{setSelectedContact(contact);setChatLoading(true);setError("");setMessages([]);setMediaUrls({});const coachId=role==="coach"?userId:contact.id;const athleteId=role==="coach"?contact.id:userId;let {data:conversation,error:findError}=await supabase.from("conversations").select("id").eq("coach_id",coachId).eq("athlete_id",athleteId).maybeSingle();if(findError)throw findError;if(!conversation){const {data:created,error:createError}=await supabase.from("conversations").insert({coach_id:coachId,athlete_id:athleteId}).select("id").single();if(createError){if(createError.code!=="23505")throw createError;const {data:concurrentConversation,error:concurrentError}=await supabase.from("conversations").select("id").eq("coach_id",coachId).eq("athlete_id",athleteId).single();if(concurrentError)throw concurrentError;conversation=concurrentConversation;}else conversation=created;}if(requestId!==openRequestRef.current)return;setConversationId(conversation.id);const {data:history,error:historyError}=await supabase.from("messages").select("*").eq("conversation_id",conversation.id).order("created_at",{ascending:false}).limit(100);console.log("MESSAGING HISTORY DEBUG",{conversationId:conversation.id,count:history?.length??0,error:historyError});if(historyError)throw historyError;if(requestId!==openRequestRef.current)return;const loadedMessages=[...(history??[])].reverse() as Message[];setMessages(loadedMessages);setChatLoading(false);void loadMediaUrls(loadedMessages,requestId);setTimeout(()=>{if(requestId===openRequestRef.current)scrollRef.current?.scrollToEnd({animated:false});},100);}catch(e:any){if(requestId===openRequestRef.current){setError(e?.message??"Impossible d'ouvrir la conversation.");setChatLoading(false);}}}
  async function loadMediaUrls(list:Message[],requestId:number){const mediaMessages=list.filter(isMediaMessage).slice(-12);if(!mediaMessages.length)return;const entries:([string,string]|null)[]=[];for(const message of mediaMessages){if(requestId!==openRequestRef.current)return;if(!message.media_url)continue;try{const url=await getSignedMediaUrl(message.media_url);entries.push([message.id,url]);}catch{}}if(requestId!==openRequestRef.current)return;if(entries.length)setMediaUrls(current=>({...current,...Object.fromEntries(entries)}));}
  async function getSignedMediaUrl(path:string){const {data,error}=await supabase.storage.from("chat-media").createSignedUrl(path,60*60);if(error)throw error;return data.signedUrl;}
- async function uploadChatMedia(localUri:string,kind:"image"|"video",mimeType?:string|null,fileName?:string|null,fileSize?:number|null){if(!conversationId||!userId)throw new Error("Conversation indisponible.");const maxBytes=kind==="image"?MAX_IMAGE_BYTES:MAX_VIDEO_BYTES;const maxLabel=kind==="image"?"10 Mo":"50 Mo";if(fileSize!=null&&fileSize>maxBytes)throw new Error(`${kind==="image"?"L'image":"La vidéo"} dépasse la taille maximale autorisée (${maxLabel}).`);const response=await fetch(localUri);if(!response.ok)throw new Error("Impossible de lire le média sélectionné.");const blob=await response.blob();if(blob.size>maxBytes)throw new Error(`${kind==="image"?"L'image":"La vidéo"} dépasse la taille maximale autorisée (${maxLabel}).`);const extension=fileName?.split(".").pop()?.toLowerCase()||(kind==="image"?"jpg":"mp4");const path=`${conversationId}/${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${extension}`;const {error}=await supabase.storage.from("chat-media").upload(path,blob,{contentType:mimeType||(kind==="image"?"image/jpeg":"video/mp4"),upsert:false});if(error)throw error;return path;}
+ async function uploadChatMedia(localUri:string,kind:"image"|"video",mimeType?:string|null,fileName?:string|null,fileSize?:number|null){if(!conversationId||!userId)throw new Error("Conversation indisponible.");const maxBytes=kind==="image"?MAX_IMAGE_BYTES:MAX_VIDEO_BYTES;const maxLabel=kind==="image"?"10 Mo":"50 Mo";if(fileSize!=null&&fileSize>maxBytes)throw new Error(`${kind==="image"?"L'image":"La vidéo"} dépasse la taille maximale autorisée (${maxLabel}).`);const localFile=new File(localUri);const base64=await localFile.base64();const arrayBuffer=decode(base64);if(arrayBuffer.byteLength>maxBytes)throw new Error(`${kind==="image"?"L'image":"La vidéo"} dépasse la taille maximale autorisée (${maxLabel}).`);const extension=fileName?.split(".").pop()?.toLowerCase()||(kind==="image"?"jpg":"mp4");const path=`${conversationId}/${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${extension}`;const contentType=kind==="image"?"image/jpeg":"video/mp4";
+const {data:{session}}=await supabase.auth.getSession();
+if(!session?.access_token)throw new Error("Session expirée. Reconnecte-toi.");
+const supabaseUrl=process.env.EXPO_PUBLIC_SUPABASE_URL;
+const supabaseKey=process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+if(!supabaseUrl||!supabaseKey)throw new Error("Configuration Supabase absente.");
+const encodedPath=path.split("/").map(encodeURIComponent).join("/");
+const uploadResult=await FileSystemLegacy.uploadAsync(
+  `${supabaseUrl}/storage/v1/object/chat-media/${encodedPath}`,
+  localUri,
+  {
+    httpMethod:"POST",
+    uploadType:FileSystemLegacy.FileSystemUploadType.BINARY_CONTENT,
+    headers:{
+      Authorization:`Bearer ${session.access_token}`,
+      apikey:supabaseKey,
+      "Content-Type":contentType,
+      "x-upsert":"false",
+      "cache-control":"max-age=3600"
+    }
+  }
+);
+if(uploadResult.status<200||uploadResult.status>=300){
+  throw new Error(
+    `UPLOAD ${uploadResult.status} | ${contentType} | ${arrayBuffer.byteLength} bytes | ${localUri.slice(0,80)} | ${uploadResult.body || "sans corps"}`
+  );
+}
+return path;}
  async function sendMediaMessage(type:"image"|"video",storagePath:string){if(!conversationId)throw new Error("Conversation indisponible.");const {error}=await supabase.from("messages").insert({conversation_id:conversationId,sender_id:userId,type,media_url:storagePath});if(error){await supabase.storage.from("chat-media").remove([storagePath]).catch(()=>{});throw error;}}
  async function pickMedia(){if(!conversationId||mediaSending)return;try{setError("");const ImagePicker=await import("expo-image-picker");const permission=await ImagePicker.requestMediaLibraryPermissionsAsync();if(!permission.granted){Alert.alert("Autorisation nécessaire","Evolve Training a besoin d'accéder à tes photos et vidéos.");return;}const result=await ImagePicker.launchImageLibraryAsync({mediaTypes:["images","videos"],allowsMultipleSelection:false,quality:0.85,videoMaxDuration:120});if(result.canceled||!result.assets?.length)return;const asset=result.assets[0];const type=asset.type==="video"?"video":"image";setMediaSending(true);const path=await uploadChatMedia(asset.uri,type,asset.mimeType,asset.fileName,asset.fileSize);await sendMediaMessage(type,path);}catch(e:any){setError(e?.message??"Impossible d'envoyer ce média.");}finally{setMediaSending(false);}}
  async function sendText(){const body=text.trim();if(!body||!conversationId||sending)return;try{setSending(true);setError("");setText("");const {error}=await supabase.from("messages").insert({conversation_id:conversationId,sender_id:userId,type:"text",content:body});if(error){setText(body);throw error;}}catch(e:any){setError(e?.message??"Impossible d'envoyer le message.");}finally{setSending(false);}}
