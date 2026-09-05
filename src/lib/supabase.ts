@@ -12,7 +12,8 @@ if (!supabaseUrl || !supabaseKey) {
   );
 }
 
-let supabaseClient: ReturnType<typeof createClient>;
+type SupabaseClient = ReturnType<typeof createClient<any>>;
+let supabaseClient: SupabaseClient;
 
 async function fetchWithAuthRetry(
   input: RequestInfo | URL,
@@ -52,7 +53,7 @@ async function fetchWithAuthRetry(
   });
 }
 
-supabaseClient = createClient(
+supabaseClient = createClient<any>(
   supabaseUrl,
   supabaseKey,
   {
