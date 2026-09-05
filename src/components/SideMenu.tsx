@@ -24,8 +24,12 @@ const sections = [
 export default function SideMenu({ visible, onClose, role }: Props) {
   const open = (route?: string) => {
     if (!route) return;
+
     onClose();
-    router.push(route as any);
+
+    setTimeout(() => {
+      router.push(route as any);
+    }, 150);
   };
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>

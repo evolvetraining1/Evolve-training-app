@@ -77,9 +77,6 @@ export default function HomeScreen() {
 
   const [dashboardEditMode, setDashboardEditMode] = useState(false);
   const [widgetPickerOpen, setWidgetPickerOpen] = useState(false);
-  const [movingWidgetId, setMovingWidgetId] =
-    useState<DashboardWidgetId | null>(null);
-
   const [nutritionQuickSearch, setNutritionQuickSearch] = useState("");
   const [macroWeight, setMacroWeight] = useState("");
   const [macroGoal, setMacroGoal] =
@@ -148,76 +145,6 @@ export default function HomeScreen() {
           ? { ...widget, visible: !widget.visible }
           : widget
       );
-
-      saveDashboardWidgets(updated);
-    },
-    [dashboardWidgets, saveDashboardWidgets]
-  );
-
-  const moveDashboardWidget = useCallback(
-    (id: DashboardWidgetId, direction: -1 | 1) => {
-      const index = dashboardWidgets.findIndex(
-        (widget) => widget.id === id
-      );
-
-      const target = index + direction;
-
-      if (
-        index < 0 ||
-        target < 0 ||
-        target >= dashboardWidgets.length
-      ) {
-        return;
-      }
-
-      const updated = [...dashboardWidgets];
-      const [moved] = updated.splice(index, 1);
-      updated.splice(target, 0, moved);
-
-      saveDashboardWidgets(updated);
-    },
-    [dashboardWidgets, saveDashboardWidgets]
-  );
-
-  const moveWidgetTo = useCallback(
-    (id: DashboardWidgetId, direction: -1 | 1) => {
-      const visibleWidgets =
-        dashboardWidgets.filter((widget) => widget.visible);
-
-      const currentVisibleIndex =
-        visibleWidgets.findIndex((widget) => widget.id === id);
-
-      const targetVisibleIndex =
-        currentVisibleIndex + direction;
-
-      if (
-        currentVisibleIndex === -1 ||
-        targetVisibleIndex < 0 ||
-        targetVisibleIndex >= visibleWidgets.length
-      ) {
-        return;
-      }
-
-      const targetId =
-        visibleWidgets[targetVisibleIndex].id;
-
-      const currentIndex =
-        dashboardWidgets.findIndex((widget) => widget.id === id);
-
-      const targetIndex =
-        dashboardWidgets.findIndex(
-          (widget) => widget.id === targetId
-        );
-
-      if (currentIndex === -1 || targetIndex === -1) {
-        return;
-      }
-
-      const updated = [...dashboardWidgets];
-
-      const temp = updated[currentIndex];
-      updated[currentIndex] = updated[targetIndex];
-      updated[targetIndex] = temp;
 
       saveDashboardWidgets(updated);
     },
@@ -380,10 +307,6 @@ export default function HomeScreen() {
 
       const ownedPrograms = programData?.programs ?? [];
 
-      console.log("=== HOME PROGRAM DEBUG ===");
-      console.log("programData:", JSON.stringify(programData));
-      console.log("ownedPrograms:", JSON.stringify(ownedPrograms));
-      console.log("ownedPrograms count:", ownedPrograms.length);
 
       setMyPrograms(ownedPrograms);
 
@@ -418,11 +341,10 @@ export default function HomeScreen() {
         filteredSessions[0] ??
         null;
 
-      if (active?.id) {
-        setNextDetail(await getSessionDetail(active.id));
-      } else {
-        setNextDetail(null);
-      }
+      // Ne pas bloquer le chargement initial du dashboard
+      // sur les détails complets de la séance.
+      // Le détail est chargé séparément par l'effet dédié.
+      setNextDetail(null);
 
     } catch (e: any) {
       console.error("HOME LOAD ERROR", e);
@@ -603,6 +525,39 @@ export default function HomeScreen() {
       cancelled = true;
     };
   }, [template?.id, next?.id]);
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadNextDetail() {
+      if (!next?.id || !next?.workout_template_id) {
+        setNextDetail(null);
+        return;
+      }
+
+      try {
+        const detail = await getWorkoutTemplateDetail(
+          String(next.workout_template_id)
+        );
+
+        if (!cancelled) {
+          setNextDetail(detail);
+        }
+      } catch (e) {
+        console.error("NEXT WORKOUT DETAIL LOAD ERROR", e);
+
+        if (!cancelled) {
+          setNextDetail(null);
+        }
+      }
+    }
+
+    loadNextDetail();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [next?.id, next?.workout_template_id]);
+
   const previewExercises = next?.id
     ? (nextDetail?.workoutExercises ?? [])
     : (selectedTemplateDetail?.workoutExercises ?? []);
@@ -886,7 +841,6 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
         <NestableDraggableFlatList
           data={orderedVisibleDashboardWidgets}
           keyExtractor={(item) => item.id}
-          scrollEnabled={false}
           onDragEnd={({ data }) => saveDraggedWidgetOrder(data)}
           renderItem={({ item: widget, drag, isActive }: RenderItemParams<DashboardWidget>) => (
           <View
@@ -897,7 +851,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
               <>
         <SectionTitle title="SÉANCE DU JOUR" />
         <Pressable
-          onLongPress={() => setDashboardEditMode(true)}
+          onLongPress={dashboardEditMode ? undefined : () => setDashboardEditMode(true)}
           delayLongPress={450}
           style={styles.workoutCard}
         >
@@ -923,7 +877,8 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
             <ScrollView
           style={styles.homeWorkoutScroll}
           contentContainerStyle={styles.homeWorkoutScrollContent}
-          nestedScrollEnabled
+          nestedScrollEnabled={!dashboardEditMode}
+          scrollEnabled={!dashboardEditMode}
           showsVerticalScrollIndicator={false}
           overScrollMode="never"
         >
@@ -1021,7 +976,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
             {widget.id === "nextWorkout" ? (
               <>
         <Pressable
-          onLongPress={() => setDashboardEditMode(true)}
+          onLongPress={dashboardEditMode ? undefined : () => setDashboardEditMode(true)}
           delayLongPress={450}
           style={styles.nextCard}
         >
@@ -1058,7 +1013,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
               <>
         <SectionTitle title="SUIVI DE ROUTINE" action="Voir le suivi  →" onAction={() => router.push("/(tabs)/journal")} />
         <Pressable
-          onLongPress={() => setDashboardEditMode(true)}
+          onLongPress={dashboardEditMode ? undefined : () => setDashboardEditMode(true)}
           delayLongPress={450}
           style={styles.routineCard}
         >
@@ -1134,7 +1089,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
               <>
         <SectionTitle title="DERNIÈRES PERFORMANCES" action="Voir tout  →" onAction={() => router.push("/(tabs)/stats")} />
         <Pressable
-          onLongPress={() => setDashboardEditMode(true)}
+          onLongPress={dashboardEditMode ? undefined : () => setDashboardEditMode(true)}
           delayLongPress={450}
           style={styles.performanceCard}
         >
@@ -1170,7 +1125,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
               <>
       {dashboardWidgetVisible("nutrition") ? (
         <Pressable
-          onLongPress={() => setDashboardEditMode(true)}
+          onLongPress={dashboardEditMode ? undefined : () => setDashboardEditMode(true)}
           delayLongPress={450}
           style={styles.miniWidget}
         >
@@ -1227,7 +1182,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
               <>
       {dashboardWidgetVisible("messaging") ? (
         <Pressable
-          onLongPress={() => setDashboardEditMode(true)}
+          onLongPress={dashboardEditMode ? undefined : () => setDashboardEditMode(true)}
           delayLongPress={450}
           disabled={dashboardEditMode}
           onPress={() => router.push("/messaging" as any)}
@@ -1272,7 +1227,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
               <>
       {dashboardWidgetVisible("oneRM") ? (
         <Pressable
-          onLongPress={() => setDashboardEditMode(true)}
+          onLongPress={dashboardEditMode ? undefined : () => setDashboardEditMode(true)}
           delayLongPress={450}
           disabled={dashboardEditMode}
           onPress={() => router.push("/rm-calculator" as any)}
@@ -1320,7 +1275,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
               <>
       {dashboardWidgetVisible("macros") ? (
         <Pressable
-          onLongPress={() => setDashboardEditMode(true)}
+          onLongPress={dashboardEditMode ? undefined : () => setDashboardEditMode(true)}
           delayLongPress={450}
           style={styles.miniMacroWidget}
         >
@@ -1448,7 +1403,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
 
       {myPrograms.length > 0 ? (
         <Pressable
-          onLongPress={() => setDashboardEditMode(true)}
+          onLongPress={dashboardEditMode ? undefined : () => setDashboardEditMode(true)}
           delayLongPress={450}
           style={styles.programSwitcher}
         >
@@ -1533,37 +1488,6 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
         />
 
       </NestableScrollContainer>
-
-      {dashboardEditMode && movingWidgetId ? (
-        <View style={styles.widgetMovePanel}>
-
-          <Pressable
-            onPress={() => moveWidgetTo(movingWidgetId, -1)}
-            style={styles.widgetMoveAction}
-          >
-            <Text style={styles.widgetMoveArrow}>↑</Text>
-            <Text style={styles.widgetMoveLabel}>MONTER</Text>
-          </Pressable>
-
-          <View style={styles.widgetMoveSeparator} />
-
-          <Pressable
-            onPress={() => moveWidgetTo(movingWidgetId, 1)}
-            style={styles.widgetMoveAction}
-          >
-            <Text style={styles.widgetMoveArrow}>↓</Text>
-            <Text style={styles.widgetMoveLabel}>DESCENDRE</Text>
-          </Pressable>
-
-          <Pressable
-            onPress={() => setMovingWidgetId(null)}
-            style={styles.widgetMoveClose}
-          >
-            <Text style={styles.widgetMoveCloseText}>×</Text>
-          </Pressable>
-
-        </View>
-      ) : null}
 
       <Modal
         visible={widgetPickerOpen}

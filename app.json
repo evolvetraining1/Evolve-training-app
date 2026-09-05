@@ -9,10 +9,17 @@
     "plugins": [
       "expo-router",
       "expo-audio",
-      "expo-video"
+      "expo-video",
+      "expo-asset",
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "androidNavigationBar": {
+      "visible": "sticky-immersive",
+      "backgroundColor": "#000000",
+      "barStyle": "light-content"
     },
     "android": {
       "package": "fr.evolvetraining.app",
