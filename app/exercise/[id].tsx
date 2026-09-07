@@ -62,11 +62,7 @@ export default function ExerciseDetailScreen() {
     return () => { active = false; };
   }, [params.id]);
 
-  if (loading) {
-    return <View style={styles.state}><ActivityIndicator color={colors.yellow} /></View>;
-  }
-
-  if (error || !exercise) {
+  if (!loading && (error || !exercise)) {
     return (
       <View style={styles.state}>
         <Text style={styles.error}>{error ?? "Mouvement introuvable."}</Text>
@@ -83,6 +79,14 @@ export default function ExerciseDetailScreen() {
         <View style={{ width: 32 }} />
       </View>
 
+      {loading ? (
+        <View style={styles.loadingInline}>
+          <ActivityIndicator color={colors.yellow} />
+        </View>
+      ) : null}
+
+      {!loading && exercise ? (
+      <>
       <Text style={styles.eyebrow}>{[exercise.category, exercise.difficulty].filter(Boolean).join("  •  ")}</Text>
       <Text style={styles.title}>{exercise.name.toUpperCase()}</Text>
 
@@ -125,6 +129,8 @@ export default function ExerciseDetailScreen() {
           <Text style={styles.pendingText}>Le mouvement est déjà disponible dans la bibliothèque. Les consignes techniques seront ajoutées progressivement.</Text>
         </View>
       )}
+      </>
+      ) : null}
     </ScrollView>
   );
 }
@@ -137,6 +143,7 @@ const styles = StyleSheet.create({
   backButton: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: 16, paddingVertical: 10 },
   backButtonText: { color: colors.text, fontWeight: "800" },
   topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 26 },
+  loadingInline: { minHeight: 120, alignItems: "center", justifyContent: "center" },
   back: { color: colors.text, fontSize: 42, lineHeight: 42 },
   brand: { color: colors.yellowSoft, fontSize: 12, fontWeight: "900", letterSpacing: 3 },
   eyebrow: { color: colors.yellowSoft, fontSize: 11, fontWeight: "900", letterSpacing: 1.4, textTransform: "uppercase", marginBottom: 7 },
