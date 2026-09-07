@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { router, useFocusEffect } from "expo-router";
 import { SymbolView } from "expo-symbols";
 import {
@@ -161,6 +161,7 @@ export default function HomeScreen() {
   const [switchingProgram, setSwitchingProgram] = useState(false);
   const [selectedProgramTemplates, setSelectedProgramTemplates] = useState<any[]>([]);
   const [selectedTemplateDetail, setSelectedTemplateDetail] = useState<any>(null);
+  const lastHomeLoadAtRef = useRef(0);
 
 
   const orderedVisibleDashboardWidgets = dashboardWidgets.filter(
@@ -233,6 +234,7 @@ export default function HomeScreen() {
 
   const load = useCallback(async () => {
     try {
+      lastHomeLoadAtRef.current = Date.now();
       setError(null);
 
       const results = await Promise.allSettled([
@@ -324,28 +326,6 @@ export default function HomeScreen() {
 
       setSelectedProgramIdState(savedProgramId);
 
-      const filteredSessions = savedProgramId
-        ? sessionsData.filter(
-            (session: any) =>
-              String(session?.workout_templates?.program_id ?? "") ===
-              String(savedProgramId)
-          )
-        : sessionsData;
-
-      const active =
-        filteredSessions.find(
-          (session: any) =>
-            session.status !== "completed" &&
-            session.status !== "skipped"
-        ) ??
-        filteredSessions[0] ??
-        null;
-
-      // Ne pas bloquer le chargement initial du dashboard
-      // sur les détails complets de la séance.
-      // Le détail est chargé séparément par l'effet dédié.
-      setNextDetail(null);
-
     } catch (e: any) {
       console.error("HOME LOAD ERROR", e);
 
@@ -361,7 +341,13 @@ export default function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      load();
+      const stale =
+        !lastHomeLoadAtRef.current ||
+        Date.now() - lastHomeLoadAtRef.current > 30_000;
+
+      if (stale) {
+        void load();
+      }
 
       return () => {};
     }, [load])
@@ -530,7 +516,6 @@ export default function HomeScreen() {
 
     async function loadNextDetail() {
       if (!next?.id || !next?.workout_template_id) {
-        setNextDetail(null);
         return;
       }
 
@@ -850,11 +835,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
             {widget.id === "workout" ? (
               <>
         <SectionTitle title="SÉANCE DU JOUR" />
-        <Pressable
-          onLongPress={dashboardEditMode ? undefined : () => setDashboardEditMode(true)}
-          delayLongPress={450}
-          style={styles.workoutCard}
-        >
+        <View style={styles.workoutCard}>
           {dashboardEditMode ? (
             <Pressable
               onLongPress={drag}
@@ -968,7 +949,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
               <Text style={styles.play}>▶</Text><Text style={styles.startText}>{next?.status === "in_progress" ? "REPRENDRE LA SÉANCE" : "COMMENCER LA SÉANCE"}</Text>
             </Pressable>
           </View>
-        </Pressable>
+        </View>
 
               </>
             ) : null}
