@@ -45,7 +45,7 @@ export default function ExerciseDetailScreen() {
       setError(null);
       const { data, error: requestError } = await supabase
         .from("exercises")
-        .select("*")
+        .select("id, name, category, instructions, video_url, objective, key_points, common_errors, regressions, progressions, equipment, muscles, image_url, difficulty")
         .eq("id", params.id)
         .maybeSingle();
 
