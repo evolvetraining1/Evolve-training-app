@@ -456,18 +456,31 @@ export default function WorkoutScreen() {
     void finalizeWorkout();
   }
 
-  if (loading) return <View style={styles.center}><ActivityIndicator /></View>;
-  if (!sessionId || !detail) return <View style={styles.center}><Text style={styles.error}>{message || "Aucune séance sélectionnée."}</Text></View>;
+  if (!loading && (!sessionId || !detail)) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.error}>
+          {message || "Aucune séance sélectionnée."}
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView contentContainerStyle={styles.page}>
       <ScreenHeader
         eyebrow="SÉANCE EN COURS"
-        title={detail.session.workout_templates?.name ?? "Séance"}
+        title={detail?.session?.workout_templates?.name ?? "Séance"}
         subtitle="Chaque série cochée est sauvegardée immédiatement."
       />
 
-      {(() => {
+      {loading ? (
+        <View style={styles.loadingInline}>
+          <ActivityIndicator color={colors.yellow} size="large" />
+        </View>
+      ) : null}
+
+      {!loading && detail ? (() => {
         const blockOrder = ["WARM UP", "STRENGTH WORK", "RENFO", "WOD", "AUTRE"];
 
         const blockSubtitles: Record<string, string> = {
@@ -643,9 +656,11 @@ export default function WorkoutScreen() {
               </View>
             </View>
           ));
-      })()}
+      })() : null}
 
-      <PrimaryButton label="VALIDER LA SÉANCE" onPress={finish} />
+      {!loading && detail ? (
+        <PrimaryButton label="VALIDER LA SÉANCE" onPress={finish} />
+      ) : null}
       {message ? <Text style={styles.message}>{message}</Text> : null}
     </ScrollView>
   );
@@ -669,6 +684,11 @@ const styles = StyleSheet.create({
 
   page: { padding: 20, paddingTop: 68, paddingBottom: 50, backgroundColor: "transparent" },
   center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "transparent", padding: 20 },
+  loadingInline: {
+    minHeight: 180,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   trainingBlock: {
     marginBottom: 26,
   },
