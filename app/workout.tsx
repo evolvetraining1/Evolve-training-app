@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { router, useLocalSearchParams } from "expo-router";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Card, PrimaryButton, ScreenHeader } from "@/src/components/ui";
@@ -298,6 +298,28 @@ export default function WorkoutScreen() {
       .finally(() => setLoading(false));
   }, [sessionId]);
 
+  const groupedExercises = useMemo(() => {
+    const grouped: Record<string, any[]> = {};
+
+    for (const exercise of detail?.workoutExercises ?? []) {
+      const value = String(exercise?.prescription_notes ?? "")
+        .trim()
+        .toUpperCase();
+
+      const block =
+        value.startsWith("WARM UP") ? "WARM UP" :
+        value.startsWith("STRENGTH WORK") ? "STRENGTH WORK" :
+        value.startsWith("RENFO") ? "RENFO" :
+        value.startsWith("WOD") ? "WOD" :
+        "AUTRE";
+
+      if (!grouped[block]) grouped[block] = [];
+      grouped[block].push(exercise);
+    }
+
+    return grouped;
+  }, [detail]);
+
   function patch(exerciseId: string, setNumber: number, patch: Partial<LocalSet>) {
     setSets((current) => ({
       ...current,
@@ -456,28 +478,7 @@ export default function WorkoutScreen() {
           "AUTRE": "Travail complémentaire",
         };
 
-        const getBlock = (notes?: string) => {
-          const value = (notes ?? "").trim().toUpperCase();
-
-          if (value.startsWith("WARM UP")) return "WARM UP";
-          if (value.startsWith("STRENGTH WORK")) return "STRENGTH WORK";
-          if (value.startsWith("RENFO")) return "RENFO";
-          if (value.startsWith("WOD")) return "WOD";
-
-          return "AUTRE";
-        };
-
-        const grouped = detail.workoutExercises.reduce(
-          (acc: Record<string, any[]>, exercise: any) => {
-            const block = getBlock(exercise.prescription_notes);
-
-            if (!acc[block]) acc[block] = [];
-            acc[block].push(exercise);
-
-            return acc;
-          },
-          {}
-        );
+        const grouped = groupedExercises;
 
         return blockOrder
           .filter((block) => grouped[block]?.length)
