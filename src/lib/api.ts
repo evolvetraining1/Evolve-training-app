@@ -83,7 +83,7 @@ export async function getSessionDetail(sessionId: string) {
 
   const { data: performed, error: performedError } = await supabase
     .from("performed_sets")
-    .select("*")
+    .select("workout_exercise_id, prescribed_set_id, set_number, reps, load_kg, rpe, completed")
     .eq("workout_session_id", sessionId);
 
   if (performedError) throw performedError;
