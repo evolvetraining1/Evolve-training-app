@@ -549,8 +549,6 @@ export default function JournalScreen() {
 
       setValues(valuesToSave);
 
-      await load();
-
       setMessage("Journal enregistré.");
     } catch (e: any) {
       setMessage(
