@@ -607,23 +607,17 @@ export async function getExercisePerformanceHistory() {
   const { data, error } = await supabase
     .from("performed_sets")
     .select(`
-      id,
       reps,
       load_kg,
       rpe,
-      completed,
       created_at,
       workout_exercises (
-        id,
         exercises (
           id,
           name
         )
       ),
       workout_sessions!inner (
-        id,
-        athlete_id,
-        status,
         completed_at
       )
     `)
