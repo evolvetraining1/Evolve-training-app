@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { router } from "expo-router";
 import { supabase } from "@/src/lib/supabase";
 import { colors, radius } from "@/src/theme";
@@ -9,11 +9,9 @@ type ExerciseRow = {
   name: string;
   category: string | null;
   equipment?: string[] | null;
-  muscles?: string[] | null;
   difficulty?: string | null;
   image_url?: string | null;
   video_url?: string | null;
-  is_library_visible?: boolean | null;
 };
 
 export default function ExerciseLibraryScreen() {
@@ -31,7 +29,8 @@ export default function ExerciseLibraryScreen() {
       setError(null);
       const { data, error: requestError } = await supabase
         .from("exercises")
-        .select("*")
+        .select("id, name, category, equipment, difficulty, image_url, video_url")
+        .eq("is_library_visible", true)
         .order("name", { ascending: true });
 
       if (!active) return;
@@ -39,7 +38,7 @@ export default function ExerciseLibraryScreen() {
         setError("Impossible de charger la bibliothèque pour le moment.");
         setItems([]);
       } else {
-        setItems((data ?? []).filter((item: ExerciseRow) => item.is_library_visible !== false));
+        setItems((data ?? []) as ExerciseRow[]);
       }
       setLoading(false);
     }
@@ -98,11 +97,19 @@ export default function ExerciseLibraryScreen() {
       ) : error ? (
         <View style={styles.centerState}><Text style={styles.error}>{error}</Text></View>
       ) : (
-        <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
-          <Text style={styles.count}>{filtered.length} mouvement{filtered.length > 1 ? "s" : ""}</Text>
-          {filtered.map((item) => (
+        <FlatList
+          data={filtered}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={7}
+          ListHeaderComponent={<Text style={styles.count}>{filtered.length} mouvement{filtered.length > 1 ? "s" : ""}</Text>}
+          ListEmptyComponent={<Text style={styles.empty}>Aucun mouvement ne correspond à ta recherche.</Text>}
+          renderItem={({ item }) => (
             <Pressable
-              key={item.id}
               onPress={() => router.push(`/exercise/${item.id}` as never)}
               style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
             >
@@ -119,9 +126,8 @@ export default function ExerciseLibraryScreen() {
               </View>
               <Text style={styles.chevron}>›</Text>
             </Pressable>
-          ))}
-          {!filtered.length && <Text style={styles.empty}>Aucun mouvement ne correspond à ta recherche.</Text>}
-        </ScrollView>
+          )}
+        />
       )}
     </View>
   );
