@@ -241,7 +241,7 @@ export default function HomeScreen() {
         getMyProfile(),
         getMyUpcomingSessions(),
         getTodayCheckin(),
-        getRecentCheckins(365),
+        getRecentCheckins(60),
         getLatestPerformance(),
         getMyProgramsWithSelection(),
       ]);
