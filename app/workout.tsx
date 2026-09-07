@@ -245,13 +245,21 @@ export default function WorkoutScreen() {
       setDetail(d);
 
       const byExercise: Record<string, LocalSet[]> = {};
+
+      const performedByExerciseAndSet = new Map(
+        (d.performedSets ?? []).map((item: any) => [
+          `${item.workout_exercise_id}:${item.set_number}`,
+          item,
+        ])
+      );
+
       for (const we of d.workoutExercises) {
           const prescribed = [...(we.prescribed_sets ?? [])].sort((a: any, b: any) => a.set_number - b.set_number);
           const fallback = buildFallbackSets(we);
 
           if (!prescribed.length) {
             byExercise[we.id] = fallback.map((row) => {
-              const existing = d.performedSets.find((x: any) => x.workout_exercise_id === we.id && x.set_number === row.setNumber);
+              const existing = performedByExerciseAndSet.get(`${we.id}:${row.setNumber}`);
 
               return {
                 ...row,
@@ -266,7 +274,7 @@ export default function WorkoutScreen() {
           }
 
           byExercise[we.id] = prescribed.map((ps: any) => {
-            const existing = d.performedSets.find((x: any) => x.workout_exercise_id === we.id && x.set_number === ps.set_number);
+            const existing = performedByExerciseAndSet.get(`${we.id}:${ps.set_number}`);
             return {
               prescribedId: ps.id,
               workoutExerciseId: we.id,
