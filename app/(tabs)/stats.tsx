@@ -30,6 +30,7 @@ function MiniPerformanceChart({
   history: any[];
 }) {
   const points = (history ?? [])
+    .slice(-20)
     .map((item: any) => ({
       date: item.date,
       value: Number(item.e1rm ?? 0),
