@@ -83,6 +83,8 @@ export default function HomeScreen() {
     useState<"cut" | "maintain" | "gain">("maintain");
   const [dashboardWidgets, setDashboardWidgets] =
     useState<DashboardWidget[]>(DEFAULT_DASHBOARD_WIDGETS);
+  const [dashboardLayoutReady, setDashboardLayoutReady] =
+    useState(false);
 
   useEffect(() => {
     AsyncStorage.getItem(DASHBOARD_STORAGE_KEY)
@@ -119,6 +121,9 @@ export default function HomeScreen() {
       })
       .catch((e) => {
         console.error("DASHBOARD LOAD ERROR", e);
+      })
+      .finally(() => {
+        setDashboardLayoutReady(true);
       });
   }, []);
 
@@ -858,6 +863,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
 
         {error ? <View style={styles.errorCard}><Text style={styles.error}>{error}</Text></View> : null}
 
+        {dashboardLayoutReady ? (
         <NestableDraggableFlatList
           data={orderedVisibleDashboardWidgets}
           keyExtractor={(item) => item.id}
@@ -1502,6 +1508,9 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
           </View>
           )}
         />
+        ) : (
+          <View style={styles.dashboardLayoutPlaceholder} />
+        )}
 
       </NestableScrollContainer>
 
@@ -1606,6 +1615,9 @@ function MetricCard({
 }
 
 const styles = StyleSheet.create({
+  dashboardLayoutPlaceholder: {
+    minHeight: 420,
+  },
   root:{flex:1,backgroundColor: "transparent"}, page:{paddingHorizontal:15,paddingTop:18,paddingBottom:105,backgroundColor: "transparent"}, center:{flex:1,alignItems:"center",justifyContent:"center",backgroundColor: "transparent"},
   topbar: {
     minHeight: 155,flexDirection:"row",alignItems:"flex-start",justifyContent:"space-between"}, squareButton:{width:54,height:54,borderRadius:16,borderWidth:1,borderColor:colors.border,backgroundColor:"#0A0A0B",alignItems:"center",justifyContent:"center",position:"relative"}, menuGlyph: {
