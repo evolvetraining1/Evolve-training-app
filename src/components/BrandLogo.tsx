@@ -1,9 +1,17 @@
 import { Image, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function BrandLogo({ compact = false }: { compact?: boolean }) {
+  const insets = useSafeAreaInsets();
+
   if (compact) {
     return (
-      <View style={styles.compact}>
+      <View
+        style={[
+          styles.compact,
+          { marginTop: Math.max(insets.top + 8, 32) },
+        ]}
+      >
         <Image
           source={require("@/assets/evolve-logo-header.png")}
           resizeMode="contain"
@@ -47,7 +55,6 @@ const styles = StyleSheet.create({
     height: 62,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 18,
   },
 
   logo: {
