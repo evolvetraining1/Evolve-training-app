@@ -47,6 +47,7 @@ const styles = StyleSheet.create({
     height: 62,
     alignItems: "center",
     justifyContent: "center",
+    marginTop: 18,
   },
 
   logo: {
