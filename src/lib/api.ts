@@ -2,10 +2,11 @@ import { supabase } from "@/src/lib/supabase";
 import { localDateString } from "@/src/lib/date";
 
 async function currentUserId() {
-  const { data, error } = await supabase.auth.getUser();
+  const { data, error } = await supabase.auth.getSession();
   if (error) throw error;
-  if (!data.user) throw new Error("Utilisateur non connecté");
-  return data.user.id;
+  const userId = data.session?.user?.id;
+  if (!userId) throw new Error("Utilisateur non connecté");
+  return userId;
 }
 
 export async function getMyProfile() {
