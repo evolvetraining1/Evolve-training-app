@@ -241,14 +241,6 @@ export default function StatsScreen() {
     load();
   }, [load]);
 
-  if (loading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator color={colors.yellow} size="large" />
-      </View>
-    );
-  }
-
   return (
     <ScrollView
       contentContainerStyle={styles.page}
@@ -266,6 +258,12 @@ export default function StatsScreen() {
         title="Stats"
         subtitle="Tes performances réelles, issues de tes séances."
       />
+
+      {loading ? (
+        <View style={styles.loadingInline}>
+          <ActivityIndicator color={colors.yellow} size="large" />
+        </View>
+      ) : null}
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -522,6 +520,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.bg,
+  },
+
+  loadingInline: {
+    minHeight: 90,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   grid: {
