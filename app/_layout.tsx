@@ -1,6 +1,6 @@
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { AppState, ImageBackground, Platform, StyleSheet } from "react-native";
+import { ImageBackground, Platform, StyleSheet } from "react-native";
 import { useEffect } from "react";
 import * as NavigationBar from "expo-navigation-bar";
 import { SessionProvider } from "@/src/store/session";
@@ -11,19 +11,10 @@ export default function RootLayout() {
   useEffect(() => {
     if (Platform.OS !== "android") return;
 
-    const hideNavigationBar = () => {
-      void NavigationBar.setVisibilityAsync("hidden").catch(() => {});
-    };
-
-    hideNavigationBar();
-
-    const subscription = AppState.addEventListener("change", (state) => {
-      if (state === "active") {
-        hideNavigationBar();
-      }
-    });
-
-    return () => subscription.remove();
+    // Masque la barre une seule fois au montage racine.
+    // La masquer à chaque retour "active" peut forcer Android à recalculer
+    // les insets et provoquer des sauts de layout visibles dans l'app.
+    void NavigationBar.setVisibilityAsync("hidden").catch(() => {});
   }, []);
 
   return (
