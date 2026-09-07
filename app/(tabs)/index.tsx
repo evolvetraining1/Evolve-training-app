@@ -357,31 +357,45 @@ export default function HomeScreen() {
 
   // Un template est considéré terminé dès qu'au moins une de ses sessions
   // a été validée ou passée. Cela neutralise les anciennes sessions doublons.
-  const finishedTemplateIds = new Set(
-    sessions
-      .filter(
+  const finishedTemplateIds = useMemo(
+    () =>
+      new Set(
+        sessions
+          .filter(
+            (session: any) =>
+              session.status === "completed" ||
+              session.status === "skipped"
+          )
+          .map((session: any) =>
+            String(session.workout_template_id ?? "")
+          )
+          .filter(Boolean)
+      ),
+    [sessions]
+  );
+
+  const availableSessions = useMemo(
+    () =>
+      sessions.filter(
         (session: any) =>
-          session.status === "completed" ||
-          session.status === "skipped"
-      )
-      .map((session: any) =>
-        String(session.workout_template_id ?? "")
-      )
-      .filter(Boolean)
+          session.status !== "completed" &&
+          session.status !== "skipped" &&
+          !finishedTemplateIds.has(
+            String(session.workout_template_id ?? "")
+          )
+      ),
+    [sessions, finishedTemplateIds]
   );
 
-  const availableSessions = sessions.filter(
-    (session: any) =>
-      session.status !== "completed" &&
-      session.status !== "skipped" &&
-      !finishedTemplateIds.has(
-        String(session.workout_template_id ?? "")
-      )
+  const selectedProgram = useMemo(
+    () =>
+      myPrograms.find(
+        (program: any) => program.id === selectedProgramId
+      ) ??
+      myPrograms[0] ??
+      null,
+    [myPrograms, selectedProgramId]
   );
-
-  const selectedProgram = myPrograms.find(
-    (program: any) => program.id === selectedProgramId
-  ) ?? myPrograms[0] ?? null;
 
 
   useEffect(() => {
@@ -415,62 +429,83 @@ export default function HomeScreen() {
     };
   }, [selectedProgram?.id]);
 
-  const selectedProgramSessions = selectedProgram
-    ? availableSessions
-        .filter(
-          (session: any) =>
-            String(session?.workout_templates?.program_id ?? "") ===
-            String(selectedProgram.id)
-        )
-        // Sécurité supplémentaire contre les doublons planned/in_progress :
-        // une seule session par template.
-        .filter(
-          (session: any, index: number, all: any[]) =>
-            index ===
-            all.findIndex(
-              (candidate: any) =>
-                String(candidate.workout_template_id) ===
-                String(session.workout_template_id)
+  const selectedProgramSessions = useMemo(
+    () =>
+      selectedProgram
+        ? availableSessions
+            .filter(
+              (session: any) =>
+                String(session?.workout_templates?.program_id ?? "") ===
+                String(selectedProgram.id)
             )
-        )
-        .sort((a: any, b: any) => {
-          const aWeek = Number(a?.workout_templates?.week_number ?? 999);
-          const bWeek = Number(b?.workout_templates?.week_number ?? 999);
+            // Sécurité supplémentaire contre les doublons planned/in_progress :
+            // une seule session par template.
+            .filter(
+              (session: any, index: number, all: any[]) =>
+                index ===
+                all.findIndex(
+                  (candidate: any) =>
+                    String(candidate.workout_template_id) ===
+                    String(session.workout_template_id)
+                )
+            )
+            .sort((a: any, b: any) => {
+              const aWeek = Number(
+                a?.workout_templates?.week_number ?? 999
+              );
+              const bWeek = Number(
+                b?.workout_templates?.week_number ?? 999
+              );
+
+              if (aWeek !== bWeek) return aWeek - bWeek;
+
+              const aDay = Number(
+                a?.workout_templates?.day_number ?? 999
+              );
+              const bDay = Number(
+                b?.workout_templates?.day_number ?? 999
+              );
+
+              if (aDay !== bDay) return aDay - bDay;
+
+              return String(
+                a?.scheduled_for ?? ""
+              ).localeCompare(
+                String(b?.scheduled_for ?? "")
+              );
+            })
+        : availableSessions,
+    [availableSessions, selectedProgram]
+  );
+
+  // Templates du programme dans l'ordre Semaine -> Jour.
+  const orderedProgramTemplates = useMemo(
+    () =>
+      [...selectedProgramTemplates].sort(
+        (a: any, b: any) => {
+          const aWeek = Number(a?.week_number ?? 999);
+          const bWeek = Number(b?.week_number ?? 999);
 
           if (aWeek !== bWeek) return aWeek - bWeek;
 
-          const aDay = Number(a?.workout_templates?.day_number ?? 999);
-          const bDay = Number(b?.workout_templates?.day_number ?? 999);
-
-          if (aDay !== bDay) return aDay - bDay;
-
-          return String(a?.scheduled_for ?? "").localeCompare(
-            String(b?.scheduled_for ?? "")
+          return (
+            Number(a?.day_number ?? 999) -
+            Number(b?.day_number ?? 999)
           );
-        })
-    : availableSessions;
-
-  // Templates du programme dans l'ordre Semaine -> Jour.
-  const orderedProgramTemplates = [...selectedProgramTemplates].sort(
-    (a: any, b: any) => {
-      const aWeek = Number(a?.week_number ?? 999);
-      const bWeek = Number(b?.week_number ?? 999);
-
-      if (aWeek !== bWeek) return aWeek - bWeek;
-
-      return (
-        Number(a?.day_number ?? 999) -
-        Number(b?.day_number ?? 999)
-      );
-    }
+        }
+      ),
+    [selectedProgramTemplates]
   );
 
   // Premier template pas encore validé.
-  const firstUnfinishedTemplate =
-    orderedProgramTemplates.find(
-      (item: any) =>
-        !finishedTemplateIds.has(String(item.id))
-    ) ?? null;
+  const firstUnfinishedTemplate = useMemo(
+    () =>
+      orderedProgramTemplates.find(
+        (item: any) =>
+          !finishedTemplateIds.has(String(item.id))
+      ) ?? null,
+    [orderedProgramTemplates, finishedTemplateIds]
+  );
 
   const next = selectedProgramSessions[0] ?? null;
   const afterNext = selectedProgramSessions[1] ?? null;
