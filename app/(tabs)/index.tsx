@@ -169,8 +169,9 @@ export default function HomeScreen() {
   const lastHomeLoadAtRef = useRef(0);
 
 
-  const orderedVisibleDashboardWidgets = dashboardWidgets.filter(
-    (widget) => widget.visible
+  const orderedVisibleDashboardWidgets = useMemo(
+    () => dashboardWidgets.filter((widget) => widget.visible),
+    [dashboardWidgets]
   );
 
   const saveDraggedWidgetOrder = (visibleWidgets: DashboardWidget[]) => {
