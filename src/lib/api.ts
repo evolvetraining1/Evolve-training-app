@@ -466,8 +466,7 @@ export async function getWorkoutTemplateDetail(workoutId: string) {
         id,
         name,
         category,
-        instructions,
-        video_url
+        instructions
       ),
       prescribed_sets (
         id,
