@@ -7,6 +7,7 @@ type Props = { visible: boolean; onClose: () => void; role?: string };
 const sections = [
   { title: "COACHING", items: [
     { icon: "▣", label: "Mes programmes", route: "/(tabs)/training" },
+    { icon: "◷", label: "Historique & stats", route: "/history-stats" },
     { icon: "✉", label: "Messagerie", route: "/messaging" },
     { icon: "☷", label: "Journal & routine", route: "/(tabs)/journal" },
   ]},
