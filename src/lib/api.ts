@@ -263,6 +263,22 @@ export async function getRecentCheckins(days = 7) {
   return data ?? [];
 }
 
+export async function getRecentCheckinDates(days = 60) {
+  const id = await currentUserId();
+  const since = new Date();
+  since.setDate(since.getDate() - (days - 1));
+
+  const { data, error } = await supabase
+    .from("daily_checkins")
+    .select("checkin_date")
+    .eq("athlete_id", id)
+    .gte("checkin_date", localDateString(since))
+    .order("checkin_date", { ascending: true });
+
+  if (error) throw error;
+  return data ?? [];
+}
+
 export async function getLatestPerformance() {
   const id = await currentUserId();
   const { data, error } = await supabase

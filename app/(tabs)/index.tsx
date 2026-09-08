@@ -17,7 +17,7 @@ import BrandLogo from "@/src/components/BrandLogo";
 import SideMenu from "@/src/components/SideMenu";
 import { colors } from "@/src/theme";
 import {
-  getLatestPerformance, getMyProfile, getMyUpcomingSessions, getRecentCheckins, getMyProgramsWithSelection, setSelectedProgramId,
+  getLatestPerformance, getMyProfile, getMyUpcomingSessions, getRecentCheckinDates, getMyProgramsWithSelection, setSelectedProgramId,
   getSessionDetail, getTodayCheckin,
   getProgramDetail,
   getWorkoutTemplateDetail,
@@ -247,7 +247,7 @@ export default function HomeScreen() {
         getMyProfile(),
         getMyUpcomingSessions(),
         getTodayCheckin(),
-        getRecentCheckins(60),
+        getRecentCheckinDates(60),
         getLatestPerformance(),
         getMyProgramsWithSelection(),
       ]);
