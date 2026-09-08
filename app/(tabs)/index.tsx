@@ -349,7 +349,7 @@ export default function HomeScreen() {
     useCallback(() => {
       const stale =
         !lastHomeLoadAtRef.current ||
-        Date.now() - lastHomeLoadAtRef.current > 30_000;
+        Date.now() - lastHomeLoadAtRef.current > 120_000;
 
       if (stale) {
         void load();
