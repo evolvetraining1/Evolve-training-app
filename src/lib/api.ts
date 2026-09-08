@@ -222,7 +222,7 @@ export async function getTodayCheckin() {
   const today = localDateString();
   const { data, error } = await supabase
     .from("daily_checkins")
-    .select("*")
+    .select("id, athlete_id, checkin_date, sleep_minutes, sleep_quality, fatigue, stress, soreness, motivation, pain, notes")
     .eq("athlete_id", id)
     .eq("checkin_date", today)
     .maybeSingle();
