@@ -47,5 +47,16 @@
     "@types/react": "~19.2.0",
     "sharp": "^0.35.3",
     "typescript": "~6.0.3"
+  },
+  "expo": {
+    "android": {
+      "permissions": [
+        null,
+        null,
+        null,
+        null,
+        "android.permission.ACTIVITY_RECOGNITION"
+      ]
+    }
   }
 }
