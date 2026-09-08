@@ -7,6 +7,7 @@ type Props = { visible: boolean; onClose: () => void; role?: string };
 const sections = [
   { title: "COACHING", items: [
     { icon: "▣", label: "Mes programmes", route: "/(tabs)/training" },
+    { icon: "◷", label: "Historique & stats", route: "/history-stats" },
     { icon: "✉", label: "Messagerie", route: "/messaging" },
     { icon: "☷", label: "Journal & routine", route: "/(tabs)/journal" },
   ]},
@@ -14,6 +15,7 @@ const sections = [
     { icon: "1", label: "Calculateur 1RM", route: "/rm-calculator" },
     { icon: "◎", label: "Suivi nutrition", route: "/nutrition" },
     { icon: "↗", label: "Performances", route: "/(tabs)/stats" },
+    { icon: "◉", label: "Test podomètre", route: "/pedometer-test" },
   ]},
   { title: "COMPTE", items: [
     { icon: "＋", label: "Programmes achetés", badge: "OFFRES" },
