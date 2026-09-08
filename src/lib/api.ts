@@ -27,7 +27,7 @@ export async function getMyUpcomingSessions() {
   const { data, error } = await supabase
     .from("workout_sessions")
     .select(`
-      id, scheduled_for, status, started_at, completed_at, session_rpe,
+      id, scheduled_for, status,
       workout_template_id,
       workout_templates (
         id,
