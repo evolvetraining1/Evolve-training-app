@@ -359,7 +359,10 @@ export default function HomeScreen() {
     }, [load])
   );
 
-  const score = recoveryScore(checkin);
+  const score = useMemo(
+    () => recoveryScore(checkin),
+    [checkin]
+  );
 
   // Un template est considéré terminé dès qu'au moins une de ses sessions
   // a été validée ou passée. Cela neutralise les anciennes sessions doublons.
