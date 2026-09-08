@@ -208,13 +208,10 @@ export async function savePerformedSet(input: {
   rpe?: number | null;
   completed: boolean;
 }) {
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from("performed_sets")
-    .upsert(input, { onConflict: "workout_session_id,workout_exercise_id,set_number" })
-    .select()
-    .single();
+    .upsert(input, { onConflict: "workout_session_id,workout_exercise_id,set_number" });
   if (error) throw error;
-  return data;
 }
 
 export async function getTodayCheckin() {
