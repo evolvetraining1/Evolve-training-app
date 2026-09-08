@@ -783,24 +783,20 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
     return detail || name;
   };
 
-  const homeSessionGroups = useMemo(
-    () =>
-      [
-        "WARM UP",
-        "STRENGTH WORK",
-        "RENFO",
-        "WOD",
-        "AUTRE",
-      ]
-        .map((block) => ({
-          block,
-          exercises: previewExercises.filter(
-            (we: any) => homeBlockName(we) === block
-          ),
-        }))
-        .filter((group) => group.exercises.length > 0),
-    [previewExercises]
-  );
+  const homeSessionGroups = [
+    "WARM UP",
+    "STRENGTH WORK",
+    "RENFO",
+    "WOD",
+    "AUTRE",
+  ]
+    .map((block) => ({
+      block,
+      exercises: previewExercises.filter(
+        (we: any) => homeBlockName(we) === block
+      ),
+    }))
+    .filter((group) => group.exercises.length > 0);
 
   return (
     <View style={styles.root}>
