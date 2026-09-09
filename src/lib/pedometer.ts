@@ -1,4 +1,4 @@
-import { Pedometer } from "expo-sensors";
+import { requireOptionalNativeModule } from "expo-modules-core";
 
 export type PedometerProbe = {
   available: boolean;
@@ -15,6 +15,16 @@ function startOfToday() {
 
 export async function probePedometer(): Promise<PedometerProbe> {
   try {
+    if (!requireOptionalNativeModule("ExponentPedometer")) {
+      return {
+        available: false,
+        permission: "undetermined",
+        todaySteps: null,
+        error: "Module natif podomètre absent de cette version de l’application.",
+      };
+    }
+
+    const { Pedometer } = await import("expo-sensors");
     const available = await Pedometer.isAvailableAsync();
 
     if (!available) {
