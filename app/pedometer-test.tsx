@@ -10,7 +10,9 @@ export default function PedometerTestScreen() {
   const runProbe = async () => {
     setLoading(true);
     try {
-      setResult(await probePedometer());
+      setResult(await probePedometer((steps) => {
+        setResult((prev) => prev ? { ...prev, todaySteps: steps } : prev);
+      }));
     } finally {
       setLoading(false);
     }

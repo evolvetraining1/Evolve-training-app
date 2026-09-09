@@ -1,4 +1,5 @@
 import { requireOptionalNativeModule } from "expo-modules-core";
+import { Platform } from "react-native";
 
 export type PedometerProbe = {
   available: boolean;
@@ -7,13 +8,9 @@ export type PedometerProbe = {
   error?: string;
 };
 
-function startOfToday() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
-export async function probePedometer(): Promise<PedometerProbe> {
+export async function probePedometer(
+  onSteps?: (steps: number) => void
+): Promise<PedometerProbe> {
   try {
     if (!requireOptionalNativeModule("ExponentPedometer")) {
       return {
@@ -25,6 +22,7 @@ export async function probePedometer(): Promise<PedometerProbe> {
     }
 
     const { Pedometer } = await import("expo-sensors");
+
     const available = await Pedometer.isAvailableAsync();
 
     if (!available) {
@@ -36,21 +34,35 @@ export async function probePedometer(): Promise<PedometerProbe> {
     }
 
     const permissionResponse = await Pedometer.requestPermissionsAsync();
-    const permission = permissionResponse.granted ? "granted" : "denied";
 
     if (!permissionResponse.granted) {
       return {
         available: true,
-        permission,
+        permission: "denied",
         todaySteps: null,
       };
     }
 
-    const result = await Pedometer.getStepCountAsync(startOfToday(), new Date());
+    if (Platform.OS === "android") {
+      Pedometer.watchStepCount((result) => {
+        onSteps?.(result.steps);
+      });
+
+      return {
+        available: true,
+        permission: "granted",
+        todaySteps: 0,
+      };
+    }
+
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+
+    const result = await Pedometer.getStepCountAsync(start, new Date());
 
     return {
       available: true,
-      permission,
+      permission: "granted",
       todaySteps: result.steps,
     };
   } catch (error) {
