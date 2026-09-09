@@ -1,5 +1,11 @@
 import { requireOptionalNativeModule } from "expo-modules-core";
 import { Platform } from "react-native";
+import { getTodaySteps, saveTodaySteps } from "./steps-storage";
+import EvolveStepCounterModule from "../../modules/evolve-step-counter/src/EvolveStepCounterModule";
+
+let pedometerSubscription: { remove: () => void } | null = null;
+let activeSteps = 0;
+let activeOnSteps: ((steps: number) => void) | undefined;
 
 export type PedometerProbe = {
   available: boolean;
@@ -7,6 +13,16 @@ export type PedometerProbe = {
   todaySteps: number | null;
   error?: string;
 };
+
+
+export async function getAndroidRawStepCounter(): Promise<number | null> {
+  try {
+    const value = await EvolveStepCounterModule.getCurrentStepCountAsync();
+    return value >= 0 ? value : null;
+  } catch {
+    return null;
+  }
+}
 
 export async function probePedometer(
   onSteps?: (steps: number) => void
@@ -44,14 +60,29 @@ export async function probePedometer(
     }
 
     if (Platform.OS === "android") {
-      Pedometer.watchStepCount((result) => {
-        onSteps?.(result.steps);
+      activeOnSteps = onSteps;
+
+      if (pedometerSubscription) {
+        return {
+          available: true,
+          permission: "granted",
+          todaySteps: activeSteps,
+        };
+      }
+
+      const baseSteps = await getTodaySteps();
+      activeSteps = baseSteps;
+
+      pedometerSubscription = Pedometer.watchStepCount((result) => {
+        activeSteps = baseSteps + result.steps;
+        void saveTodaySteps(activeSteps);
+        activeOnSteps?.(activeSteps);
       });
 
       return {
         available: true,
         permission: "granted",
-        todaySteps: 0,
+        todaySteps: activeSteps,
       };
     }
 
