@@ -5,27 +5,21 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import expo.modules.kotlin.Promise
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
-import kotlin.coroutines.resume
-import kotlin.coroutines.suspendCoroutine
 
 class EvolveStepCounterModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("EvolveStepCounter")
 
-    AsyncFunction("getCurrentStepCountAsync") {
-      readStepCounter()
-    }
-  }
-
-  private suspend fun readStepCounter(): Double =
-    suspendCoroutine { continuation ->
+    AsyncFunction("getCurrentStepCountAsync") { promise: Promise ->
       val context = appContext.reactContext
-        ?: run {
-          continuation.resume(-1.0)
-          return@suspendCoroutine
-        }
+
+      if (context == null) {
+        promise.resolve(-1.0)
+        return@AsyncFunction
+      }
 
       val sensorManager =
         context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
@@ -33,8 +27,8 @@ class EvolveStepCounterModule : Module() {
       val sensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
 
       if (sensor == null) {
-        continuation.resume(-1.0)
-        return@suspendCoroutine
+        promise.resolve(-1.0)
+        return@AsyncFunction
       }
 
       lateinit var listener: SensorEventListener
@@ -42,7 +36,7 @@ class EvolveStepCounterModule : Module() {
       listener = object : SensorEventListener {
         override fun onSensorChanged(event: SensorEvent) {
           sensorManager.unregisterListener(listener)
-          continuation.resume(event.values[0].toDouble())
+          promise.resolve(event.values[0].toDouble())
         }
 
         override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
@@ -55,7 +49,8 @@ class EvolveStepCounterModule : Module() {
       )
 
       if (!registered) {
-        continuation.resume(-1.0)
+        promise.resolve(-1.0)
       }
     }
+  }
 }
