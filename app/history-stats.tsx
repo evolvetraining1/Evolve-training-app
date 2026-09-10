@@ -14,6 +14,7 @@ import Svg, { Circle, Line, Polyline, Text as SvgText } from "react-native-svg";
 
 import { colors } from "@/src/theme";
 import { supabase } from "@/src/lib/supabase";
+import { DailySteps, getStepsHistory } from "@/src/lib/steps-storage";
 
 type Tab = "workouts" | "nutrition";
 type Range = 7 | 30 | 90;
@@ -174,11 +175,133 @@ function NutritionTrendChart({ data }: { data: NutritionDay[] }) {
   );
 }
 
+
+function StepsTrendChart({ data }: { data: DailySteps[] }) {
+  const width = Math.max(Dimensions.get("window").width - 40, 280);
+  const height = 230;
+  const left = 48;
+  const right = 14;
+  const top = 20;
+  const bottom = 34;
+
+  const points = [...data]
+    .filter((item) => item.date && Number.isFinite(item.steps))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  if (points.length < 2) {
+    return (
+      <View style={styles.chartEmpty}>
+        <Text style={styles.muted}>
+          Pas encore assez de jours enregistrés pour tracer une courbe.
+        </Text>
+      </View>
+    );
+  }
+
+  const values = points.map((item) => item.steps);
+  const maxValue = Math.max(1000, ...values);
+  const roundedMax = Math.ceil(maxValue / 1000) * 1000;
+
+  const graphWidth = width - left - right;
+  const graphHeight = height - top - bottom;
+
+  const x = (index: number) =>
+    left + (index / Math.max(points.length - 1, 1)) * graphWidth;
+
+  const y = (value: number) =>
+    top + ((roundedMax - value) / roundedMax) * graphHeight;
+
+  const linePoints = points
+    .map((item, index) => `${x(index)},${y(item.steps)}`)
+    .join(" ");
+
+  const gridValues = [
+    roundedMax,
+    roundedMax * 0.75,
+    roundedMax * 0.5,
+    roundedMax * 0.25,
+    0,
+  ];
+
+  return (
+    <View style={styles.chartShell}>
+      <Svg width={width} height={height}>
+        {gridValues.map((value, index) => {
+          const gy = y(value);
+
+          return (
+            <Fragment key={`steps-grid-${index}`}>
+              <Line
+                x1={left}
+                x2={width - right}
+                y1={gy}
+                y2={gy}
+                stroke="rgba(255,255,255,0.09)"
+                strokeWidth="1"
+              />
+
+              <SvgText
+                x={left - 7}
+                y={gy + 4}
+                fill="#858585"
+                fontSize="10"
+                textAnchor="end"
+              >
+                {Math.round(value).toLocaleString("fr-FR")}
+              </SvgText>
+            </Fragment>
+          );
+        })}
+
+        <Polyline
+          points={linePoints}
+          fill="none"
+          stroke="#F5B400"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+
+        {points.map((item, index) => (
+          <Circle
+            key={item.date}
+            cx={x(index)}
+            cy={y(item.steps)}
+            r="3.5"
+            fill="#F5B400"
+          />
+        ))}
+
+        <SvgText x={left} y={height - 8} fill="#858585" fontSize="9">
+          {new Date(`${points[0].date}T12:00:00`).toLocaleDateString("fr-FR", {
+            day: "2-digit",
+            month: "2-digit",
+          })}
+        </SvgText>
+
+        <SvgText
+          x={width - right}
+          y={height - 8}
+          fill="#858585"
+          fontSize="9"
+          textAnchor="end"
+        >
+          {new Date(`${points[points.length - 1].date}T12:00:00`).toLocaleDateString("fr-FR", {
+            day: "2-digit",
+            month: "2-digit",
+          })}
+        </SvgText>
+      </Svg>
+    </View>
+  );
+}
+
 export default function HistoryStatsScreen() {
-  const [tab, setTab] = useState<Tab>("workouts");
+  const [tab, setTab] = useState<"workouts" | "nutrition" | "steps">("workouts");
   const [range, setRange] = useState<Range>(30);
   const [workouts, setWorkouts] = useState<WorkoutHistoryItem[]>([]);
   const [nutrition, setNutrition] = useState<NutritionDay[]>([]);
+  const [stepsHistory, setStepsHistory] = useState<DailySteps[]>([]);
   const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -200,7 +323,7 @@ export default function HistoryStatsScreen() {
       since.setDate(since.getDate() - 89);
       const sinceDate = since.toISOString().slice(0, 10);
 
-      const [sessionsResult, nutritionResult] = await Promise.all([
+      const [sessionsResult, nutritionResult, stepsResult] = await Promise.all([
         supabase
           .from("workout_sessions")
           .select(`
@@ -227,6 +350,7 @@ export default function HistoryStatsScreen() {
           .eq("user_id", user.id)
           .gte("eaten_on", sinceDate)
           .order("eaten_on", { ascending: true }),
+        getStepsHistory()
       ]);
 
       if (sessionsResult.error) throw sessionsResult.error;
@@ -304,6 +428,10 @@ export default function HistoryStatsScreen() {
           fiber: Math.round(day.fiber * 10) / 10,
         }))
       );
+
+      setStepsHistory(
+        Array.isArray(stepsResult) ? stepsResult : []
+      );
     } catch (e: any) {
       console.error("HISTORY STATS LOAD ERROR", e);
       setError(e?.message ?? "Impossible de charger l’historique.");
@@ -351,7 +479,44 @@ export default function HistoryStatsScreen() {
     };
   }, [rangedNutrition]);
 
+  const stepsStats = useMemo(() => {
+    const today = new Date();
+    const todayKey = [
+      today.getFullYear(),
+      String(today.getMonth() + 1).padStart(2, "0"),
+      String(today.getDate()).padStart(2, "0"),
+    ].join("-");
+
+    const sorted = [...stepsHistory].sort((a, b) =>
+      a.date.localeCompare(b.date)
+    );
+
+    const recent = sorted.slice(-range);
+
+    const todaySteps =
+      sorted.find((item) => item.date === todayKey)?.steps ?? 0;
+
+    const average =
+      recent.length > 0
+        ? Math.round(
+            recent.reduce((sum, item) => sum + item.steps, 0) /
+              recent.length
+          )
+        : 0;
+
+    const best =
+      recent.length > 0
+        ? recent.reduce((max, item) =>
+            item.steps > max.steps ? item : max
+          )
+        : null;
+
+    return { today: todaySteps, average, best, recent };
+  }, [stepsHistory, range]);
+
   if (loading) {
+
+
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color={colors.yellow} />
@@ -398,6 +563,14 @@ export default function HistoryStatsScreen() {
         >
           <Text style={[styles.tabText, tab === "nutrition" && styles.tabTextActive]}>
             NUTRITION
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={() => setTab("steps")}
+          style={[styles.tab, tab === "steps" && styles.tabActive]}
+        >
+          <Text style={[styles.tabText, tab === "steps" && styles.tabTextActive]}>
+            PAS
           </Text>
         </Pressable>
       </View>
@@ -485,7 +658,7 @@ export default function HistoryStatsScreen() {
             </View>
           )}
         </View>
-      ) : (
+      ) : tab === "nutrition" ? (
         <View style={styles.sectionGap}>
           <View>
             <Text style={styles.sectionTitle}>Évolution des macros</Text>
@@ -535,6 +708,45 @@ export default function HistoryStatsScreen() {
             <Text style={styles.muted}>
               Cet écran est prévu pour recevoir les prochains indicateurs sans surcharger le dashboard principal.
             </Text>
+          </View>
+        </View>
+      ) : (
+        <View style={styles.sectionGap}>
+          <View>
+            <Text style={styles.sectionTitle}>Activité quotidienne</Text>
+            <Text style={styles.muted}>Suivi de tes pas enregistrés par Evolve.</Text>
+          </View>
+
+          <View style={styles.metricsGrid}>
+            <View style={styles.metricCard}>
+              <Text style={styles.metricValue}>{stepsStats.today.toLocaleString("fr-FR")}</Text>
+              <Text style={styles.metricLabel}>PAS AUJOURD’HUI</Text>
+            </View>
+
+            <View style={styles.metricCard}>
+              <Text style={styles.metricValue}>{stepsStats.average.toLocaleString("fr-FR")}</Text>
+              <Text style={styles.metricLabel}>MOYENNE / JOUR</Text>
+            </View>
+
+            <View style={styles.metricCard}>
+              <Text style={styles.metricValue}>{(stepsStats.best?.steps ?? 0).toLocaleString("fr-FR")}</Text>
+              <Text style={styles.metricLabel}>MEILLEUR JOUR</Text>
+            </View>
+          </View>
+
+          {stepsStats.best ? (
+            <Text style={styles.muted}>
+              Record le {new Date(`${stepsStats.best.date}T12:00:00`).toLocaleDateString("fr-FR")}
+            </Text>
+          ) : null}
+
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>ÉVOLUTION DES PAS</Text>
+            <Text style={styles.muted}>
+              Nombre de pas par jour sur la période sélectionnée.
+            </Text>
+
+            <StepsTrendChart data={stepsStats.recent} />
           </View>
         </View>
       )}
