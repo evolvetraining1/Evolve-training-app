@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ActivityIndicator, Pressable, SafeAreaView, StyleSheet, Text, View } from "react-native";
 import { colors } from "@/src/theme";
 import { PedometerProbe, probePedometer } from "@/src/lib/pedometer";
+import { __testForcePreviousDay } from "@/src/lib/steps-storage";
 
 export default function PedometerTestScreen() {
   const [loading, setLoading] = useState(false);
@@ -35,6 +36,10 @@ export default function PedometerTestScreen() {
         <Pressable style={styles.button} onPress={runProbe} disabled={loading}>
           {loading ? <ActivityIndicator color={colors.black} /> : <Text style={styles.buttonText}>TESTER LE PODOMÈTRE</Text>}
         </Pressable>
+
+      <Pressable style={styles.button} onPress={__testForcePreviousDay}>
+        <Text style={styles.buttonText}>SIMULER JOUR SUIVANT</Text>
+      </Pressable>
       </View>
     </SafeAreaView>
   );

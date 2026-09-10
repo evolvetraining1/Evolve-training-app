@@ -1,6 +1,6 @@
 import { requireOptionalNativeModule } from "expo-modules-core";
 import { Platform } from "react-native";
-import { getTodaySteps, saveTodaySteps } from "./steps-storage";
+import { getTodaySteps, saveTodaySteps, syncAndroidRawSteps } from "./steps-storage";
 import EvolveStepCounterModule from "../../modules/evolve-step-counter/src/EvolveStepCounterModule";
 
 let pedometerSubscription: { remove: () => void } | null = null;
@@ -60,29 +60,23 @@ export async function probePedometer(
     }
 
     if (Platform.OS === "android") {
-      activeOnSteps = onSteps;
+      const rawSteps = await getAndroidRawStepCounter();
 
-      if (pedometerSubscription) {
+      if (rawSteps === null) {
         return {
-          available: true,
+          available: false,
           permission: "granted",
-          todaySteps: activeSteps,
+          todaySteps: null,
+          error: "Impossible de lire TYPE_STEP_COUNTER.",
         };
       }
 
-      const baseSteps = await getTodaySteps();
-      activeSteps = baseSteps;
-
-      pedometerSubscription = Pedometer.watchStepCount((result) => {
-        activeSteps = baseSteps + result.steps;
-        void saveTodaySteps(activeSteps);
-        activeOnSteps?.(activeSteps);
-      });
+      const todaySteps = await syncAndroidRawSteps(rawSteps);
 
       return {
         available: true,
         permission: "granted",
-        todaySteps: activeSteps,
+        todaySteps,
       };
     }
 
