@@ -229,3 +229,93 @@ export async function assignProgramAndSchedule(input: {
 
   return data;
 }
+
+export async function getCoachAthleteOverview(
+  athleteId: string,
+  days: number
+) {
+  const coachId = await currentUserId();
+
+  const { data: relationship, error: relationshipError } = await supabase
+    .from("coach_athlete_relationships")
+    .select("id")
+    .eq("coach_id", coachId)
+    .eq("athlete_id", athleteId)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (relationshipError) throw relationshipError;
+  if (!relationship) {
+    throw new Error("Athlète non lié à ce coach.");
+  }
+
+  const since = new Date();
+  since.setDate(since.getDate() - Math.max(days - 1, 0));
+  const sinceDate = since.toISOString().slice(0, 10);
+
+  const [{ data: profile, error: profileError }, { data: sessions, error: sessionsError }] =
+    await Promise.all([
+      supabase
+        .from("profiles")
+        .select("id, first_name, last_name, avatar_url")
+        .eq("id", athleteId)
+        .single(),
+
+      supabase
+        .from("workout_sessions")
+        .select(`
+          id,
+          status,
+          scheduled_for,
+          completed_at,
+          session_rpe
+        `)
+        .eq("athlete_id", athleteId)
+        .gte("scheduled_for", sinceDate)
+        .order("scheduled_for", { ascending: false }),
+    ]);
+
+  if (profileError) throw profileError;
+  if (sessionsError) throw sessionsError;
+
+  const rows = sessions ?? [];
+
+  const scheduled = rows.length;
+  const completed = rows.filter((session: any) => session.status === "completed");
+  const completedCount = completed.length;
+
+  const attendance =
+    scheduled > 0
+      ? Math.round((completedCount / scheduled) * 100)
+      : 0;
+
+  const rpeValues = completed
+    .map((session: any) => session.session_rpe)
+    .filter(
+      (value: any) =>
+        value !== null &&
+        value !== undefined &&
+        value !== "" &&
+        Number.isFinite(Number(value)) &&
+        Number(value) > 0
+    )
+    .map((value: any) => Number(value));
+
+  const averageRpe =
+    rpeValues.length > 0
+      ? Math.round(
+          (rpeValues.reduce((sum: number, value: number) => sum + value, 0) /
+            rpeValues.length) *
+            10
+        ) / 10
+      : null;
+
+  return {
+    profile,
+    scheduled,
+    completed: completedCount,
+    attendance,
+    averageRpe,
+    sessions: rows,
+  };
+}
