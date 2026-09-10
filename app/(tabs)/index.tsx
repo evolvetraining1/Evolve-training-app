@@ -16,6 +16,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import BrandLogo from "@/src/components/BrandLogo";
 import SideMenu from "@/src/components/SideMenu";
 import { colors } from "@/src/theme";
+import { probePedometer } from "@/src/lib/pedometer";
 import {
   getLatestPerformance, getMyProfile, getMyUpcomingSessions, getRecentCheckinDates, getMyProgramsWithSelection, setSelectedProgramId,
   getSessionDetail, getTodayCheckin,
@@ -36,6 +37,7 @@ type DashboardWidgetId =
   | "routine"
   | "today"
   | "performance"
+  | "steps"
   | "programs"
   | "nutrition"
   | "messaging"
@@ -54,6 +56,7 @@ const DEFAULT_DASHBOARD_WIDGETS: DashboardWidget[] = [
   { id: "routine", label: "Suivi de routine", visible: true },
   { id: "today", label: "Aujourd’hui", visible: true },
   { id: "performance", label: "Dernières performances", visible: true },
+  { id: "steps", label: "Pas du jour", visible: true },
   { id: "programs", label: "Mes programmes", visible: true },
 
   { id: "nutrition", label: "Nutrition", visible: false },
@@ -73,6 +76,7 @@ export default function HomeScreen() {
   const [recentCheckins, setRecentCheckins] = useState<any[]>([]);
   const [nextDetail, setNextDetail] = useState<any>(null);
   const [performance, setPerformance] = useState<any>(null);
+  const [todaySteps, setTodaySteps] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   const [dashboardEditMode, setDashboardEditMode] = useState(false);
@@ -344,6 +348,28 @@ export default function HomeScreen() {
       setRefreshing(false);
     }
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+
+      probePedometer()
+        .then((result) => {
+          if (active) {
+            setTodaySteps(result.todaySteps ?? 0);
+          }
+        })
+        .catch(() => {
+          if (active) {
+            setTodaySteps(0);
+          }
+        });
+
+      return () => {
+        active = false;
+      };
+    }, [])
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -1146,6 +1172,44 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
 
                     </>
             ) : null}
+
+{widget.id === "steps" ? (
+  <Pressable
+    onLongPress={dashboardEditMode ? undefined : () => setDashboardEditMode(true)}
+    delayLongPress={450}
+    style={styles.quickDashboardWidget}
+  >
+    {dashboardEditMode ? (
+      <>
+        <Pressable
+          onPress={() => toggleDashboardWidget("steps")}
+          style={styles.dashboardRemoveSmall}
+        >
+          <Text style={styles.dashboardRemoveSmallText}>×</Text>
+        </Pressable>
+
+        <Pressable
+          onLongPress={drag}
+          style={styles.dashboardHandleSide}
+        >
+          <Text style={styles.dashboardHandleText}>≡</Text>
+        </Pressable>
+      </>
+    ) : null}
+
+    <Text style={styles.miniActionIcon}>👟</Text>
+
+    <View style={{ flex: 1 }}>
+      <Text style={styles.quickWidgetCategory}>PAS DU JOUR</Text>
+      <Text style={styles.quickWidgetTitle}>
+        {todaySteps.toLocaleString("fr-FR")}
+      </Text>
+      <Text style={styles.quickWidgetSubtitle}>AUJOURD’HUI</Text>
+    </View>
+  </Pressable>
+) : null}
+
+
 
             {widget.id === "nutrition" ? (
               <>
