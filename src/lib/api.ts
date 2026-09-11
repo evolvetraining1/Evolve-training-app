@@ -2,10 +2,11 @@ import { supabase } from "@/src/lib/supabase";
 import { localDateString } from "@/src/lib/date";
 
 async function currentUserId() {
-  const { data, error } = await supabase.auth.getUser();
+  const { data, error } = await supabase.auth.getSession();
   if (error) throw error;
-  if (!data.user) throw new Error("Utilisateur non connecté");
-  return data.user.id;
+  const userId = data.session?.user?.id;
+  if (!userId) throw new Error("Utilisateur non connecté");
+  return userId;
 }
 
 export async function getMyProfile() {
@@ -26,7 +27,7 @@ export async function getMyUpcomingSessions() {
   const { data, error } = await supabase
     .from("workout_sessions")
     .select(`
-      id, scheduled_for, status, started_at, completed_at, session_rpe,
+      id, scheduled_for, status,
       workout_template_id,
       workout_templates (
         id,
@@ -82,7 +83,7 @@ export async function getSessionDetail(sessionId: string) {
 
   const { data: performed, error: performedError } = await supabase
     .from("performed_sets")
-    .select("*")
+    .select("workout_exercise_id, prescribed_set_id, set_number, reps, load_kg, rpe, completed")
     .eq("workout_session_id", sessionId);
 
   if (performedError) throw performedError;
@@ -207,13 +208,10 @@ export async function savePerformedSet(input: {
   rpe?: number | null;
   completed: boolean;
 }) {
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from("performed_sets")
-    .upsert(input, { onConflict: "workout_session_id,workout_exercise_id,set_number" })
-    .select()
-    .single();
+    .upsert(input, { onConflict: "workout_session_id,workout_exercise_id,set_number" });
   if (error) throw error;
-  return data;
 }
 
 export async function getTodayCheckin() {
@@ -221,7 +219,7 @@ export async function getTodayCheckin() {
   const today = localDateString();
   const { data, error } = await supabase
     .from("daily_checkins")
-    .select("*")
+    .select("id, athlete_id, checkin_date, sleep_minutes, sleep_quality, fatigue, stress, soreness, motivation, pain, notes")
     .eq("athlete_id", id)
     .eq("checkin_date", today)
     .maybeSingle();
@@ -261,6 +259,22 @@ export async function getRecentCheckins(days = 7) {
     .eq("athlete_id", id)
     .gte("checkin_date", localDateString(since))
     .order("checkin_date", { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function getRecentCheckinDates(days = 60) {
+  const id = await currentUserId();
+  const since = new Date();
+  since.setDate(since.getDate() - (days - 1));
+
+  const { data, error } = await supabase
+    .from("daily_checkins")
+    .select("checkin_date")
+    .eq("athlete_id", id)
+    .gte("checkin_date", localDateString(since))
+    .order("checkin_date", { ascending: true });
+
   if (error) throw error;
   return data ?? [];
 }
@@ -452,8 +466,7 @@ export async function getWorkoutTemplateDetail(workoutId: string) {
         id,
         name,
         category,
-        instructions,
-        video_url
+        instructions
       ),
       prescribed_sets (
         id,
@@ -606,23 +619,17 @@ export async function getExercisePerformanceHistory() {
   const { data, error } = await supabase
     .from("performed_sets")
     .select(`
-      id,
       reps,
       load_kg,
       rpe,
-      completed,
       created_at,
       workout_exercises (
-        id,
         exercises (
           id,
           name
         )
       ),
       workout_sessions!inner (
-        id,
-        athlete_id,
-        status,
         completed_at
       )
     `)

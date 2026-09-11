@@ -12,7 +12,48 @@ if (!supabaseUrl || !supabaseKey) {
   );
 }
 
-export const supabase = createClient(
+type SupabaseClient = ReturnType<typeof createClient<any>>;
+let supabaseClient: SupabaseClient;
+
+async function fetchWithAuthRetry(
+  input: RequestInfo | URL,
+  init?: RequestInit
+) {
+  const response = await fetch(input, init);
+
+  const url =
+    typeof input === "string"
+      ? input
+      : input instanceof URL
+        ? input.toString()
+        : input.url;
+
+  // Un jeton peut expirer entre la lecture de la session et une requête REST.
+  // On ne retente qu'une seule fois, uniquement pour PostgREST, afin de ne pas
+  // masquer une vraie erreur d'autorisation et d'éviter toute boucle de retry.
+  if (response.status !== 401 || !url.includes("/rest/v1/")) {
+    return response;
+  }
+
+  const { data, error } = await supabaseClient.auth.refreshSession();
+  const accessToken = data.session?.access_token;
+
+  if (error || !accessToken) {
+    return response;
+  }
+
+  const headers = new Headers(
+    init?.headers ?? (input instanceof Request ? input.headers : undefined)
+  );
+  headers.set("Authorization", `Bearer ${accessToken}`);
+
+  return fetch(input, {
+    ...init,
+    headers,
+  });
+}
+
+supabaseClient = createClient<any>(
   supabaseUrl,
   supabaseKey,
   {
@@ -23,8 +64,13 @@ export const supabase = createClient(
       detectSessionInUrl: false,
       lock: processLock,
     },
+    global: {
+      fetch: fetchWithAuthRetry,
+    },
   }
 );
+
+export const supabase = supabaseClient;
 
 AppState.addEventListener("change", (state) => {
   if (state === "active") {
