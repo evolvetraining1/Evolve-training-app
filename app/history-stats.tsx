@@ -717,6 +717,21 @@ export default function HistoryStatsScreen() {
             <Text style={styles.muted}>Suivi de tes pas enregistrés par Evolve.</Text>
           </View>
 
+          {/* PÉRIODE PAS */}
+          <View style={styles.rangeRow}>
+            {([7, 30, 90] as Range[]).map((value) => (
+              <Pressable
+                key={value}
+                onPress={() => setRange(value)}
+                style={[styles.rangeButton, range === value && styles.rangeButtonActive]}
+              >
+                <Text style={[styles.rangeText, range === value && styles.rangeTextActive]}>
+                  {value} J
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
           <View style={styles.metricsGrid}>
             <View style={styles.metricCard}>
               <Text style={styles.metricValue}>{stepsStats.today.toLocaleString("fr-FR")}</Text>

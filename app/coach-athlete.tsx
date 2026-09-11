@@ -10,19 +10,29 @@ import {
 
 import { Card, ScreenHeader } from "@/src/components/ui";
 import { colors } from "@/src/theme";
-import { getCoachAthleteOverview } from "@/src/lib/coachApi";
+import { getCoachAthleteOverview, getCoachExercisePerformanceHistory, getCoachAthletePrograms } from "@/src/lib/coachApi";
 
 export default function CoachAthleteScreen() {
   const { athleteId } = useLocalSearchParams<{ athleteId: string }>();
   const [overview, setOverview] = useState<any>(null);
+  const [exerciseHistory, setExerciseHistory] = useState<any[]>([]);
+  const [athletePrograms, setAthletePrograms] = useState<any[]>([]);
   const [error, setError] = useState("");
   const [periodDays, setPeriodDays] = useState(30);
 
   useEffect(() => {
     if (!athleteId) return;
 
-    getCoachAthleteOverview(athleteId, periodDays)
-      .then(setOverview)
+    Promise.all([
+      getCoachAthleteOverview(athleteId, periodDays),
+      getCoachExercisePerformanceHistory(athleteId, periodDays),
+      getCoachAthletePrograms(athleteId),
+    ])
+      .then(([overviewResult, exerciseResult, programsResult]) => {
+        setOverview(overviewResult);
+        setExerciseHistory(exerciseResult);
+        setAthletePrograms(programsResult);
+      })
       .catch((e: any) =>
         setError(e?.message ?? "Impossible de charger l'athlète.")
       );
@@ -114,8 +124,88 @@ export default function CoachAthleteScreen() {
       <Card style={styles.section}>
         <Text style={styles.sectionTitle}>ENTRAÎNEMENT</Text>
         <Text style={styles.muted}>
-          Volume, performances, e1RM, records et progression.
+          Données calculées sur la période sélectionnée.
         </Text>
+
+        <View style={styles.trainingMetrics}>
+          <View style={styles.trainingMetric}>
+            <Text style={styles.trainingMetricValue}>
+              {overview
+                ? `${Number(overview.totalVolume ?? 0).toLocaleString("fr-FR")} kg`
+                : "—"}
+            </Text>
+            <Text style={styles.trainingMetricLabel}>VOLUME TOTAL</Text>
+          </View>
+
+          <View style={styles.trainingMetric}>
+            <Text style={styles.trainingMetricValue}>
+              {overview ? overview.completedSets ?? 0 : "—"}
+            </Text>
+            <Text style={styles.trainingMetricLabel}>SÉRIES</Text>
+          </View>
+
+          <View style={styles.trainingMetric}>
+            <Text style={styles.trainingMetricValue}>
+              {overview?.bestE1rm > 0
+                ? `${overview.bestE1rm} kg`
+                : "—"}
+            </Text>
+            <Text style={styles.trainingMetricLabel}>MEILLEUR e1RM</Text>
+          </View>
+        </View>
+
+        <View style={styles.exerciseList}>
+          <Text style={styles.programListTitle}>PROGRAMMES DE L’ATHLÈTE</Text>
+
+          {athletePrograms.length ? (
+            athletePrograms.map((assignment: any) => {
+              const program = Array.isArray(assignment.programs)
+                ? assignment.programs[0]
+                : assignment.programs;
+
+              if (!program) return null;
+
+              return (
+                <Pressable
+                  key={assignment.id}
+                  style={styles.programRow}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/coach-athlete-program" as any,
+                      params: {
+                        athleteId: String(athleteId),
+                        assignmentId: String(assignment.id),
+                        programId: String(program.id),
+                      },
+                    })
+                  }
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.programName}>{program.name}</Text>
+                    <Text style={styles.programMeta}>
+                      Début : {assignment.starts_on ?? "—"}
+                    </Text>
+                    <Text style={styles.programMeta}>
+                      {program.duration_weeks ?? "—"} semaine(s)
+                    </Text>
+                  </View>
+
+                  <View style={styles.programStatus}>
+                    <Text style={styles.programStatusText}>
+                      {assignment.active ? "ACTIF" : "TERMINÉ"}
+                    </Text>
+                  </View>
+
+                  <Text style={styles.programArrow}>›</Text>
+                </Pressable>
+              );
+            })
+          ) : (
+            <Text style={styles.muted}>
+              Aucun programme attribué.
+            </Text>
+          )}
+        </View>
       </Card>
 
       <Card style={styles.section}>
@@ -208,6 +298,132 @@ const styles = StyleSheet.create({
     color: colors.muted,
     marginTop: 7,
     lineHeight: 19,
+  },
+
+  trainingMetrics: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 16,
+  },
+
+  trainingMetric: {
+    flex: 1,
+    minHeight: 82,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    backgroundColor: colors.surface2,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 6,
+  },
+
+  trainingMetricValue: {
+    color: colors.yellow,
+    fontSize: 16,
+    fontWeight: "900",
+    textAlign: "center",
+  },
+
+  trainingMetricLabel: {
+    color: colors.muted,
+    fontSize: 8,
+    fontWeight: "900",
+    marginTop: 5,
+    textAlign: "center",
+  },
+
+  exerciseList: {
+    marginTop: 18,
+  },
+
+  programListTitle: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: "900",
+    letterSpacing: 1,
+    marginBottom: 10,
+  },
+
+  programRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 14,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSoft,
+  },
+
+  programName: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: "900",
+  },
+
+  programMeta: {
+    color: colors.muted,
+    fontSize: 10,
+    marginTop: 3,
+  },
+
+  programStatus: {
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.yellow,
+    backgroundColor: "rgba(255,196,0,.08)",
+  },
+
+  programStatusText: {
+    color: colors.yellow,
+    fontSize: 8,
+    fontWeight: "900",
+  },
+
+  programArrow: {
+    color: colors.yellow,
+    fontSize: 28,
+    lineHeight: 30,
+  },
+
+  exerciseRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSoft,
+  },
+
+  exerciseName: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: "900",
+  },
+
+  exerciseSub: {
+    color: colors.muted,
+    fontSize: 11,
+    marginTop: 3,
+  },
+
+  exerciseStat: {
+    minWidth: 70,
+    alignItems: "flex-end",
+  },
+
+  exerciseStatValue: {
+    color: colors.yellow,
+    fontSize: 13,
+    fontWeight: "900",
+  },
+
+  exerciseStatLabel: {
+    color: colors.muted,
+    fontSize: 7,
+    fontWeight: "900",
+    marginTop: 3,
   },
 
   grid: {
