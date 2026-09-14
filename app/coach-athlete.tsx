@@ -10,13 +10,19 @@ import {
 
 import { Card, ScreenHeader } from "@/src/components/ui";
 import { colors } from "@/src/theme";
-import { getCoachAthleteOverview, getCoachExercisePerformanceHistory, getCoachAthletePrograms } from "@/src/lib/coachApi";
+import {
+  getCoachAthleteOverview,
+  getCoachExercisePerformanceHistory,
+  getCoachAthletePrograms,
+  getCoachAthleteNutrition,
+} from "@/src/lib/coachApi";
 
 export default function CoachAthleteScreen() {
   const { athleteId } = useLocalSearchParams<{ athleteId: string }>();
   const [overview, setOverview] = useState<any>(null);
   const [exerciseHistory, setExerciseHistory] = useState<any[]>([]);
   const [athletePrograms, setAthletePrograms] = useState<any[]>([]);
+  const [nutrition, setNutrition] = useState<any>(null);
   const [error, setError] = useState("");
   const [periodDays, setPeriodDays] = useState(30);
 
@@ -27,11 +33,13 @@ export default function CoachAthleteScreen() {
       getCoachAthleteOverview(athleteId, periodDays),
       getCoachExercisePerformanceHistory(athleteId, periodDays),
       getCoachAthletePrograms(athleteId),
+      getCoachAthleteNutrition(athleteId, periodDays),
     ])
-      .then(([overviewResult, exerciseResult, programsResult]) => {
+      .then(([overviewResult, exerciseResult, programsResult, nutritionResult]) => {
         setOverview(overviewResult);
         setExerciseHistory(exerciseResult);
         setAthletePrograms(programsResult);
+        setNutrition(nutritionResult);
       })
       .catch((e: any) =>
         setError(e?.message ?? "Impossible de charger l'athlète.")
@@ -41,6 +49,24 @@ export default function CoachAthleteScreen() {
   const athleteName = overview?.profile
     ? `${overview.profile.first_name ?? ""} ${overview.profile.last_name ?? ""}`.trim()
     : "Fiche athlète";
+
+  const now = new Date();
+  const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+
+  const todayNutritionEntries = (nutrition?.entries ?? []).filter(
+    (entry: any) => entry.eaten_on === todayKey
+  );
+
+  const todayNutritionTotals = todayNutritionEntries.reduce(
+    (acc: any, entry: any) => ({
+      calories: acc.calories + Number(entry.calories ?? 0),
+      protein: acc.protein + Number(entry.protein_g ?? 0),
+      carbs: acc.carbs + Number(entry.carbs_g ?? 0),
+      fat: acc.fat + Number(entry.fat_g ?? 0),
+      fiber: acc.fiber + Number(entry.fiber_g ?? 0),
+    }),
+    { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 }
+  );
 
   return (
     <ScrollView contentContainerStyle={styles.page}>
@@ -208,12 +234,69 @@ export default function CoachAthleteScreen() {
         </View>
       </Card>
 
-      <Card style={styles.section}>
-        <Text style={styles.sectionTitle}>NUTRITION</Text>
-        <Text style={styles.muted}>
-          Calories, protéines, glucides, lipides et fibres.
-        </Text>
-      </Card>
+      <Pressable
+        onPress={() =>
+          router.push({
+            pathname: "/coach-athlete-nutrition" as any,
+            params: {
+              athleteId,
+              periodDays: String(periodDays),
+            },
+          })
+        }
+      >
+        <Card style={styles.section}>
+          <Text style={styles.sectionTitle}>NUTRITION</Text>
+
+          <Text style={styles.muted}>
+            Aujourd'hui · {todayNutritionEntries.length} entrée(s)
+          </Text>
+
+          <View style={styles.trainingMetrics}>
+            <View style={styles.trainingMetric}>
+              <Text style={styles.trainingMetricValue}>
+                {Math.round(todayNutritionTotals.calories)} kcal
+              </Text>
+              <Text style={styles.trainingMetricLabel}>CALORIES</Text>
+            </View>
+
+            <View style={styles.trainingMetric}>
+              <Text style={styles.trainingMetricValue}>
+                {Math.round(todayNutritionTotals.protein)} g
+              </Text>
+              <Text style={styles.trainingMetricLabel}>PROTÉINES</Text>
+            </View>
+
+            <View style={styles.trainingMetric}>
+              <Text style={styles.trainingMetricValue}>
+                {Math.round(todayNutritionTotals.carbs)} g
+              </Text>
+              <Text style={styles.trainingMetricLabel}>GLUCIDES</Text>
+            </View>
+
+            <View style={[styles.trainingMetric, { marginTop: 10 }]}>
+              <Text style={styles.trainingMetricValue}>
+                {Math.round(todayNutritionTotals.fat)} g
+              </Text>
+              <Text style={styles.trainingMetricLabel}>LIPIDES</Text>
+            </View>
+
+            <View style={[styles.trainingMetric, { marginTop: 10 }]}>
+              <Text style={styles.trainingMetricValue}>
+                {Math.round(todayNutritionTotals.fiber)} g
+              </Text>
+              <Text style={styles.trainingMetricLabel}>FIBRES</Text>
+            </View>
+
+            <View style={[styles.trainingMetric, { marginTop: 10 }]}>
+              <Text style={styles.trainingMetricValue}>
+                {todayNutritionEntries.length}
+              </Text>
+              <Text style={styles.trainingMetricLabel}>ENTRÉES</Text>
+            </View>
+          </View>
+        </Card>
+      </Pressable>
 
       <Card style={styles.section}>
         <Text style={styles.sectionTitle}>ACTIVITÉ</Text>

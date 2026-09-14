@@ -250,9 +250,9 @@ export default function CoachAthleteSessionScreen() {
               <Card
                 key={block}
                 style={{
-                  marginTop: 14,
-                  padding: 18,
-                  borderRadius: 18,
+                  marginTop: 10,
+                  padding: 14,
+                  borderRadius: 16,
                   borderWidth: 1,
                   borderColor: colors.border,
                   backgroundColor: colors.surface,
@@ -263,7 +263,7 @@ export default function CoachAthleteSessionScreen() {
                     color: colors.yellow,
                     fontSize: 13,
                     fontWeight: "900",
-                    letterSpacing: 1.6,
+                    letterSpacing: 1.2,
                   }}
                 >
                   {block}
@@ -273,345 +273,280 @@ export default function CoachAthleteSessionScreen() {
                   <Text
                     style={{
                       color: colors.text,
-                      fontSize: 18,
-                      fontWeight: "900",
+                      fontSize: 15,
+                      fontWeight: "800",
                       marginTop: 4,
-                      marginBottom: 8,
+                      marginBottom: 6,
                     }}
                   >
                     {rounds} ROUNDS
                   </Text>
                 ) : null}
 
-                {items.map((item: any, index: number) => {
-                  const exercise = Array.isArray(item.exercises)
-                    ? item.exercises[0]
-                    : item.exercises;
+                <View style={{ marginTop: rounds ? 0 : 8 }}>
+                  {items.map((item: any, index: number) => {
+                    const exercise = Array.isArray(item.exercises)
+                      ? item.exercises[0]
+                      : item.exercises;
 
-                  const cleanNote = String(item.prescription_notes ?? "")
-                    .replace(/^(WARM\s*UP|WARMUP|STRENGTH\s*WORK|STRENGTH|RENFO|WOD)\s*[:\-–—]?\s*/i, "")
-                    .replace(/^\d+\s*(ROUNDS?|TOURS?)\s*[:\-–—]?\s*/i, "")
-                    .trim();
+                    const name = String(
+                      exercise?.name ?? `Exercice ${index + 1}`
+                    ).trim();
 
-                  const sets = item.prescribed_sets ?? [];
+                    const cleanNote = String(item.prescription_notes ?? "")
+                      .replace(
+                        /^(WARM\s*UP|WARMUP|STRENGTH\s*WORK|STRENGTH|RENFO|WOD)\s*[:\-–—]?\s*/i,
+                        ""
+                      )
+                      .replace(
+                        /^\d+\s*(ROUNDS?|TOURS?)\s*[:\-–—]?\s*/i,
+                        ""
+                      )
+                      .trim();
 
-                  const same =
-                    sets.length > 0 &&
-                    sets.every((set: any) =>
-                      set.target_reps === sets[0]?.target_reps &&
-                      set.target_load_kg === sets[0]?.target_load_kg &&
-                      set.target_rpe === sets[0]?.target_rpe &&
-                      set.target_rir === sets[0]?.target_rir &&
-                      set.rest_seconds === sets[0]?.rest_seconds
+                    const sets = item.prescribed_sets ?? [];
+                    const firstSet = sets[0];
+
+                    const repMatch = cleanNote.match(
+                      /^(\d+(?:[.,]\d+)?)\s*(?:REPS?)\b/i
                     );
 
-              const wodLine = (() => {
-                const name = String(
-                  exercise?.name ?? `Exercice ${index + 1}`
-                ).trim();
+                    const distanceMatch = cleanNote.match(
+                      /^(\d+(?:[.,]\d+)?\s*(?:M|KM))\b/i
+                    );
 
-                const firstSet = sets[0];
+                    const loadMatch = cleanNote.match(
+                      /@\s*(\d+(?:[.,]\d+)?)\s*KG\b/i
+                    );
 
-                const distance =
-                  cleanNote.match(/\b\d+\s*m\b/i)?.[0] ?? null;
+                    const reps =
+                      firstSet?.target_reps ??
+                      (repMatch ? repMatch[1] : null);
 
-                if (distance) {
-                  return `${distance} ${name.toLowerCase()}`;
-                }
+                    const load =
+                      firstSet?.target_load_kg ??
+                      (loadMatch ? loadMatch[1] : null);
 
-                const reps = firstSet?.target_reps;
-                const load = firstSet?.target_load_kg;
+                    const noteHasName =
+                      cleanNote &&
+                      cleanNote.toLowerCase().includes(name.toLowerCase());
 
-                if (reps != null) {
-                  return `${reps} ${name.toLowerCase()}${
-                    load != null ? ` @ ${load} kg` : ""
-                  }`;
-                }
+                    const compactLine = (() => {
+                      if (noteHasName) return cleanNote;
 
-                return cleanNote || name;
-              })();
+                      if (distanceMatch) {
+                        return `${distanceMatch[1]} ${name.toLowerCase()}`;
+                      }
 
-              const performedForExercise = (detail?.performedSets ?? []).filter(
-                (performed: any) => performed.workout_exercise_id === item.id
-              );
+                      if (reps != null) {
+                        return `${reps} ${name.toLowerCase()}${
+                          load != null ? ` @ ${load} kg` : ""
+                        }`;
+                      }
 
-              const completedPerformed = performedForExercise.filter(
-                (done: any) => done.completed === true
-              );
+                      if (cleanNote) {
+                        return `${cleanNote} ${name.toLowerCase()}`;
+                      }
 
-              const hasPerformed = completedPerformed.length > 0;
+                      return name;
+                    })();
 
-              const hasPercentPrescription = /@?\s*\d+(?:[.,]\d+)?\s*%/.test(
-                String(item.prescription_notes ?? "")
-              );
+                    const same =
+                      sets.length > 0 &&
+                      sets.every(
+                        (set: any) =>
+                          set.target_reps === firstSet?.target_reps &&
+                          set.target_load_kg === firstSet?.target_load_kg &&
+                          set.target_rpe === firstSet?.target_rpe &&
+                          set.target_rir === firstSet?.target_rir &&
+                          set.rest_seconds === firstSet?.rest_seconds
+                      );
 
-              const sortedPerformed = completedPerformed
-                .slice()
-                .sort(
-                  (a: any, b: any) =>
-                    Number(a.set_number ?? 0) - Number(b.set_number ?? 0)
-                );
+                    const strengthFallback =
+                      same && sets.length
+                        ? [
+                            firstSet?.target_reps != null
+                              ? `${sets.length} × ${firstSet.target_reps}`
+                              : null,
+                            firstSet?.target_load_kg != null
+                              ? `@ ${firstSet.target_load_kg} kg`
+                              : null,
+                            firstSet?.target_rpe != null
+                              ? `RPE ${firstSet.target_rpe}`
+                              : null,
+                            firstSet?.target_rir != null
+                              ? `RIR ${firstSet.target_rir}`
+                              : null,
+                            firstSet?.rest_seconds != null
+                              ? `repos ${Math.round(
+                                  firstSet.rest_seconds / 60
+                                )} min`
+                              : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")
+                        : "";
 
-              const referenceLoad =
-                sortedPerformed.find((done: any) => done.load_kg != null)?.load_kg ??
-                null;
+                    if (block === "STRENGTH WORK") {
+                      return (
+                        <View
+                          key={item.id ?? index}
+                          style={{ marginTop: index === 0 ? 2 : 14 }}
+                        >
+                          <Text
+                            style={{
+                              color: colors.text,
+                              fontSize: 15,
+                              fontWeight: "800",
+                            }}
+                          >
+                            {name}
+                          </Text>
 
-              const differences = sets.flatMap((prescribed: any, setIndex: number) => {
-                const performed = completedPerformed.find(
-                  (done: any) =>
-                    done.prescribed_set_id === prescribed.id ||
-                    done.set_number === prescribed.set_number
-                );
+                          {(cleanNote || strengthFallback) ? (
+                            <Text
+                              style={{
+                                color: colors.muted,
+                                fontSize: 13,
+                                lineHeight: 19,
+                                marginTop: 2,
+                              }}
+                            >
+                              {cleanNote || strengthFallback}
+                            </Text>
+                          ) : null}
+                        </View>
+                      );
+                    }
 
-                if (!performed) return [];
+                    return (
+                      <Text
+                        key={item.id ?? index}
+                        style={{
+                          color: colors.text,
+                          fontSize: 14,
+                          fontWeight: "600",
+                          lineHeight: 22,
+                        }}
+                      >
+                        {compactLine}
+                      </Text>
+                    );
+                  })}
+                </View>
 
-                const changes: string[] = [];
+                {(() => {
+                  const performedForBlock = items.flatMap((item: any) => {
+                    const exercise = Array.isArray(item.exercises)
+                      ? item.exercises[0]
+                      : item.exercises;
 
-                if (
-                  prescribed.target_reps != null &&
-                  performed.reps != null &&
-                  Number(performed.reps) !== Number(prescribed.target_reps)
-                ) {
-                  changes.push(
-                    `${prescribed.target_reps} reps → ${performed.reps} reps`
-                  );
-                }
+                    const performed = allPerformed
+                      .filter(
+                        (done: any) =>
+                          done.workout_exercise_id === item.id &&
+                          done.completed !== false
+                      )
+                      .slice()
+                      .sort(
+                        (a: any, b: any) =>
+                          Number(a.set_number ?? 0) - Number(b.set_number ?? 0)
+                      );
 
-                if (
-                  prescribed.target_load_kg != null &&
-                  performed.load_kg != null &&
-                  Number(performed.load_kg) !== Number(prescribed.target_load_kg)
-                ) {
-                  changes.push(
-                    `${prescribed.target_load_kg} kg → ${performed.load_kg} kg`
-                  );
-                }
+                    if (!performed.length) return [];
 
-                if (
-                  prescribed.target_load_kg == null &&
-                  hasPercentPrescription &&
-                  referenceLoad != null &&
-                  performed.load_kg != null &&
-                  Number(performed.load_kg) !== Number(referenceLoad)
-                ) {
-                  changes.push(
-                    `${referenceLoad} kg → ${performed.load_kg} kg`
-                  );
-                }
+                    const name = String(
+                      exercise?.name ?? "Exercice"
+                    ).trim();
 
-                if (!changes.length) return [];
+                    const same =
+                      performed.length > 0 &&
+                      performed.every(
+                        (set: any) =>
+                          Number(set.reps ?? 0) ===
+                            Number(performed[0]?.reps ?? 0) &&
+                          Number(set.load_kg ?? 0) ===
+                            Number(performed[0]?.load_kg ?? 0)
+                      );
 
-                return [
-                  `Série ${prescribed.set_number ?? setIndex + 1} : ${changes.join(
-                    " · "
-                  )}`,
-                ];
-              });
+                    let value = "";
 
-              const missingCount = Math.max(
-                sets.length - completedPerformed.length,
-                0
-              );
+                    if (same) {
+                      const first = performed[0];
 
-              const exerciseStatus =
-                sets.length > 0 && completedPerformed.length === 0
-                  ? "INCOMPLET"
-                  : missingCount > 0
-                  ? "INCOMPLET"
-                  : differences.length > 0
-                  ? "MODIFIÉ"
-                  : hasPerformed
-                  ? "COMPLET"
-                  : "INCOMPLET";
+                      const parts = [
+                        first?.reps != null
+                          ? `${performed.length} × ${first.reps}`
+                          : `${performed.length} série${
+                              performed.length > 1 ? "s" : ""
+                            }`,
+                        first?.load_kg != null
+                          ? `@ ${first.load_kg} kg`
+                          : null,
+                      ].filter(Boolean);
 
-              const summary =
-                same && sets.length
-                  ? [
-                      sets.length > 1 && sets[0]?.target_reps != null
-                        ? `${sets.length} × ${sets[0].target_reps}`
-                        : sets[0]?.target_reps != null
-                        ? `${sets[0].target_reps} reps`
-                        : null,
-                      sets[0]?.target_load_kg != null
-                        ? `@ ${sets[0].target_load_kg} kg`
-                        : null,
-                      sets[0]?.target_rpe != null
-                        ? `RPE ${sets[0].target_rpe}`
-                        : null,
-                      sets[0]?.target_rir != null
-                        ? `RIR ${sets[0].target_rir}`
-                        : null,
-                      sets[0]?.rest_seconds != null
-                        ? `repos ${Math.round(sets[0].rest_seconds / 60)} min`
-                        : null,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")
-                  : "";
+                      value = parts.join(" ");
+                    } else {
+                      value = performed
+                        .map((set: any) => {
+                          const parts = [
+                            `S${set.set_number ?? "?"}`,
+                            set.reps != null ? `${set.reps} reps` : null,
+                            set.load_kg != null ? `@ ${set.load_kg} kg` : null,
+                          ].filter(Boolean);
 
-              return (
-                <View
-                  key={item.id ?? index}
-                  style={{
-                    marginTop: index === 0 ? 6 : 12,
-                  }}
-                >
-                  {block === "WOD" ? (
+                          return parts.join(" ");
+                        })
+                        .join(" · ");
+                    }
+
+                    return [{ name, value }];
+                  });
+
+                  if (!performedForBlock.length) return null;
+
+                  return (
                     <View
                       style={{
-                        flexDirection: "row",
-                        justifyContent: "space-between",
-                        alignItems: "center",
+                        marginTop: 12,
+                        paddingTop: 10,
+                        borderTopWidth: 1,
+                        borderTopColor: colors.borderSoft,
                       }}
                     >
                       <Text
                         style={{
-                          color: colors.text,
-                          fontSize: 16,
-                          fontWeight: "700",
-                          lineHeight: 24,
-                          flex: 1,
-                        }}
-                      >
-                        {wodLine}
-                      </Text>
-
-                      <Text
-                        style={{
-                          color:
-                            exerciseStatus === "COMPLET"
-                              ? colors.green
-                              : exerciseStatus === "MODIFIÉ"
-                              ? colors.yellow
-                              : colors.red,
+                          color: colors.green,
                           fontSize: 10,
-                          fontWeight: "900",
-                          letterSpacing: 0.8,
-                          marginLeft: 10,
-                        }}
-                      >
-                        {exerciseStatus}
-                      </Text>
-                    </View>
-                  ) : (
-                    <>
-                      <View
-                        style={{
-                          flexDirection: "row",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                        }}
-                      >
-                        <Text
-                          style={{
-                            color: colors.text,
-                            fontSize: 16,
-                            fontWeight: "900",
-                            lineHeight: 21,
-                            flex: 1,
-                          }}
-                        >
-                          {exercise?.name ?? `Exercice ${index + 1}`}
-                        </Text>
-
-                        {exerciseStatus ? (
-                          <Text
-                            style={{
-                              color:
-                                exerciseStatus === "COMPLET"
-                                  ? colors.green
-                                  : exerciseStatus === "MODIFIÉ"
-                                  ? colors.yellow
-                                  : colors.red,
-                              fontSize: 10,
-                              fontWeight: "900",
-                              letterSpacing: 0.8,
-                              marginLeft: 10,
-                            }}
-                          >
-                            {exerciseStatus}
-                          </Text>
-                        ) : null}
-                      </View>
-
-                      {(cleanNote || summary) ? (
-                        <Text
-                          style={{
-                            color: colors.muted,
-                            fontSize: 14,
-                            lineHeight: 20,
-                            marginTop: 2,
-                          }}
-                        >
-                          {cleanNote || summary}
-                        </Text>
-                      ) : null}
-                    </>
-                  )}
-
-                  {hasPerformed ? (
-                    <View style={{ marginTop: 9 }}>
-                      <Text
-                        style={{
-                          color: colors.yellow,
-                          fontSize: 11,
-                          fontWeight: "900",
-                          letterSpacing: 1,
-                          marginBottom: 3,
+                          fontWeight: "800",
+                          letterSpacing: 1.1,
+                          marginBottom: 6,
                         }}
                       >
                         RÉALISÉ
                       </Text>
 
-                      {performedForExercise
-                        .slice()
-                        .sort(
-                          (a: any, b: any) =>
-                            Number(a.set_number ?? 0) -
-                            Number(b.set_number ?? 0)
-                        )
-                        .map((done: any, doneIndex: number) => {
-                          const parts = [
-                            done.reps != null ? `${done.reps} reps` : null,
-                            done.load_kg != null ? `${done.load_kg} kg` : null,
-                            done.rpe != null ? `RPE ${done.rpe}` : null,
-                          ].filter(Boolean);
-
-                          return (
-                            <Text
-                              key={done.id ?? doneIndex}
-                              style={{
-                                color: colors.text,
-                                fontSize: 12,
-                                lineHeight: 18,
-                              }}
-                            >
-                              S{done.set_number ?? doneIndex + 1} · {parts.join(" · ")}
-                            </Text>
-                          );
-                        })}
-
-                      {differences.map(
-                        (difference: string, differenceIndex: number) => (
+                      {performedForBlock.map(
+                        (performed: any, performedIndex: number) => (
                           <Text
-                            key={`diff-${differenceIndex}`}
+                            key={`${performed.name}-${performedIndex}`}
                             style={{
-                              color: colors.yellow,
-                              fontSize: 12,
+                              color: colors.text,
+                              fontSize: 13,
+                              lineHeight: 21,
                               fontWeight: "700",
-                              lineHeight: 18,
-                              marginTop: 2,
                             }}
                           >
-                            {difference}
+                            {performed.name}
+                            {performed.value
+                              ? ` — ${performed.value}`
+                              : ""}
                           </Text>
                         )
                       )}
                     </View>
-                  ) : null}
-                </View>
-              );
-                })}
+                  );
+                })()}
               </Card>
             );
           })}

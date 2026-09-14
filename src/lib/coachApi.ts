@@ -698,3 +698,83 @@ export async function getCoachAthleteSessionDetail(
     performedSets,
   };
 }
+
+// ===== SUIVI NUTRITION COACH -> ATHLETE =====
+export async function getCoachAthleteNutrition(
+  athleteId: string,
+  periodDays = 30
+) {
+  const coachId = await currentUserId();
+
+  // Vérifie que l'athlète appartient bien au coach connecté.
+  const { data: relationship, error: relationshipError } = await supabase
+    .from("coach_athlete_relationships")
+    .select("id")
+    .eq("coach_id", coachId)
+    .eq("athlete_id", athleteId)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (relationshipError) throw relationshipError;
+  if (!relationship) {
+    throw new Error("Athlète non lié à ce coach.");
+  }
+
+  const since = new Date();
+  since.setDate(since.getDate() - Math.max(periodDays - 1, 0));
+  since.setHours(0, 0, 0, 0);
+
+  const sinceDate = since.toISOString().slice(0, 10);
+
+  const [entriesResult, targetsResult] = await Promise.all([
+    supabase
+      .from("nutrition_entries")
+      .select("*")
+      .eq("user_id", athleteId)
+      .gte("eaten_on", sinceDate)
+      .order("eaten_on", { ascending: false })
+      .order("created_at", { ascending: false }),
+
+    supabase
+      .from("nutrition_targets")
+      .select(
+        "calories_target, protein_target_g, carbs_target_g, fat_target_g, fiber_target_g"
+      )
+      .eq("user_id", athleteId)
+      .maybeSingle(),
+  ]);
+
+  if (entriesResult.error) throw entriesResult.error;
+  if (targetsResult.error) throw targetsResult.error;
+
+  const entries = entriesResult.data ?? [];
+
+  const totals = entries.reduce(
+    (acc, entry: any) => ({
+      calories: acc.calories + Number(entry.calories ?? 0),
+      protein: acc.protein + Number(entry.protein_g ?? 0),
+      carbs: acc.carbs + Number(entry.carbs_g ?? 0),
+      fat: acc.fat + Number(entry.fat_g ?? 0),
+      fiber: acc.fiber + Number(entry.fiber_g ?? 0),
+    }),
+    {
+      calories: 0,
+      protein: 0,
+      carbs: 0,
+      fat: 0,
+      fiber: 0,
+    }
+  );
+
+  const daysWithEntries = new Set(
+    entries.map((entry: any) => entry.eaten_on).filter(Boolean)
+  ).size;
+
+  return {
+    entries,
+    targets: targetsResult.data ?? null,
+    totals,
+    daysWithEntries,
+    periodDays,
+  };
+}
