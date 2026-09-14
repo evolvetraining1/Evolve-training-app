@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { router, useLocalSearchParams } from "expo-router";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Card, PrimaryButton, ScreenHeader } from "@/src/components/ui";
@@ -245,13 +245,21 @@ export default function WorkoutScreen() {
       setDetail(d);
 
       const byExercise: Record<string, LocalSet[]> = {};
+
+      const performedByExerciseAndSet = new Map(
+        (d.performedSets ?? []).map((item: any) => [
+          `${item.workout_exercise_id}:${item.set_number}`,
+          item,
+        ])
+      );
+
       for (const we of d.workoutExercises) {
           const prescribed = [...(we.prescribed_sets ?? [])].sort((a: any, b: any) => a.set_number - b.set_number);
           const fallback = buildFallbackSets(we);
 
           if (!prescribed.length) {
             byExercise[we.id] = fallback.map((row) => {
-              const existing = d.performedSets.find((x: any) => x.workout_exercise_id === we.id && x.set_number === row.setNumber);
+              const existing = performedByExerciseAndSet.get(`${we.id}:${row.setNumber}`);
 
               return {
                 ...row,
@@ -266,7 +274,7 @@ export default function WorkoutScreen() {
           }
 
           byExercise[we.id] = prescribed.map((ps: any) => {
-            const existing = d.performedSets.find((x: any) => x.workout_exercise_id === we.id && x.set_number === ps.set_number);
+            const existing = performedByExerciseAndSet.get(`${we.id}:${ps.set_number}`);
             return {
               prescribedId: ps.id,
               workoutExerciseId: we.id,
@@ -289,6 +297,28 @@ export default function WorkoutScreen() {
     })().catch((e) => setMessage(e?.message ?? "Impossible de charger la séance"))
       .finally(() => setLoading(false));
   }, [sessionId]);
+
+  const groupedExercises = useMemo(() => {
+    const grouped: Record<string, any[]> = {};
+
+    for (const exercise of detail?.workoutExercises ?? []) {
+      const value = String(exercise?.prescription_notes ?? "")
+        .trim()
+        .toUpperCase();
+
+      const block =
+        value.startsWith("WARM UP") ? "WARM UP" :
+        value.startsWith("STRENGTH WORK") ? "STRENGTH WORK" :
+        value.startsWith("RENFO") ? "RENFO" :
+        value.startsWith("WOD") ? "WOD" :
+        "AUTRE";
+
+      if (!grouped[block]) grouped[block] = [];
+      grouped[block].push(exercise);
+    }
+
+    return grouped;
+  }, [detail]);
 
   function patch(exerciseId: string, setNumber: number, patch: Partial<LocalSet>) {
     setSets((current) => ({
@@ -426,18 +456,31 @@ export default function WorkoutScreen() {
     void finalizeWorkout();
   }
 
-  if (loading) return <View style={styles.center}><ActivityIndicator /></View>;
-  if (!sessionId || !detail) return <View style={styles.center}><Text style={styles.error}>{message || "Aucune séance sélectionnée."}</Text></View>;
+  if (!loading && (!sessionId || !detail)) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.error}>
+          {message || "Aucune séance sélectionnée."}
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView contentContainerStyle={styles.page}>
       <ScreenHeader
         eyebrow="SÉANCE EN COURS"
-        title={detail.session.workout_templates?.name ?? "Séance"}
+        title={detail?.session?.workout_templates?.name ?? "Séance"}
         subtitle="Chaque série cochée est sauvegardée immédiatement."
       />
 
-      {(() => {
+      {loading ? (
+        <View style={styles.loadingInline}>
+          <ActivityIndicator color={colors.yellow} size="large" />
+        </View>
+      ) : null}
+
+      {!loading && detail ? (() => {
         const blockOrder = ["WARM UP", "STRENGTH WORK", "RENFO", "WOD", "AUTRE"];
 
         const blockSubtitles: Record<string, string> = {
@@ -448,28 +491,7 @@ export default function WorkoutScreen() {
           "AUTRE": "Travail complémentaire",
         };
 
-        const getBlock = (notes?: string) => {
-          const value = (notes ?? "").trim().toUpperCase();
-
-          if (value.startsWith("WARM UP")) return "WARM UP";
-          if (value.startsWith("STRENGTH WORK")) return "STRENGTH WORK";
-          if (value.startsWith("RENFO")) return "RENFO";
-          if (value.startsWith("WOD")) return "WOD";
-
-          return "AUTRE";
-        };
-
-        const grouped = detail.workoutExercises.reduce(
-          (acc: Record<string, any[]>, exercise: any) => {
-            const block = getBlock(exercise.prescription_notes);
-
-            if (!acc[block]) acc[block] = [];
-            acc[block].push(exercise);
-
-            return acc;
-          },
-          {}
-        );
+        const grouped = groupedExercises;
 
         return blockOrder
           .filter((block) => grouped[block]?.length)
@@ -634,9 +656,11 @@ export default function WorkoutScreen() {
               </View>
             </View>
           ));
-      })()}
+      })() : null}
 
-      <PrimaryButton label="VALIDER LA SÉANCE" onPress={finish} />
+      {!loading && detail ? (
+        <PrimaryButton label="VALIDER LA SÉANCE" onPress={finish} />
+      ) : null}
       {message ? <Text style={styles.message}>{message}</Text> : null}
     </ScrollView>
   );
@@ -660,6 +684,11 @@ const styles = StyleSheet.create({
 
   page: { padding: 20, paddingTop: 68, paddingBottom: 50, backgroundColor: "transparent" },
   center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "transparent", padding: 20 },
+  loadingInline: {
+    minHeight: 180,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   trainingBlock: {
     marginBottom: 26,
   },

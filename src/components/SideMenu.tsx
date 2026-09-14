@@ -15,8 +15,7 @@ const sections = [
     { icon: "1", label: "Calculateur 1RM", route: "/rm-calculator" },
     { icon: "◎", label: "Suivi nutrition", route: "/nutrition" },
     { icon: "↗", label: "Performances", route: "/(tabs)/stats" },
-    { icon: "◉", label: "Test podomètre", route: "/pedometer-test" },
-  ]},
+    ]},
   { title: "COMPTE", items: [
     { icon: "＋", label: "Programmes achetés", badge: "OFFRES" },
     { icon: "●", label: "Profil & réglages", route: "/(tabs)/profile" },
@@ -26,8 +25,12 @@ const sections = [
 export default function SideMenu({ visible, onClose, role }: Props) {
   const open = (route?: string) => {
     if (!route) return;
+
     onClose();
-    router.push(route as any);
+
+    setTimeout(() => {
+      router.push(route as any);
+    }, 150);
   };
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
