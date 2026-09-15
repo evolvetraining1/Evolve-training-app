@@ -31,6 +31,20 @@ const PROGRAMS = [
     price: 200,
     image: require("@/assets/protocole-2pm.png"),
   },
+
+  {
+    id: "evolve-initium",
+    title: "EVOLVE INITIUM",
+    price: 300,
+    image: require("@/assets/evolve-initium.png"),
+  },
+
+  {
+    id: "suivi-nutrition",
+    title: "SUIVI NUTRITION",
+    price: 300,
+    image: require("@/assets/suivi-nutrition.png"),
+  },
 ];
 
 export default function ProgramScreen() {
