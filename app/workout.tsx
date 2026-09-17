@@ -1,9 +1,27 @@
 import { useEffect, useMemo, useState } from "react";
 import { router, useLocalSearchParams } from "expo-router";
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+
 import { Card, PrimaryButton, ScreenHeader } from "@/src/components/ui";
 import { colors } from "@/src/theme";
-import { completeWorkoutSession, getNextWorkoutSession, getSessionDetail, savePerformedSet, startWorkoutSession } from "@/src/lib/api";
+import {
+  completeWorkoutSession,
+  getNextWorkoutSession,
+  getSessionDetail,
+  savePerformedSet,
+  startWorkoutSession,
+} from "@/src/lib/api";
+
+type WorkoutBlock = "WARM UP" | "STRENGTH WORK" | "RENFO" | "WOD" | "AUTRE";
 
 type LocalSet = {
   prescribedId?: string | null;
@@ -13,151 +31,90 @@ type LocalSet = {
   load: string;
   rpe: string;
   done: boolean;
+  simpleCompletion?: boolean;
 };
 
+function exerciseData(item: any) {
+  return Array.isArray(item?.exercises) ? item.exercises[0] : item?.exercises;
+}
 
-function cleanExercisePrescription(
-  notes?: string | null,
-  block?: string
-) {
-  let value = (notes ?? "").trim();
+function workoutBlock(item: any): WorkoutBlock {
+  const value = String(item?.prescription_notes ?? "").trim().toUpperCase();
 
+  if (value.startsWith("WARM UP") || value.startsWith("WARM-UP")) return "WARM UP";
+  if (value.startsWith("STRENGTH WORK") || value.startsWith("STRENGTH")) return "STRENGTH WORK";
+  if (value.startsWith("RENFO")) return "RENFO";
+  if (value.startsWith("WOD")) return "WOD";
+  return "AUTRE";
+}
+
+function isSimpleCompletionBlock(block: WorkoutBlock) {
+  return block === "WARM UP" || block === "WOD";
+}
+
+function cleanExercisePrescription(notes?: string | null, block?: WorkoutBlock) {
+  let value = String(notes ?? "").trim();
   if (!value) return "";
 
-  // Retire le nom du bloc répété dans chaque exercice
   value = value.replace(
-    /^(WARM\s*UP|STRENGTH\s*WORK|RENFO|WOD)\s*[—–-]?\s*/i,
+    /^(WARM\s*[- ]?UP|STRENGTH\s*WORK|STRENGTH|RENFO|WOD)\s*[—–:-]?\s*/i,
     ""
   );
 
-  // Dans les blocs en rounds, le nombre est déjà affiché dans l'en-tête
   if (block === "WARM UP" || block === "WOD") {
-    value = value.replace(
-      /^\d+\s*(?:ROUNDS?|TOURS?)\s*[—–-]?\s*/i,
-      ""
-    );
+    value = value.replace(/^\d+\s*(?:ROUNDS?|TOURS?)\s*[—–:-]?\s*/i, "");
   }
 
   return value.trim();
 }
 
-function exerciseDisplayLine(
-  name?: string | null,
-  notes?: string | null,
-  block?: string
-) {
-  const exerciseName = (name ?? "Exercice").trim();
-  const prescription = cleanExercisePrescription(notes, block);
-
-  return prescription
-    ? `${exerciseName} — ${prescription}`
-    : exerciseName;
+function exerciseDisplayLine(item: any, block: WorkoutBlock) {
+  const exercise = exerciseData(item);
+  const name = String(exercise?.name ?? "Exercice").trim();
+  const prescription = cleanExercisePrescription(item?.prescription_notes, block);
+  return prescription ? `${name} — ${prescription}` : name;
 }
 
-function buildFallbackSets(we: any): LocalSet[] {
-  const notes = [
-    we?.prescription_notes,
-    we?.exercises?.instructions,
-  ]
+function parseRounds(items: any[]) {
+  for (const item of items) {
+    const notes = String(item?.prescription_notes ?? "");
+    const match = notes.match(/(\d+)\s*(?:ROUNDS?|TOURS?)/i);
+    if (match) return Number(match[1]);
+  }
+  return null;
+}
+
+function buildFallbackSets(item: any): LocalSet[] {
+  const exercise = exerciseData(item);
+  const notes = [item?.prescription_notes, exercise?.instructions]
     .filter(Boolean)
     .join(" — ")
     .trim();
 
-  // Même sans prescription structurée :
-  // chaque exercice doit avoir au minimum une ligne de suivi.
-  if (!notes) {
-    return [{
-      prescribedId: null,
-      workoutExerciseId: we.id,
-      setNumber: 1,
-      reps: "",
-      load: "",
-      rpe: "",
-      done: false,
-    }];
-  }
-
-  let setCount = 0;
+  let setCount = 1;
   let reps = "";
   let load = "";
   let rpe = "";
 
-  // 5x5 / 3x8-12 / 4×10
-  const setRepMatch = notes.match(
-    /(\d+)\s*[x×]\s*(\d+(?:\s*[-–]\s*\d+)?)/i
-  );
-
+  const setRepMatch = notes.match(/(\d+)\s*[x×]\s*(\d+(?:\s*[-–]\s*\d+)?)/i);
   if (setRepMatch) {
-    setCount = Number(setRepMatch[1]);
+    setCount = Math.max(1, Number(setRepMatch[1]));
     const prescribedReps = setRepMatch[2].replace(/\s+/g, "");
     reps = /[-–]/.test(prescribedReps) ? "" : prescribedReps;
-  }
-
-  // 3 rounds — 10 reps
-  if (!setCount) {
-    const roundsMatch = notes.match(/(\d+)\s*(?:rounds?|tours?)/i);
-    const repsMatch = notes.match(/(\d+)\s*reps?/i);
-
-    if (roundsMatch) {
-      setCount = Number(roundsMatch[1]);
-      reps = repsMatch?.[1] ?? "";
-    }
-  }
-
-  // 12 reps seules
-  if (!setCount) {
-    const simpleReps = notes.match(/(?:^|[—-]\s*)(\d+)\s*reps?/i);
-
-    if (simpleReps) {
-      setCount = 1;
-      reps = simpleReps[1];
-    }
-  }
-
-  // Charge en %
-  const percentMatch = notes.match(
-    /@\s*(\d+(?:[.,]\d+)?)\s*%/i
-  );
-
-  if (percentMatch) {
-    // Le pourcentage reste visible dans la prescription.
-    // L'athlète saisit ici la charge réellement utilisée en kg.
-    load = "";
   } else {
-    // Charge en kg
-    const kgMatch = notes.match(
-      /@\s*(\d+(?:[.,]\d+)?)\s*kg/i
-    );
-
-    if (kgMatch) {
-      load = kgMatch[1].replace(",", ".");
-    }
+    const simpleReps = notes.match(/(?:^|[—-]\s*)(\d+)\s*reps?/i);
+    if (simpleReps) reps = simpleReps[1];
   }
 
-  // RPE seulement s'il est prescrit
-  const rpeMatch = notes.match(
-    /\bRPE\s*[:@]?\s*(\d+(?:[.,]\d+)?)/i
-  );
+  const kgMatch = notes.match(/@\s*(\d+(?:[.,]\d+)?)\s*kg/i);
+  if (kgMatch) load = kgMatch[1].replace(",", ".");
 
-  if (rpeMatch) {
-    rpe = rpeMatch[1].replace(",", ".");
-  }
-
-  if (!setCount) {
-    return [{
-      prescribedId: null,
-      workoutExerciseId: we.id,
-      setNumber: 1,
-      reps: reps || "",
-      load,
-      rpe,
-      done: false,
-    }];
-  }
+  const rpeMatch = notes.match(/\bRPE\s*[:@]?\s*(\d+(?:[.,]\d+)?)/i);
+  if (rpeMatch) rpe = rpeMatch[1].replace(",", ".");
 
   return Array.from({ length: setCount }, (_, index) => ({
     prescribedId: null,
-    workoutExerciseId: we.id,
+    workoutExerciseId: item.id,
     setNumber: index + 1,
     reps,
     load,
@@ -167,22 +124,21 @@ function buildFallbackSets(we: any): LocalSet[] {
 }
 
 function parsePerformedValues(item: LocalSet) {
-  const repsRaw = String(item.reps).trim();
+  if (item.simpleCompletion) {
+    return { reps: 0, load_kg: 0, rpe: null as number | null };
+  }
 
+  const repsRaw = String(item.reps).trim();
   let reps = 0;
 
   if (repsRaw) {
     if (!/^\d+$/.test(repsRaw)) {
-      throw new Error(
-        `Série ${item.setNumber} : indique un nombre entier de répétitions.`
-      );
+      throw new Error(`Série ${item.setNumber} : indique un nombre entier de répétitions.`);
     }
-
     reps = Number(repsRaw);
   }
 
   const loadRaw = String(item.load).trim();
-
   let loadKg = 0;
 
   if (loadRaw) {
@@ -193,41 +149,24 @@ function parsePerformedValues(item: LocalSet) {
     }
 
     const parsedLoad = Number(loadRaw.replace(",", "."));
-
     if (!Number.isFinite(parsedLoad) || parsedLoad < 0) {
-      throw new Error(
-        `Série ${item.setNumber} : charge invalide.`
-      );
+      throw new Error(`Série ${item.setNumber} : charge invalide.`);
     }
-
     loadKg = parsedLoad;
   }
 
   const rpeRaw = String(item.rpe).trim();
-
   let rpe: number | null = null;
 
   if (rpeRaw) {
     const parsedRpe = Number(rpeRaw.replace(",", "."));
-
-    if (
-      !Number.isFinite(parsedRpe) ||
-      parsedRpe < 1 ||
-      parsedRpe > 10
-    ) {
-      throw new Error(
-        `Série ${item.setNumber} : le RPE doit être compris entre 1 et 10.`
-      );
+    if (!Number.isFinite(parsedRpe) || parsedRpe < 1 || parsedRpe > 10) {
+      throw new Error(`Série ${item.setNumber} : le RPE doit être compris entre 1 et 10.`);
     }
-
     rpe = parsedRpe;
   }
 
-  return {
-    reps,
-    load_kg: loadKg,
-    rpe,
-  };
+  return { reps, load_kg: loadKg, rpe };
 }
 
 export default function WorkoutScreen() {
@@ -238,103 +177,134 @@ export default function WorkoutScreen() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    if (!sessionId) { setLoading(false); return; }
+    if (!sessionId) {
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
 
     (async () => {
       const d = await getSessionDetail(sessionId);
+      if (cancelled) return;
+
       setDetail(d);
 
-      const byExercise: Record<string, LocalSet[]> = {};
-
-      const performedByExerciseAndSet = new Map(
+      const performedByExerciseAndSet = new Map<string, any>(
         (d.performedSets ?? []).map((item: any) => [
           `${item.workout_exercise_id}:${item.set_number}`,
           item,
         ])
       );
 
-      for (const we of d.workoutExercises) {
-          const prescribed = [...(we.prescribed_sets ?? [])].sort((a: any, b: any) => a.set_number - b.set_number);
-          const fallback = buildFallbackSets(we);
+      const byExercise: Record<string, LocalSet[]> = {};
 
-          if (!prescribed.length) {
-            byExercise[we.id] = fallback.map((row) => {
-              const existing = performedByExerciseAndSet.get(`${we.id}:${row.setNumber}`);
+      for (const item of d.workoutExercises ?? []) {
+        const block = workoutBlock(item);
 
-              return {
-                ...row,
-                reps: existing?.reps != null ? String(existing.reps) : row.reps,
-                load: existing?.load_kg != null && Number(existing.load_kg) !== 0 ? String(existing.load_kg) : row.load,
-                rpe: existing?.rpe != null ? String(existing.rpe) : row.rpe,
-                done: existing?.completed ?? false,
-              };
-            });
-
-            continue;
-          }
-
-          byExercise[we.id] = prescribed.map((ps: any) => {
-            const existing = performedByExerciseAndSet.get(`${we.id}:${ps.set_number}`);
-            return {
-              prescribedId: ps.id,
-              workoutExerciseId: we.id,
-              setNumber: ps.set_number,
-              reps: existing?.reps != null ? String(existing.reps) : ps.target_reps != null ? String(ps.target_reps) : "",
-              load:
-                existing?.load_kg != null && Number(existing.load_kg) !== 0
-                  ? String(existing.load_kg)
-                  : ps.target_load_kg != null && Number(ps.target_load_kg) !== 0
-                    ? String(ps.target_load_kg)
-                    : "",
-              rpe: existing?.rpe != null ? String(existing.rpe) : ps.target_rpe != null ? String(ps.target_rpe) : "",
+        if (isSimpleCompletionBlock(block)) {
+          const existing = performedByExerciseAndSet.get(`${item.id}:1`);
+          byExercise[item.id] = [
+            {
+              prescribedId: null,
+              workoutExerciseId: item.id,
+              setNumber: 1,
+              reps: "",
+              load: "",
+              rpe: "",
               done: existing?.completed ?? false,
-            };
-          });
+              simpleCompletion: true,
+            },
+          ];
+          continue;
+        }
+
+        const prescribed = [...(item.prescribed_sets ?? [])].sort(
+          (a: any, b: any) => Number(a.set_number ?? 0) - Number(b.set_number ?? 0)
+        );
+
+        const rows: LocalSet[] = prescribed.length
+          ? prescribed.map((ps: any) => ({
+              prescribedId: ps.id,
+              workoutExerciseId: item.id,
+              setNumber: Number(ps.set_number ?? 1),
+              reps: ps.target_reps != null ? String(ps.target_reps) : "",
+              load:
+                ps.target_load_kg != null && Number(ps.target_load_kg) !== 0
+                  ? String(ps.target_load_kg)
+                  : "",
+              rpe: ps.target_rpe != null ? String(ps.target_rpe) : "",
+              done: false,
+            }))
+          : buildFallbackSets(item);
+
+        byExercise[item.id] = rows.map((row) => {
+          const existing = performedByExerciseAndSet.get(`${item.id}:${row.setNumber}`);
+          return {
+            ...row,
+            reps: existing?.reps != null ? String(existing.reps) : row.reps,
+            load:
+              existing?.load_kg != null && Number(existing.load_kg) !== 0
+                ? String(existing.load_kg)
+                : row.load,
+            rpe: existing?.rpe != null ? String(existing.rpe) : row.rpe,
+            done: existing?.completed ?? false,
+          };
+        });
       }
+
       setSets(byExercise);
 
-      if (d.session.status === "planned") await startWorkoutSession(sessionId);
-    })().catch((e) => setMessage(e?.message ?? "Impossible de charger la séance"))
-      .finally(() => setLoading(false));
+      if (d.session.status === "planned") {
+        await startWorkoutSession(sessionId);
+      }
+    })()
+      .catch((e: any) => {
+        if (!cancelled) setMessage(e?.message ?? "Impossible de charger la séance");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [sessionId]);
 
   const groupedExercises = useMemo(() => {
-    const grouped: Record<string, any[]> = {};
+    const grouped: Record<WorkoutBlock, any[]> = {
+      "WARM UP": [],
+      "STRENGTH WORK": [],
+      RENFO: [],
+      WOD: [],
+      AUTRE: [],
+    };
 
-    for (const exercise of detail?.workoutExercises ?? []) {
-      const value = String(exercise?.prescription_notes ?? "")
-        .trim()
-        .toUpperCase();
-
-      const block =
-        value.startsWith("WARM UP") ? "WARM UP" :
-        value.startsWith("STRENGTH WORK") ? "STRENGTH WORK" :
-        value.startsWith("RENFO") ? "RENFO" :
-        value.startsWith("WOD") ? "WOD" :
-        "AUTRE";
-
-      if (!grouped[block]) grouped[block] = [];
-      grouped[block].push(exercise);
+    for (const item of detail?.workoutExercises ?? []) {
+      grouped[workoutBlock(item)].push(item);
     }
 
     return grouped;
   }, [detail]);
 
-  function patch(exerciseId: string, setNumber: number, patch: Partial<LocalSet>) {
+  function patch(exerciseId: string, setNumber: number, values: Partial<LocalSet>) {
     setSets((current) => ({
       ...current,
-      [exerciseId]: current[exerciseId].map((s) => s.setNumber === setNumber ? { ...s, ...patch } : s),
+      [exerciseId]: (current[exerciseId] ?? []).map((item) =>
+        item.setNumber === setNumber ? { ...item, ...values } : item
+      ),
     }));
   }
 
   async function toggleDone(exerciseId: string, item: LocalSet) {
     const next = !item.done;
     patch(exerciseId, item.setNumber, { done: next });
+
     try {
       await savePerformedSet({
         workout_session_id: sessionId!,
         workout_exercise_id: exerciseId,
-        prescribed_set_id: item.prescribedId,
+        prescribed_set_id: item.simpleCompletion ? null : item.prescribedId,
         set_number: item.setNumber,
         ...parsePerformedValues(item),
         completed: next,
@@ -345,39 +315,17 @@ export default function WorkoutScreen() {
     }
   }
 
-  function getTrackableSets() {
-    const trackableExerciseIds = new Set(
-      (detail?.workoutExercises ?? [])
-        .filter((we: any) => {
-          const notes = String(we?.prescription_notes ?? "")
-            .trim()
-            .toUpperCase();
-
-          // Warm-up et WOD sont présentés sous forme de résumé :
-          // ils ne bloquent donc pas la validation finale.
-          return !notes.startsWith("WARM UP") && !notes.startsWith("WOD");
-        })
-        .map((we: any) => we.id)
-    );
-
-    return Object.values(sets)
-      .flat()
-      .filter((item) => trackableExerciseIds.has(item.workoutExerciseId));
-  }
-
   async function finalizeWorkout() {
     const all = Object.values(sets).flat();
-
     setMessage("");
 
-    // Étape 1 : sauvegarder toutes les séries avant de terminer la séance.
     try {
       await Promise.all(
         all.map((item) =>
           savePerformedSet({
             workout_session_id: sessionId!,
             workout_exercise_id: item.workoutExerciseId,
-            prescribed_set_id: item.prescribedId,
+            prescribed_set_id: item.simpleCompletion ? null : item.prescribedId,
             set_number: item.setNumber,
             ...parsePerformedValues(item),
             completed: item.done,
@@ -385,71 +333,52 @@ export default function WorkoutScreen() {
         )
       );
     } catch (e: any) {
-      console.error("SAVE WORKOUT SETS ERROR", e);
       setMessage(
         e?.message ??
-          "Impossible d'enregistrer toutes les séries. La séance n'a pas été terminée."
+          "Impossible d'enregistrer toute la séance. La validation a été annulée."
       );
       return;
     }
 
-    // Étape 2 : seulement après une sauvegarde réussie, terminer la séance.
     try {
       await completeWorkoutSession(sessionId!);
     } catch (e: any) {
-      console.error("COMPLETE WORKOUT ERROR", e);
       setMessage(
         e?.message ??
-          "Les séries sont enregistrées, mais la séance n'a pas pu être terminée."
+          "Les données sont enregistrées, mais la séance n'a pas pu être terminée."
       );
       return;
     }
 
-    // Étape 3 : la séance est désormais terminée en base.
-    // Une erreur de récupération/navigation ne doit plus être présentée
-    // comme un échec de validation de la séance.
     try {
       const nextSession = await getNextWorkoutSession(sessionId!);
-
       if (nextSession?.id) {
-        router.replace({
-          pathname: "/workout",
-          params: { sessionId: nextSession.id },
-        });
+        router.replace({ pathname: "/workout", params: { sessionId: nextSession.id } });
       } else {
         router.replace("/(tabs)");
       }
-    } catch (e) {
-      console.error("POST WORKOUT NAVIGATION ERROR", e);
+    } catch {
       router.replace("/(tabs)");
     }
   }
 
   function finish() {
-    const trackable = getTrackableSets();
-    const remaining = trackable.filter((item) => !item.done).length;
+    const all = Object.values(sets).flat();
+    const remaining = all.filter((item) => !item.done).length;
 
     if (remaining > 0) {
       Alert.alert(
         "Séance incomplète",
-        `${remaining} ${
-          remaining === 1 ? "série n'est pas validée" : "séries ne sont pas validées"
-        }. Terminer quand même la séance ?`,
+        `${remaining} ${remaining === 1 ? "élément n'est pas validé" : "éléments ne sont pas validés"}. Terminer quand même ?`,
         [
-          {
-            text: "ANNULER",
-            style: "cancel",
-          },
+          { text: "ANNULER", style: "cancel" },
           {
             text: "TERMINER QUAND MÊME",
             style: "destructive",
-            onPress: () => {
-              void finalizeWorkout();
-            },
+            onPress: () => void finalizeWorkout(),
           },
         ]
       );
-
       return;
     }
 
@@ -459,19 +388,25 @@ export default function WorkoutScreen() {
   if (!loading && (!sessionId || !detail)) {
     return (
       <View style={styles.center}>
-        <Text style={styles.error}>
-          {message || "Aucune séance sélectionnée."}
-        </Text>
+        <Text style={styles.error}>{message || "Aucune séance sélectionnée."}</Text>
       </View>
     );
   }
 
+  const blockOrder: WorkoutBlock[] = [
+    "WARM UP",
+    "STRENGTH WORK",
+    "RENFO",
+    "WOD",
+    "AUTRE",
+  ];
+
   return (
-    <ScrollView contentContainerStyle={styles.page}>
+    <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
       <ScreenHeader
         eyebrow="SÉANCE EN COURS"
         title={detail?.session?.workout_templates?.name ?? "Séance"}
-        subtitle="Chaque série cochée est sauvegardée immédiatement."
+        subtitle="Valide les éléments au fur et à mesure."
       />
 
       {loading ? (
@@ -480,366 +415,234 @@ export default function WorkoutScreen() {
         </View>
       ) : null}
 
-      {!loading && detail ? (() => {
-        const blockOrder = ["WARM UP", "STRENGTH WORK", "RENFO", "WOD", "AUTRE"];
+      {!loading && detail
+        ? blockOrder
+            .filter((block) => groupedExercises[block].length > 0)
+            .map((block) => {
+              const items = groupedExercises[block];
+              const simple = isSimpleCompletionBlock(block);
+              const rounds = simple ? parseRounds(items) : null;
 
-        const blockSubtitles: Record<string, string> = {
-          "WARM UP": "Préparation / activation",
-          "STRENGTH WORK": "Force principale",
-          "RENFO": "Travail complémentaire",
-          "WOD": "Conditionnement",
-          "AUTRE": "Travail complémentaire",
-        };
+              if (simple) {
+                return (
+                  <Card key={block} style={styles.simpleBlock}>
+                    <Text style={styles.simpleBlockTitle}>{block}</Text>
+                    {rounds ? (
+                      <Text style={styles.roundsText}>
+                        {rounds} {rounds === 1 ? "ROUND" : "ROUNDS"}
+                      </Text>
+                    ) : null}
 
-        const grouped = groupedExercises;
-
-        return blockOrder
-          .filter((block) => grouped[block]?.length)
-          .map((block) => (
-            <View key={block} style={styles.trainingBlock}>
-              {(block !== "WARM UP" && block !== "WOD") ? (
-                <View style={styles.blockHeader}>
-                  <View style={styles.blockAccent} />
-
-                  <View style={styles.blockHeaderText}>
-                    <Text style={styles.blockTitle}>{block}</Text>
-                    <Text style={styles.blockSubtitle}>
-                      {blockSubtitles[block]}
-                    </Text>
-                  </View>
-
-                  <Text style={styles.blockCount}>
-                    {grouped[block].length}
-                  </Text>
-                </View>
-              ) : null}
-
-              <View style={styles.blockContent}>
-                {(block === "WARM UP" || block === "WOD") ? (
-                  <Card style={styles.phaseSummaryCard}>
-                    <Text style={styles.phaseSummaryTitle}>
-                      {block}
-                    </Text>
-
-                    {(() => {
-                      const roundValues = grouped[block]
-                        .map((exercise: any) => {
-                          const notes = String(
-                            exercise.prescription_notes ?? ""
-                          );
-
-                          const match = notes.match(
-                            /(\d+)\s*(?:ROUNDS?|TOURS?)/i
-                          );
-
-                          return match ? Number(match[1]) : null;
-                        })
-                        .filter((value: number | null) => value != null);
-
-                      const blockRounds =
-                        roundValues.length > 0 ? roundValues[0] : null;
-
-                      return blockRounds ? (
-                        <Text style={styles.phaseSummaryRounds}>
-                          {blockRounds} {blockRounds === 1 ? "ROUND" : "ROUNDS"}
-                        </Text>
-                      ) : null;
-                    })()}
-
-                    <View style={styles.phaseSummaryList}>
-                      {grouped[block].map((we: any) => (
-                        <View
-                          key={we.id}
-                          style={styles.phaseSummaryExercise}
-                        >
-                          <Text style={styles.phaseSummaryLine}>
-                                {exerciseDisplayLine(
-                                  we.exercises?.name,
-                                  we.prescription_notes,
-                                  block
-                                )}
-                              </Text>
-
-                          {we.exercises?.instructions ? (
-                            <Text style={styles.phaseSummaryInstructions}>
-                              {we.exercises.instructions}
+                    <View style={styles.simpleList}>
+                      {items.map((item: any) => {
+                        const tracker = sets[item.id]?.[0];
+                        return (
+                          <View key={item.id} style={styles.simpleRow}>
+                            <Text style={styles.simpleLine}>
+                              {exerciseDisplayLine(item, block)}
                             </Text>
-                          ) : null}
-                        </View>
-                      ))}
+                            {tracker ? (
+                              <Pressable
+                                onPress={() => toggleDone(item.id, tracker)}
+                                style={[styles.check, tracker.done && styles.done]}
+                              >
+                                <Text style={styles.checkText}>{tracker.done ? "✓" : ""}</Text>
+                              </Pressable>
+                            ) : null}
+                          </View>
+                        );
+                      })}
                     </View>
                   </Card>
-                ) : (
-                  grouped[block].map((we: any) => (
-                    <Card key={we.id} style={styles.exerciseCard}>
-                      <Text style={styles.exerciseLine}>
-                          {exerciseDisplayLine(
-                            we.exercises?.name,
-                            we.prescription_notes,
-                            block
-                          )}
-                        </Text>
+                );
+              }
 
-                      {(sets[we.id] ?? []).length > 0 && (
+              return (
+                <View key={block} style={styles.trainingBlock}>
+                  <View style={styles.blockHeader}>
+                    <View style={styles.blockAccent} />
+                    <Text style={styles.blockTitle}>{block}</Text>
+                  </View>
+
+                  {items.map((item: any) => (
+                    <Card key={item.id} style={styles.exerciseCard}>
+                      <Text style={styles.exerciseLine}>
+                        {exerciseDisplayLine(item, block)}
+                      </Text>
+
+                      {(sets[item.id] ?? []).length ? (
                         <View style={styles.tableHeader}>
-                          <Text style={[styles.tableHeaderText, styles.seriesHeader]}>
-                            SÉRIE
-                          </Text>
-                          <Text style={[styles.tableHeaderText, styles.dataHeader]}>
-                            REPS
-                          </Text>
-                          <Text style={[styles.tableHeaderText, styles.dataHeader]}>
-                            POIDS
-                          </Text>
-                          <Text style={[styles.tableHeaderText, styles.dataHeader]}>
-                            RPE
-                          </Text>
+                          <Text style={[styles.tableHeaderText, styles.seriesHeader]}>SÉRIE</Text>
+                          <Text style={[styles.tableHeaderText, styles.dataHeader]}>REPS</Text>
+                          <Text style={[styles.tableHeaderText, styles.dataHeader]}>POIDS</Text>
+                          <Text style={[styles.tableHeaderText, styles.dataHeader]}>RPE</Text>
                           <View style={styles.checkHeader}>
                             <Text style={styles.tableHeaderText}>OK</Text>
                           </View>
                         </View>
-                      )}
+                      ) : null}
 
-                      {(sets[we.id] ?? []).map((item) => (
-                        <View key={item.setNumber} style={styles.row}>
-                          <Text style={styles.number}>{item.setNumber}</Text>
-
+                      {(sets[item.id] ?? []).map((set) => (
+                        <View key={set.setNumber} style={styles.row}>
+                          <Text style={styles.number}>{set.setNumber}</Text>
                           <TextInput
                             style={styles.input}
                             keyboardType="number-pad"
-                            value={String(item.reps)}
-                            onChangeText={(v) =>
-                              patch(we.id, item.setNumber, {
-                                reps: v,
-                              })
-                            }
+                            value={set.reps}
+                            onChangeText={(value) => patch(item.id, set.setNumber, { reps: value })}
                           />
-
-                          <TextInput
-                            style={styles.input}
-                            keyboardType="default"
-                            value={String(item.load)}
-                            onChangeText={(v) =>
-                              patch(we.id, item.setNumber, {
-                                load: v,
-                              })
-                            }
-                          />
-
                           <TextInput
                             style={styles.input}
                             keyboardType="decimal-pad"
-                            value={String(item.rpe)}
-                            onChangeText={(v) =>
-                              patch(we.id, item.setNumber, {
-                                rpe: v,
-                              })
-                            }
+                            value={set.load}
+                            onChangeText={(value) => patch(item.id, set.setNumber, { load: value })}
                           />
-
+                          <TextInput
+                            style={styles.input}
+                            keyboardType="decimal-pad"
+                            value={set.rpe}
+                            onChangeText={(value) => patch(item.id, set.setNumber, { rpe: value })}
+                          />
                           <Pressable
-                            onPress={() => toggleDone(we.id, item)}
-                            style={[
-                              styles.check,
-                              item.done && styles.done,
-                            ]}
+                            onPress={() => toggleDone(item.id, set)}
+                            style={[styles.check, set.done && styles.done]}
                           >
-                            <Text style={styles.checkText}>
-                              {item.done ? "✓" : ""}
-                            </Text>
+                            <Text style={styles.checkText}>{set.done ? "✓" : ""}</Text>
                           </Pressable>
                         </View>
                       ))}
                     </Card>
-                  ))
-                )}
-              </View>
-            </View>
-          ));
-      })() : null}
+                  ))}
+                </View>
+              );
+            })
+        : null}
 
       {!loading && detail ? (
         <PrimaryButton label="VALIDER LA SÉANCE" onPress={finish} />
       ) : null}
+
       {message ? <Text style={styles.message}>{message}</Text> : null}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  phaseSummaryLine: {
-    color: colors.text,
-    fontSize: 19,
-    lineHeight: 27,
-    fontWeight: "800",
+  page: {
+    padding: 20,
+    paddingTop: 68,
+    paddingBottom: 50,
+    backgroundColor: "transparent",
   },
-
-  exerciseLine: {
-    color: colors.text,
-    fontSize: 20,
-    lineHeight: 28,
-    fontWeight: "900",
-    marginBottom: 14,
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "transparent",
+    padding: 20,
   },
-
-  page: { padding: 20, paddingTop: 68, paddingBottom: 50, backgroundColor: "transparent" },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "transparent", padding: 20 },
   loadingInline: {
     minHeight: 180,
     alignItems: "center",
     justifyContent: "center",
   },
-  trainingBlock: {
-    marginBottom: 26,
-  },
-
-  blockHeader: {
-    minHeight: 92,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 18,
+  simpleBlock: {
+    marginBottom: 16,
     paddingHorizontal: 18,
-    paddingVertical: 16,
-    marginBottom: 12,
+    paddingVertical: 18,
   },
-
-  blockAccent: {
-    width: 5,
-    alignSelf: "stretch",
-    backgroundColor: colors.yellow,
-    borderRadius: 3,
-    marginRight: 14,
-  },
-
-  blockHeaderText: {
-    flex: 1,
-  },
-
-  blockTitle: {
+  simpleBlockTitle: {
     color: colors.text,
     fontSize: 24,
     fontWeight: "900",
-    letterSpacing: 1.5,
-  },
-
-  blockSubtitle: {
-    color: colors.muted,
-    fontSize: 14,
-    marginTop: 4,
-  },
-
-  blockCount: {
-    color: colors.yellow,
-    fontSize: 26,
-    fontWeight: "900",
-  },
-
-  blockContent: {
-    paddingLeft: 8,
-  },
-
-  exerciseCard: {
-    marginBottom: 12,
-  },
-
-  phaseSummaryCard: {
-    marginBottom: 12,
-    paddingVertical: 20,
-    paddingHorizontal: 20,
-  },
-
-  phaseSummaryTitle: {
-    color: colors.text,
-    fontSize: 34,
-    fontWeight: "900",
     letterSpacing: 1,
   },
-
-  phaseSummaryRounds: {
+  roundsText: {
     color: colors.yellow,
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: "900",
-    marginTop: 6,
-    marginBottom: 20,
+    marginTop: 4,
+    marginBottom: 12,
   },
-
-  phaseSummaryList: {
-    gap: 18,
+  simpleList: {
+    gap: 4,
   },
-
-  phaseSummaryExercise: {
-    paddingVertical: 16,
+  simpleRow: {
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSoft,
+    paddingVertical: 8,
   },
-
-  phaseSummaryName: {
+  simpleLine: {
     flex: 1,
     color: colors.text,
-    fontSize: 20,
-    fontWeight: "900",
-  },
-
-  phaseSummaryPrescription: {
-    color: colors.muted,
-    fontSize: 16,
-    lineHeight: 23,
-    marginTop: 4,
-  },
-
-  phaseSummaryInstructions: {
-    color: colors.text,
-    fontSize: 14,
+    fontSize: 15,
     lineHeight: 21,
-    marginTop: 4,
+    fontWeight: "700",
   },
-
-  exerciseName: { color: colors.text, fontSize: 21, fontWeight: "900" },
-  muted: { color: colors.muted, marginTop: 5, marginBottom: 14 },
+  trainingBlock: {
+    marginBottom: 18,
+  },
+  blockHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+    paddingHorizontal: 4,
+  },
+  blockAccent: {
+    width: 4,
+    height: 24,
+    backgroundColor: colors.yellow,
+    borderRadius: 2,
+    marginRight: 10,
+  },
+  blockTitle: {
+    color: colors.text,
+    fontSize: 19,
+    fontWeight: "900",
+    letterSpacing: 0.8,
+  },
+  exerciseCard: {
+    marginBottom: 10,
+  },
+  exerciseLine: {
+    color: colors.text,
+    fontSize: 16,
+    lineHeight: 22,
+    fontWeight: "800",
+    marginBottom: 10,
+  },
   tableHeader: {
     flexDirection: "row",
     alignItems: "center",
     gap: 7,
-    marginTop: 14,
+    marginTop: 8,
     marginBottom: 7,
   },
-
   tableHeaderText: {
     color: colors.muted,
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: "900",
     textAlign: "center",
-    letterSpacing: 0.5,
   },
-
-  seriesHeader: {
-    width: 42,
-  },
-
-  dataHeader: {
-    flex: 1,
-  },
-
-  checkHeader: {
-    width: 42,
-    alignItems: "center",
-  },
-
+  seriesHeader: { width: 42 },
+  dataHeader: { flex: 1 },
+  checkHeader: { width: 42, alignItems: "center" },
   row: {
     flexDirection: "row",
     alignItems: "center",
     gap: 7,
     marginBottom: 9,
   },
-
   number: {
     width: 42,
     color: colors.text,
     fontWeight: "900",
     textAlign: "center",
   },
-
   input: {
     flex: 1,
     minWidth: 0,
@@ -853,7 +656,6 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     paddingHorizontal: 4,
   },
-
   check: {
     width: 42,
     height: 42,
@@ -864,8 +666,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  done: { backgroundColor: colors.green, borderColor: colors.green },
-  checkText: { color: "#111", fontSize: 20, fontWeight: "900" },
-  message: { color: colors.yellow, textAlign: "center", marginTop: 12, fontWeight: "800" },
-  error: { color: colors.red, textAlign: "center" },
+  done: {
+    backgroundColor: colors.green,
+    borderColor: colors.green,
+  },
+  checkText: {
+    color: "#111",
+    fontSize: 20,
+    fontWeight: "900",
+  },
+  message: {
+    color: colors.yellow,
+    textAlign: "center",
+    marginTop: 12,
+    fontWeight: "800",
+  },
+  error: {
+    color: colors.red,
+    textAlign: "center",
+  },
 });
