@@ -1,11 +1,7 @@
-import { requireOptionalNativeModule } from "expo-modules-core";
 import { Platform } from "react-native";
-import { getTodaySteps, saveTodaySteps, syncAndroidRawSteps } from "./steps-storage";
-import EvolveStepCounterModule from "../../modules/evolve-step-counter/src/EvolveStepCounterModule";
-
-let pedometerSubscription: { remove: () => void } | null = null;
-let activeSteps = 0;
-let activeOnSteps: ((steps: number) => void) | undefined;
+import EvolveStepCounterModule, {
+  NativeDailySteps,
+} from "../../modules/evolve-step-counter/src/EvolveStepCounterModule";
 
 export type PedometerProbe = {
   available: boolean;
@@ -14,34 +10,50 @@ export type PedometerProbe = {
   error?: string;
 };
 
+export type TodayStepsSubscription = {
+  remove: () => void;
+};
 
-export async function getAndroidRawStepCounter(): Promise<number | null> {
-  try {
-    const value = await EvolveStepCounterModule.getCurrentStepCountAsync();
-    return value >= 0 ? value : null;
-  } catch {
-    return null;
-  }
+function startOfToday() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
 }
 
-export async function probePedometer(
-  onSteps?: (steps: number) => void
-): Promise<PedometerProbe> {
-  try {
-    if (!requireOptionalNativeModule("ExponentPedometer")) {
-      return {
-        available: false,
-        permission: "undetermined",
-        todaySteps: null,
-        error: "Module natif podomètre absent de cette version de l’application.",
-      };
-    }
+async function requestPedometerPermission() {
+  const { Pedometer } = await import("expo-sensors");
+  const available = await Pedometer.isAvailableAsync();
 
+  if (!available) {
+    return { available: false, granted: false, Pedometer };
+  }
+
+  const permission = await Pedometer.requestPermissionsAsync();
+  return { available: true, granted: permission.granted, Pedometer };
+}
+
+export async function refreshTodaySteps(): Promise<number | null> {
+  if (Platform.OS === "android") {
+    if (!EvolveStepCounterModule) return null;
+
+    const value = await EvolveStepCounterModule.getTodayStepCountAsync();
+    return value >= 0 ? Math.round(value) : null;
+  }
+
+  if (Platform.OS === "ios") {
     const { Pedometer } = await import("expo-sensors");
+    const result = await Pedometer.getStepCountAsync(startOfToday(), new Date());
+    return Math.max(0, Math.round(result.steps));
+  }
 
-    const available = await Pedometer.isAvailableAsync();
+  return null;
+}
 
-    if (!available) {
+export async function probePedometer(): Promise<PedometerProbe> {
+  try {
+    const permission = await requestPedometerPermission();
+
+    if (!permission.available) {
       return {
         available: false,
         permission: "undetermined",
@@ -49,9 +61,7 @@ export async function probePedometer(
       };
     }
 
-    const permissionResponse = await Pedometer.requestPermissionsAsync();
-
-    if (!permissionResponse.granted) {
+    if (!permission.granted) {
       return {
         available: true,
         permission: "denied",
@@ -60,35 +70,34 @@ export async function probePedometer(
     }
 
     if (Platform.OS === "android") {
-      const rawSteps = await getAndroidRawStepCounter();
-
-      if (rawSteps === null) {
+      if (!EvolveStepCounterModule) {
         return {
           available: false,
           permission: "granted",
           todaySteps: null,
-          error: "Impossible de lire TYPE_STEP_COUNTER.",
+          error: "Module natif Android du podomètre absent de cette version de l’application.",
         };
       }
 
-      const todaySteps = await syncAndroidRawSteps(rawSteps);
+      const value = await EvolveStepCounterModule.startTrackingAsync();
 
       return {
-        available: true,
+        available: value >= 0,
         permission: "granted",
-        todaySteps,
+        todaySteps: value >= 0 ? Math.round(value) : null,
+        error: value >= 0 ? undefined : "Impossible de lire TYPE_STEP_COUNTER.",
       };
     }
 
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
-
-    const result = await Pedometer.getStepCountAsync(start, new Date());
+    const result = await permission.Pedometer.getStepCountAsync(
+      startOfToday(),
+      new Date()
+    );
 
     return {
       available: true,
       permission: "granted",
-      todaySteps: result.steps,
+      todaySteps: Math.max(0, Math.round(result.steps)),
     };
   } catch (error) {
     return {
@@ -98,4 +107,52 @@ export async function probePedometer(
       error: error instanceof Error ? error.message : "Unknown pedometer error",
     };
   }
+}
+
+export function watchTodaySteps(
+  onSteps: (steps: number) => void,
+  onError?: (error: unknown) => void,
+  intervalMs = 10_000
+): TodayStepsSubscription {
+  let active = true;
+  let running = false;
+
+  const tick = async () => {
+    if (!active || running) return;
+    running = true;
+
+    try {
+      const steps = await refreshTodaySteps();
+      if (active && steps != null) onSteps(steps);
+    } catch (error) {
+      if (active) onError?.(error);
+    } finally {
+      running = false;
+    }
+  };
+
+  void tick();
+  const timer = setInterval(() => void tick(), Math.max(5_000, intervalMs));
+
+  return {
+    remove: () => {
+      active = false;
+      clearInterval(timer);
+    },
+  };
+}
+
+export async function getStoredDailySteps(
+  days = 30
+): Promise<NativeDailySteps[]> {
+  if (Platform.OS !== "android" || !EvolveStepCounterModule) return [];
+
+  return EvolveStepCounterModule.getStoredDailyStepsAsync(days);
+}
+
+export async function getStepCounterLastCapturedAt(): Promise<number | null> {
+  if (Platform.OS !== "android" || !EvolveStepCounterModule) return null;
+
+  const value = await EvolveStepCounterModule.getLastCapturedAtAsync();
+  return value > 0 ? value : null;
 }
