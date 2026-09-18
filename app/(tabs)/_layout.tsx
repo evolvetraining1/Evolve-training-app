@@ -19,7 +19,7 @@ export default function TabsLayout() {
           flex: 1,
           alignItems: "center",
           justifyContent: "center",
-          backgroundColor: "transparent",
+          backgroundColor: colors.bg,
         }}
       >
         <ActivityIndicator color={colors.yellow} />
@@ -45,7 +45,7 @@ export default function TabsLayout() {
         tabBarLabelStyle: { fontSize: 10, fontWeight: "700" },
         tabBarActiveTintColor: colors.yellow,
         tabBarInactiveTintColor: colors.muted,
-        sceneStyle: { backgroundColor: "transparent" },
+        sceneStyle: { backgroundColor: colors.bg },
       }}
     >
       <Tabs.Screen
