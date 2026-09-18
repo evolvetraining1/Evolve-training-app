@@ -27,6 +27,7 @@ import {
 } from "@/src/lib/api";
 import { displayDuration, recoveryLabel, recoveryScore } from "@/src/lib/dashboard";
 import { localDateString } from "@/src/lib/date";
+import { supabase } from "@/src/lib/supabase";
 
 const DAYS = ["L", "M", "M", "J", "V", "S", "D"];
 
@@ -78,6 +79,7 @@ export default function HomeScreen() {
   const [nextDetail, setNextDetail] = useState<any>(null);
   const [performance, setPerformance] = useState<any>(null);
   const [todaySteps, setTodaySteps] = useState(0);
+  const [unreadMessages, setUnreadMessages] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   const [dashboardEditMode, setDashboardEditMode] = useState(false);
@@ -396,6 +398,96 @@ export default function HomeScreen() {
       return () => {
         active = false;
         subscription?.remove();
+      };
+    }, [])
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      let channel: ReturnType<typeof supabase.channel> | null = null;
+
+      const startUnreadWatch = async () => {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        const userId = session?.user?.id;
+
+        if (!active || !userId) {
+          if (active) setUnreadMessages(0);
+          return;
+        }
+
+        const refreshUnread = async () => {
+          const { data: conversations, error: conversationsError } =
+            await supabase
+              .from("conversations")
+              .select("id")
+              .or(`coach_id.eq.${userId},athlete_id.eq.${userId}`);
+
+          if (conversationsError) {
+            console.warn(
+              "UNREAD CONVERSATIONS ERROR",
+              conversationsError.message
+            );
+            return;
+          }
+
+          const conversationIds = (conversations ?? []).map(
+            (conversation: any) => String(conversation.id)
+          );
+
+          if (!conversationIds.length) {
+            if (active) setUnreadMessages(0);
+            return;
+          }
+
+          const { count, error: unreadError } = await supabase
+            .from("messages")
+            .select("id", { count: "exact", head: true })
+            .in("conversation_id", conversationIds)
+            .neq("sender_id", userId)
+            .is("read_at", null);
+
+          if (unreadError) {
+            console.warn("UNREAD MESSAGES ERROR", unreadError.message);
+            return;
+          }
+
+          if (active) {
+            setUnreadMessages(count ?? 0);
+          }
+        };
+
+        await refreshUnread();
+
+        if (!active) return;
+
+        channel = supabase
+          .channel(`home-unread-${userId}`)
+          .on(
+            "postgres_changes",
+            {
+              event: "*",
+              schema: "public",
+              table: "messages",
+            },
+            () => {
+              void refreshUnread();
+            }
+          )
+          .subscribe();
+      };
+
+      void startUnreadWatch();
+
+      return () => {
+        active = false;
+
+        if (channel) {
+          void supabase.removeChannel(channel);
+        }
       };
     }, [])
   );
@@ -855,7 +947,12 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
 
   return (
     <View style={styles.root}>
-      <SideMenu visible={menuOpen} onClose={() => setMenuOpen(false)} role={profile?.role} />
+      <SideMenu
+        visible={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        role={profile?.role}
+        unreadMessages={unreadMessages}
+      />
       <NestableScrollContainer
         style={styles.pageScroll}
         contentContainerStyle={styles.page}
@@ -867,8 +964,23 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
             <SymbolView name={{ ios: "ellipsis", android: "more_vert" }} size={18} tintColor={colors.text} />
           </Pressable>
           <View style={styles.logoWrap}><BrandLogo compact /></View>
-          <Pressable style={styles.squareButton}>
-            <SymbolView name={{ ios: "bell", android: "notifications_none" }} size={18} tintColor={colors.text} />
+          <Pressable
+            style={styles.squareButton}
+            onPress={() => router.push("/messaging" as any)}
+          >
+            <SymbolView
+              name={{ ios: "bell", android: "notifications_none" }}
+              size={18}
+              tintColor={colors.text}
+            />
+
+            {unreadMessages > 0 ? (
+              <View style={styles.notification}>
+                <Text style={styles.notificationText}>
+                  {unreadMessages > 99 ? "99+" : unreadMessages}
+                </Text>
+              </View>
+            ) : null}
           </Pressable>
         </View>
 
@@ -1326,12 +1438,28 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
             </>
           ) : null}
 
-          <Text style={styles.miniActionIcon}>✉</Text>
+          <View style={styles.miniActionIconWrap}>
+            <Text style={styles.miniActionIcon}>✉</Text>
+            {unreadMessages > 0 ? (
+              <View style={styles.messageBadge}>
+                <Text style={styles.messageBadgeText}>
+                  {unreadMessages > 99 ? "99+" : unreadMessages}
+                </Text>
+              </View>
+            ) : null}
+          </View>
 
           <View style={{ flex: 1 }}>
             <Text style={styles.miniActionTitle}>MESSAGERIE</Text>
-            <Text style={styles.miniActionSub}>
-              Coach ↔ Athlète
+            <Text
+              style={[
+                styles.miniActionSub,
+                unreadMessages > 0 && styles.miniActionSubUnread,
+              ]}
+            >
+              {unreadMessages > 0
+                ? `${unreadMessages} message${unreadMessages > 1 ? "s" : ""} non lu${unreadMessages > 1 ? "s" : ""}`
+                : "Coach ↔ Athlète"}
             </Text>
           </View>
 
@@ -2183,6 +2311,32 @@ startButton:{height:57,borderRadius:10,backgroundColor:colors.yellow,alignItems:
     color:colors.muted,
     fontSize:10,
     marginTop:3
+  },
+  miniActionSubUnread:{
+    color:colors.yellow
+  },
+  miniActionIconWrap:{
+    position:"relative",
+    minWidth:34,
+    alignItems:"center",
+    justifyContent:"center"
+  },
+  messageBadge:{
+    position:"absolute",
+    right:-9,
+    top:-9,
+    minWidth:20,
+    height:20,
+    borderRadius:10,
+    paddingHorizontal:5,
+    backgroundColor:colors.yellow,
+    alignItems:"center",
+    justifyContent:"center"
+  },
+  messageBadgeText:{
+    color:"#080808",
+    fontSize:9,
+    fontWeight:"900"
   },
 
   miniActionArrow:{
