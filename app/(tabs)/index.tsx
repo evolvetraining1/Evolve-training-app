@@ -961,15 +961,8 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
 
         <View style={[styles.topbar, { paddingTop: insets.top + 12 }]}>
           <Pressable onPress={() => setMenuOpen(true)} style={styles.squareButton}>
-            <SymbolView name={{ ios: "ellipsis", android: "more_vert" }} size={18} tintColor={colors.text} />
-          </Pressable>
-          <View style={styles.logoWrap}><BrandLogo compact /></View>
-          <Pressable
-            style={styles.squareButton}
-            onPress={() => router.push("/messaging" as any)}
-          >
             <SymbolView
-              name={{ ios: "bell", android: "notifications_none" }}
+              name={{ ios: "ellipsis", android: "more_vert" }}
               size={18}
               tintColor={colors.text}
             />
@@ -981,6 +974,14 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
                 </Text>
               </View>
             ) : null}
+          </Pressable>
+          <View style={styles.logoWrap}><BrandLogo compact /></View>
+          <Pressable style={styles.squareButton}>
+            <SymbolView
+              name={{ ios: "bell", android: "notifications_none" }}
+              size={18}
+              tintColor={colors.text}
+            />
           </Pressable>
         </View>
 
