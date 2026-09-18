@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { router, useFocusEffect } from "expo-router";
 import { SymbolView } from "expo-symbols";
 import {
-  ActivityIndicator, Image, Modal, Platform, Pressable, RefreshControl, ScrollView,
+  ActivityIndicator, Image, Modal, Pressable, RefreshControl, ScrollView,
   StyleSheet, Text, TextInput, View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -16,8 +16,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import BrandLogo from "@/src/components/BrandLogo";
 import SideMenu from "@/src/components/SideMenu";
 import { colors } from "@/src/theme";
-import { getAndroidRawStepCounter, probePedometer } from "@/src/lib/pedometer";
-import { syncAndroidRawSteps } from "@/src/lib/steps-storage";
+import { probePedometer, watchTodaySteps } from "@/src/lib/pedometer";
+import { syncMyDailySteps, syncStoredStepHistoryToCloud } from "@/src/lib/steps-cloud";
 import {
   getLatestPerformance, getMyProfile, getMyUpcomingSessions, getRecentCheckinDates, getMyProgramsWithSelection, setSelectedProgramId,
   getSessionDetail, getTodayCheckin,
@@ -353,49 +353,49 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       let active = true;
-      let running = false;
-      let pollCount = 0;
+      let subscription: { remove: () => void } | null = null;
 
-      const refreshSteps = async () => {
-        if (!active || running) return;
-        running = true;
-
+      const startStepTracking = async () => {
         try {
-          if (Platform.OS === "android") {
-            const rawSteps = await getAndroidRawStepCounter();
-
-            if (rawSteps != null) {
-              pollCount += 1;
-
-              // Affichage local fréquent, Supabase environ 1 fois/minute.
-              const syncRemote = pollCount === 1 || pollCount % 3 === 0;
-              const steps = await syncAndroidRawSteps(rawSteps, syncRemote);
-
-              if (active) {
-                setTodaySteps(steps);
-              }
-              return;
-            }
-          }
-
           const result = await probePedometer();
 
-          if (active) {
-            setTodaySteps(result.todaySteps ?? 0);
+          if (!active) return;
+
+          if (result.todaySteps != null) {
+            setTodaySteps(result.todaySteps);
+            await syncMyDailySteps(result.todaySteps, { force: true });
           }
-        } catch {
-          // On conserve la dernière valeur affichée en cas d'échec ponctuel.
-        } finally {
-          running = false;
+
+          // Android conserve l'historique natif même si l'app a été fermée.
+          // On le pousse dès l'ouverture pour remettre le suivi coach à jour.
+          await syncStoredStepHistoryToCloud(30);
+
+          if (!active) return;
+
+          subscription = watchTodaySteps(
+            (steps) => {
+              if (!active) return;
+              setTodaySteps(steps);
+
+              void syncMyDailySteps(steps).catch((error) => {
+                console.warn("STEP CLOUD SYNC ERROR", error);
+              });
+            },
+            (error) => {
+              console.warn("STEP WATCH ERROR", error);
+            },
+            5_000
+          );
+        } catch (error) {
+          console.warn("STEP TRACKING START ERROR", error);
         }
       };
 
-      refreshSteps();
-      const interval = setInterval(refreshSteps, 5000);
+      void startStepTracking();
 
       return () => {
         active = false;
-        clearInterval(interval);
+        subscription?.remove();
       };
     }, [])
   );
