@@ -18,7 +18,7 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={styles.root}>
       <ImageBackground
         source={require("../assets/evolve-gold-dark.png")}
         style={styles.background}
@@ -50,7 +50,12 @@ export default function RootLayout() {
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: "#050505",
+  },
   background: {
     flex: 1,
+    backgroundColor: "#050505",
   },
 });
