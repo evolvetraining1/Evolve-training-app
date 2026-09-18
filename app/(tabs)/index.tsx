@@ -17,7 +17,11 @@ import BrandLogo from "@/src/components/BrandLogo";
 import SideMenu from "@/src/components/SideMenu";
 import { colors } from "@/src/theme";
 import { probePedometer, watchTodaySteps } from "@/src/lib/pedometer";
-import { syncMyDailySteps, syncStoredStepHistoryToCloud } from "@/src/lib/steps-cloud";
+import {
+  resetStepCloudSyncThrottle,
+  syncMyDailySteps,
+  syncStoredStepHistoryToCloud,
+} from "@/src/lib/steps-cloud";
 import {
   getLatestPerformance, getMyProfile, getMyUpcomingSessions, getRecentCheckinDates, getMyProgramsWithSelection, setSelectedProgramId,
   getSessionDetail, getTodayCheckin,
@@ -28,6 +32,7 @@ import {
 import { displayDuration, recoveryLabel, recoveryScore } from "@/src/lib/dashboard";
 import { localDateString } from "@/src/lib/date";
 import { supabase } from "@/src/lib/supabase";
+import { useAuth } from "@/src/store/auth";
 
 const DAYS = ["L", "M", "M", "J", "V", "S", "D"];
 
@@ -69,6 +74,8 @@ const DEFAULT_DASHBOARD_WIDGETS: DashboardWidget[] = [
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
+  const { session } = useAuth();
+  const sessionUserId = session?.user?.id ?? null;
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -359,6 +366,16 @@ export default function HomeScreen() {
 
       const startStepTracking = async () => {
         try {
+          if (!sessionUserId) {
+            setTodaySteps(0);
+            return;
+          }
+
+          // Le capteur est lié au téléphone, mais la synchro cloud est liée
+          // au compte connecté. Un changement de compte doit donc forcer
+          // une nouvelle écriture immédiate pour le nouvel utilisateur.
+          resetStepCloudSyncThrottle();
+
           const result = await probePedometer();
 
           if (!active) return;
@@ -369,7 +386,7 @@ export default function HomeScreen() {
           }
 
           // Android conserve l'historique natif même si l'app a été fermée.
-          // On le pousse dès l'ouverture pour remettre le suivi coach à jour.
+          // On le pousse au compte actuellement connecté.
           await syncStoredStepHistoryToCloud(30);
 
           if (!active) return;
@@ -399,7 +416,7 @@ export default function HomeScreen() {
         active = false;
         subscription?.remove();
       };
-    }, [])
+    }, [sessionUserId])
   );
 
   useFocusEffect(
