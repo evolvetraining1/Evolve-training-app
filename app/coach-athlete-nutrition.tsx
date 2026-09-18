@@ -21,6 +21,7 @@ export default function CoachAthleteNutritionScreen() {
   const [nutrition, setNutrition] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [expandedDate, setExpandedDate] = useState<string | null>(null);
 
   const days = Number(periodDays ?? 30);
 
@@ -113,32 +114,51 @@ export default function CoachAthleteNutritionScreen() {
                 { calories: 0, protein: 0, carbs: 0, fat: 0 }
               );
 
+              const isOpen = expandedDate === date;
+
               return (
                 <Card key={date} style={styles.section}>
-                  <Text style={styles.date}>{date}</Text>
-
-                  <Text style={styles.dayTotal}>
-                    {Math.round(totals.calories)} kcal · P{" "}
-                    {Math.round(totals.protein)} g · G{" "}
-                    {Math.round(totals.carbs)} g · L{" "}
-                    {Math.round(totals.fat)} g
-                  </Text>
-
-                  {entries.map((entry: any, index: number) => (
-                    <View key={entry.id ?? index} style={styles.entry}>
-                      <Text style={styles.foodName}>
-                        {entry.food_name ?? "Aliment"}
-                      </Text>
-
-                      <Text style={styles.entryMeta}>
-                        {entry.grams != null ? `${entry.grams} g · ` : ""}
-                        {Math.round(Number(entry.calories ?? 0))} kcal · P{" "}
-                        {Math.round(Number(entry.protein_g ?? 0))} g · G{" "}
-                        {Math.round(Number(entry.carbs_g ?? 0))} g · L{" "}
-                        {Math.round(Number(entry.fat_g ?? 0))} g
+                  <Pressable
+                    onPress={() => setExpandedDate(isOpen ? null : date)}
+                    style={styles.dayHeader}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.date}>{date}</Text>
+                      <Text style={styles.dayPreview}>
+                        {Math.round(totals.calories)} kcal · {entries.length} entrée(s)
                       </Text>
                     </View>
-                  ))}
+
+                    <Text style={styles.chevron}>
+                      {isOpen ? "⌃" : "⌄"}
+                    </Text>
+                  </Pressable>
+
+                  {isOpen ? (
+                    <View style={styles.dayContent}>
+                      <Text style={styles.dayTotal}>
+                        P {Math.round(totals.protein)} g · G{" "}
+                        {Math.round(totals.carbs)} g · L{" "}
+                        {Math.round(totals.fat)} g
+                      </Text>
+
+                      {entries.map((entry: any, index: number) => (
+                        <View key={entry.id ?? index} style={styles.entry}>
+                          <Text style={styles.foodName}>
+                            {entry.food_name ?? "Aliment"}
+                          </Text>
+
+                          <Text style={styles.entryMeta}>
+                            {entry.grams != null ? `${entry.grams} g · ` : ""}
+                            {Math.round(Number(entry.calories ?? 0))} kcal · P{" "}
+                            {Math.round(Number(entry.protein_g ?? 0))} g · G{" "}
+                            {Math.round(Number(entry.carbs_g ?? 0))} g · L{" "}
+                            {Math.round(Number(entry.fat_g ?? 0))} g
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : null}
                 </Card>
               );
             })
@@ -230,10 +250,32 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     marginBottom: 12,
   },
+  dayHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
   date: {
     color: colors.yellow,
     fontSize: 16,
     fontWeight: "900",
+  },
+  dayPreview: {
+    color: colors.muted,
+    fontSize: 13,
+    marginTop: 5,
+  },
+  chevron: {
+    color: colors.yellow,
+    fontSize: 24,
+    fontWeight: "900",
+    marginLeft: 12,
+  },
+  dayContent: {
+    marginTop: 14,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSoft,
   },
   dayTotal: {
     color: colors.muted,

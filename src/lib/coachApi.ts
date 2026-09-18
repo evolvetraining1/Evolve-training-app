@@ -778,3 +778,77 @@ export async function getCoachAthleteNutrition(
     periodDays,
   };
 }
+
+export async function getCoachAthleteTodaySteps(athleteId: string) {
+  const coachId = await currentUserId();
+
+  const { data: relationship, error: relationshipError } = await supabase
+    .from("coach_athlete_relationships")
+    .select("id")
+    .eq("coach_id", coachId)
+    .eq("athlete_id", athleteId)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (relationshipError) throw relationshipError;
+  if (!relationship) throw new Error("Athlète non lié à ce coach.");
+
+  const now = new Date();
+  const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+
+  const { data, error } = await supabase
+    .from("daily_steps")
+    .select("steps, platform, updated_at")
+    .eq("user_id", athleteId)
+    .eq("date", date)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  return {
+    steps: Number(data?.steps ?? 0),
+    platform: data?.platform ?? null,
+    updatedAt: data?.updated_at ?? null,
+  };
+}
+
+export async function getCoachAthleteStepsHistory(
+  athleteId: string,
+  periodDays = 30
+) {
+  const coachId = await currentUserId();
+
+  const { data: relationship, error: relationshipError } = await supabase
+    .from("coach_athlete_relationships")
+    .select("id")
+    .eq("coach_id", coachId)
+    .eq("athlete_id", athleteId)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (relationshipError) throw relationshipError;
+  if (!relationship) throw new Error("Athlète non lié à ce coach.");
+
+  const since = new Date();
+  since.setDate(since.getDate() - Math.max(periodDays - 1, 0));
+
+  const sinceDate = `${since.getFullYear()}-${String(
+    since.getMonth() + 1
+  ).padStart(2, "0")}-${String(since.getDate()).padStart(2, "0")}`;
+
+  const { data, error } = await supabase
+    .from("daily_steps")
+    .select("date, steps, platform, updated_at")
+    .eq("user_id", athleteId)
+    .gte("date", sinceDate)
+    .order("date", { ascending: false });
+
+  if (error) throw error;
+
+  return (data ?? []).map((row: any) => ({
+    date: row.date,
+    steps: Number(row.steps ?? 0),
+    platform: row.platform ?? null,
+    updatedAt: row.updated_at ?? null,
+  }));
+}

@@ -15,6 +15,7 @@ import {
   getCoachExercisePerformanceHistory,
   getCoachAthletePrograms,
   getCoachAthleteNutrition,
+  getCoachAthleteTodaySteps,
 } from "@/src/lib/coachApi";
 
 export default function CoachAthleteScreen() {
@@ -23,6 +24,7 @@ export default function CoachAthleteScreen() {
   const [exerciseHistory, setExerciseHistory] = useState<any[]>([]);
   const [athletePrograms, setAthletePrograms] = useState<any[]>([]);
   const [nutrition, setNutrition] = useState<any>(null);
+  const [todaySteps, setTodaySteps] = useState<any>(null);
   const [error, setError] = useState("");
   const [periodDays, setPeriodDays] = useState(30);
 
@@ -34,17 +36,122 @@ export default function CoachAthleteScreen() {
       getCoachExercisePerformanceHistory(athleteId, periodDays),
       getCoachAthletePrograms(athleteId),
       getCoachAthleteNutrition(athleteId, periodDays),
+      getCoachAthleteTodaySteps(athleteId),
     ])
-      .then(([overviewResult, exerciseResult, programsResult, nutritionResult]) => {
+      .then(([overviewResult, exerciseResult, programsResult, nutritionResult, stepsResult]) => {
         setOverview(overviewResult);
         setExerciseHistory(exerciseResult);
         setAthletePrograms(programsResult);
         setNutrition(nutritionResult);
+        setTodaySteps(stepsResult);
       })
       .catch((e: any) =>
         setError(e?.message ?? "Impossible de charger l'athlète.")
       );
   }, [athleteId, periodDays]);
+
+  useEffect(() => {
+    if (!athleteId) return;
+
+    let active = true;
+    let running = false;
+
+    const refreshAthleteTraining = async () => {
+      if (!active || running) return;
+      running = true;
+
+      try {
+        const [overviewResult, exerciseResult] = await Promise.all([
+          getCoachAthleteOverview(athleteId, periodDays),
+          getCoachExercisePerformanceHistory(athleteId, periodDays),
+        ]);
+
+        if (active) {
+          setOverview(overviewResult);
+          setExerciseHistory(exerciseResult);
+        }
+      } catch (error) {
+        console.warn("Coach athlete training refresh failed:", error);
+      } finally {
+        running = false;
+      }
+    };
+
+    refreshAthleteTraining();
+
+    const interval = setInterval(refreshAthleteTraining, 10000);
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [athleteId, periodDays]);
+
+  useEffect(() => {
+    if (!athleteId) return;
+
+    let active = true;
+    let running = false;
+
+    const refreshAthleteNutrition = async () => {
+      if (!active || running) return;
+      running = true;
+
+      try {
+        const result = await getCoachAthleteNutrition(athleteId, periodDays);
+
+        if (active) {
+          setNutrition(result);
+        }
+      } catch (error) {
+        console.warn("Coach athlete nutrition refresh failed:", error);
+      } finally {
+        running = false;
+      }
+    };
+
+    refreshAthleteNutrition();
+
+    const interval = setInterval(refreshAthleteNutrition, 5000);
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [athleteId, periodDays]);
+
+  useEffect(() => {
+    if (!athleteId) return;
+
+    let active = true;
+    let running = false;
+
+    const refreshAthleteSteps = async () => {
+      if (!active || running) return;
+      running = true;
+
+      try {
+        const result = await getCoachAthleteTodaySteps(athleteId);
+
+        if (active) {
+          setTodaySteps(result);
+        }
+      } catch (error) {
+        console.warn("Coach athlete steps refresh failed:", error);
+      } finally {
+        running = false;
+      }
+    };
+
+    refreshAthleteSteps();
+
+    const interval = setInterval(refreshAthleteSteps, 5000);
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [athleteId]);
 
   const athleteName = overview?.profile
     ? `${overview.profile.first_name ?? ""} ${overview.profile.last_name ?? ""}`.trim()
@@ -298,12 +405,47 @@ export default function CoachAthleteScreen() {
         </Card>
       </Pressable>
 
+      <Pressable
+        onPress={() =>
+          router.push({
+            pathname: "/coach-athlete-steps" as any,
+            params: { athleteId },
+          })
+        }
+      >
       <Card style={styles.section}>
         <Text style={styles.sectionTitle}>ACTIVITÉ</Text>
-        <Text style={styles.muted}>
-          Pas quotidiens et évolution de l'activité.
+
+        <Text
+          style={{
+            color: colors.yellow,
+            fontSize: 32,
+            fontWeight: "900",
+            marginTop: 10,
+          }}
+        >
+          {Number(todaySteps?.steps ?? 0).toLocaleString("fr-FR")}
         </Text>
+
+        <Text style={styles.muted}>PAS AUJOURD'HUI</Text>
+
+        {todaySteps?.updatedAt ? (
+          <Text
+            style={{
+              color: colors.muted2,
+              fontSize: 11,
+              marginTop: 8,
+            }}
+          >
+            Dernière synchronisation :{" "}
+            {new Date(todaySteps.updatedAt).toLocaleTimeString("fr-FR", {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </Text>
+        ) : null}
       </Card>
+      </Pressable>
 
       <Card style={styles.section}>
         <Text style={styles.sectionTitle}>HISTORIQUE</Text>

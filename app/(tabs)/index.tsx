@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { router, useFocusEffect } from "expo-router";
 import { SymbolView } from "expo-symbols";
 import {
-  ActivityIndicator, Image, Modal, Pressable, RefreshControl, ScrollView,
+  ActivityIndicator, Image, Modal, Platform, Pressable, RefreshControl, ScrollView,
   StyleSheet, Text, TextInput, View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -16,7 +16,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import BrandLogo from "@/src/components/BrandLogo";
 import SideMenu from "@/src/components/SideMenu";
 import { colors } from "@/src/theme";
-import { probePedometer } from "@/src/lib/pedometer";
+import { getAndroidRawStepCounter, probePedometer } from "@/src/lib/pedometer";
+import { syncAndroidRawSteps } from "@/src/lib/steps-storage";
 import {
   getLatestPerformance, getMyProfile, getMyUpcomingSessions, getRecentCheckinDates, getMyProgramsWithSelection, setSelectedProgramId,
   getSessionDetail, getTodayCheckin,
@@ -352,21 +353,49 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       let active = true;
+      let running = false;
+      let pollCount = 0;
 
-      probePedometer()
-        .then((result) => {
+      const refreshSteps = async () => {
+        if (!active || running) return;
+        running = true;
+
+        try {
+          if (Platform.OS === "android") {
+            const rawSteps = await getAndroidRawStepCounter();
+
+            if (rawSteps != null) {
+              pollCount += 1;
+
+              // Affichage local fréquent, Supabase environ 1 fois/minute.
+              const syncRemote = pollCount === 1 || pollCount % 3 === 0;
+              const steps = await syncAndroidRawSteps(rawSteps, syncRemote);
+
+              if (active) {
+                setTodaySteps(steps);
+              }
+              return;
+            }
+          }
+
+          const result = await probePedometer();
+
           if (active) {
             setTodaySteps(result.todaySteps ?? 0);
           }
-        })
-        .catch(() => {
-          if (active) {
-            setTodaySteps(0);
-          }
-        });
+        } catch {
+          // On conserve la dernière valeur affichée en cas d'échec ponctuel.
+        } finally {
+          running = false;
+        }
+      };
+
+      refreshSteps();
+      const interval = setInterval(refreshSteps, 5000);
 
       return () => {
         active = false;
+        clearInterval(interval);
       };
     }, [])
   );

@@ -30,7 +30,31 @@ export default function MessagingScreen(){
  },[]);
  useEffect(()=>{messagesRef.current=messages;},[messages]);
  useEffect(()=>{if(!conversationId)return; const channel=supabase.channel(`messages:${conversationId}`).on("postgres_changes",{event:"INSERT",schema:"public",table:"messages",filter:`conversation_id=eq.${conversationId}`},payload=>{const incoming=payload.new as Message; setMessages(current=>current.some(m=>m.id===incoming.id)?current:[...current,incoming]); if(isMediaMessage(incoming)&&incoming.media_url){void getSignedMediaUrl(incoming.media_url).then(url=>setMediaUrls(current=>({...current,[incoming.id]:url}))).catch(()=>{});} setTimeout(()=>scrollRef.current?.scrollToEnd({animated:true}),80);}).subscribe(); return()=>{void supabase.removeChannel(channel);};},[conversationId]);
- useEffect(()=>{if(!conversationId)return; const interval=setInterval(()=>{void loadMediaUrls(messagesRef.current,openRequestRef.current);},45*60*1000); return()=>clearInterval(interval);},[conversationId]);
+ useEffect(() => {
+  if (!conversationId || !userId) return;
+
+  const unreadIds = messages
+    .filter(
+      (message) =>
+        message.sender_id !== userId &&
+        !message.read_at
+    )
+    .map((message) => message.id);
+
+  if (!unreadIds.length) return;
+
+  void supabase
+    .from("messages")
+    .update({ read_at: new Date().toISOString() })
+    .in("id", unreadIds)
+    .then(({ error }) => {
+      if (error) {
+        console.warn("Mark messages as read failed:", error.message);
+      }
+    });
+}, [conversationId, userId, messages]);
+
+useEffect(()=>{if(!conversationId)return; const interval=setInterval(()=>{void loadMediaUrls(messagesRef.current,openRequestRef.current);},45*60*1000); return()=>clearInterval(interval);},[conversationId]);
  function isMediaMessage(message:Message){return (message.type==="image"||message.type==="video"||message.type==="audio")&&Boolean(message.media_url);}
  async function bootstrap(){try{if(!mountedRef.current)return;setLoading(true);setError("");const {data:{session},error:sessionError}=await supabase.auth.getSession();if(sessionError)throw sessionError;const user=session?.user;if(!user)throw new Error("Utilisateur non connecté.");if(!mountedRef.current)return;setUserId(user.id);const [profileResult,relsResult]=await Promise.all([supabase.from("profiles").select("id, first_name, last_name, role, avatar_url").eq("id",user.id).single(),supabase.from("coach_athlete_relationships").select("coach_id, athlete_id").eq("status","active").or(`coach_id.eq.${user.id},athlete_id.eq.${user.id}`)]);if(profileResult.error)throw profileResult.error;if(relsResult.error)throw relsResult.error;const profile=profileResult.data;const rels=relsResult.data;const userRole=String(profile.role);if(!mountedRef.current)return;setRole(userRole);const ids=(rels??[]).map((r:any)=>String(r.coach_id)===String(user.id)?r.athlete_id:r.coach_id);if(!ids.length){if(mountedRef.current)setContacts([]);return;}const {data:profiles,error:peersError}=await supabase.from("profiles").select("id, first_name, last_name, role").in("id",ids);if(peersError)throw peersError;if(!mountedRef.current)return;setContacts((profiles??[]).map((p:Profile)=>({id:p.id,name:[p.first_name,p.last_name].filter(Boolean).join(" ")||(userRole==="coach"?"Athlète":"Coach"),role:userRole==="coach"?"Athlète":"Coach"})));}catch(e:any){if(mountedRef.current)setError(e?.message??"Impossible de charger la messagerie.");}finally{if(mountedRef.current)setLoading(false);}}
  async function openContact(contact:Contact){const requestId=++openRequestRef.current;try{setSelectedContact(contact);setChatLoading(true);setError("");setMessages([]);setMediaUrls({});const coachId=role==="coach"?userId:contact.id;const athleteId=role==="coach"?contact.id:userId;let {data:conversation,error:findError}=await supabase.from("conversations").select("id").eq("coach_id",coachId).eq("athlete_id",athleteId).maybeSingle();if(findError)throw findError;if(!conversation){const {data:created,error:createError}=await supabase.from("conversations").insert({coach_id:coachId,athlete_id:athleteId}).select("id").single();if(createError){if(createError.code!=="23505")throw createError;const {data:concurrentConversation,error:concurrentError}=await supabase.from("conversations").select("id").eq("coach_id",coachId).eq("athlete_id",athleteId).single();if(concurrentError)throw concurrentError;conversation=concurrentConversation;}else conversation=created;}if(requestId!==openRequestRef.current)return;setConversationId(conversation.id);const {data:history,error:historyError}=await supabase.from("messages").select("id, conversation_id, sender_id, type, content, media_url, media_duration, created_at, read_at").eq("conversation_id",conversation.id).order("created_at",{ascending:false}).limit(100);if(historyError)throw historyError;if(requestId!==openRequestRef.current)return;const loadedMessages=[...(history??[])].reverse() as Message[];setMessages(loadedMessages);setChatLoading(false);void loadMediaUrls(loadedMessages,requestId);setTimeout(()=>{if(requestId===openRequestRef.current)scrollRef.current?.scrollToEnd({animated:false});},100);}catch(e:any){if(requestId===openRequestRef.current){setError(e?.message??"Impossible d'ouvrir la conversation.");setChatLoading(false);}}}
