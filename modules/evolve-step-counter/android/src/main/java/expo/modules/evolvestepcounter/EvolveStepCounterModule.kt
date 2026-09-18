@@ -21,36 +21,84 @@ class EvolveStepCounterModule : Module() {
         return@AsyncFunction
       }
 
-      val sensorManager =
-        context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
+      StepCounterSampler.sample(context) { raw ->
+        promise.resolve(raw?.toDouble() ?: -1.0)
+      }
+    }
 
-      val sensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
+    AsyncFunction("startTrackingAsync") { promise: Promise ->
+      val context = appContext.reactContext
 
-      if (sensor == null) {
+      if (context == null) {
         promise.resolve(-1.0)
         return@AsyncFunction
       }
 
-      lateinit var listener: SensorEventListener
+      StepCounterScheduler.ensureScheduled(context)
 
-      listener = object : SensorEventListener {
-        override fun onSensorChanged(event: SensorEvent) {
-          sensorManager.unregisterListener(listener)
-          promise.resolve(event.values[0].toDouble())
+      StepCounterSampler.sample(context) { raw ->
+        if (raw == null) {
+          promise.resolve(-1.0)
+          return@sample
         }
 
-        override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
+        val today = StepCounterStore.record(context, raw)
+        promise.resolve(today.toDouble())
       }
+    }
 
-      val registered = sensorManager.registerListener(
-        listener,
-        sensor,
-        SensorManager.SENSOR_DELAY_NORMAL
-      )
+    AsyncFunction("getTodayStepCountAsync") { promise: Promise ->
+      val context = appContext.reactContext
 
-      if (!registered) {
+      if (context == null) {
         promise.resolve(-1.0)
+        return@AsyncFunction
       }
+
+      StepCounterScheduler.ensureScheduled(context)
+
+      StepCounterSampler.sample(context) { raw ->
+        if (raw == null) {
+          promise.resolve(StepCounterStore.getToday(context).toDouble())
+          return@sample
+        }
+
+        val today = StepCounterStore.record(context, raw)
+        promise.resolve(today.toDouble())
+      }
+    }
+
+    AsyncFunction("getStoredTodayStepCountAsync") { promise: Promise ->
+      val context = appContext.reactContext
+      promise.resolve(
+        context?.let { StepCounterStore.getToday(it).toDouble() } ?: -1.0
+      )
+    }
+
+    AsyncFunction("getLastCapturedAtAsync") { promise: Promise ->
+      val context = appContext.reactContext
+      promise.resolve(
+        context?.let { StepCounterStore.getLastCapturedAt(it).toDouble() } ?: 0.0
+      )
+    }
+
+    AsyncFunction("getStoredDailyStepsAsync") { days: Int, promise: Promise ->
+      val context = appContext.reactContext
+
+      if (context == null) {
+        promise.resolve(emptyList<Map<String, Any>>())
+        return@AsyncFunction
+      }
+
+      val records = StepCounterStore.getRecent(context, days).map { record ->
+        mapOf(
+          "date" to record.date,
+          "steps" to record.steps.toDouble(),
+          "updatedAt" to record.updatedAt.toDouble()
+        )
+      }
+
+      promise.resolve(records)
     }
   }
 }
