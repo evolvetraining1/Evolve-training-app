@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -108,6 +108,7 @@ export default function NutritionScreen() {
   const [grams, setGrams] = useState("");
   const [selectedFood, setSelectedFood] = useState<CiqualFood | null>(null);
   const [remoteFoods, setRemoteFoods] = useState<CiqualFood[]>([]);
+  const remoteSearchCache = useRef(new Map<string, CiqualFood[]>());
 
   const load = useCallback(async () => {
     try {
@@ -225,15 +226,24 @@ export default function NutritionScreen() {
 
     let cancelled = false;
 
+    const normalizedQuery = normalizeFoodText(query);
+    const cached = remoteSearchCache.current.get(normalizedQuery);
+
+    if (cached) {
+      setRemoteFoods(cached);
+      return;
+    }
+
     const timeout = setTimeout(() => {
       void searchOpenFoodFactsProducts(query, 12)
         .then((results) => {
+          remoteSearchCache.current.set(normalizedQuery, results);
           if (!cancelled) setRemoteFoods(results);
         })
         .catch(() => {
           if (!cancelled) setRemoteFoods([]);
         });
-    }, 450);
+    }, 1200);
 
     return () => {
       cancelled = true;
