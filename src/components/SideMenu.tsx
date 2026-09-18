@@ -2,7 +2,12 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-nati
 import { router } from "expo-router";
 import { colors } from "@/src/theme";
 
-type Props = { visible: boolean; onClose: () => void; role?: string };
+type Props = {
+  visible: boolean;
+  onClose: () => void;
+  role?: string;
+  unreadMessages?: number;
+};
 
 const sections = [
   { title: "COACHING", items: [
@@ -22,7 +27,12 @@ const sections = [
   ]},
 ];
 
-export default function SideMenu({ visible, onClose, role }: Props) {
+export default function SideMenu({
+  visible,
+  onClose,
+  role,
+  unreadMessages = 0,
+}: Props) {
   const open = (route?: string) => {
     if (!route) return;
 
@@ -53,7 +63,17 @@ export default function SideMenu({ visible, onClose, role }: Props) {
                   <Pressable key={item.label} onPress={() => open(item.route)} style={styles.item}>
                     <View style={styles.itemIcon}><Text style={styles.itemIconText}>{item.icon}</Text></View>
                     <Text style={styles.itemText}>{item.label}</Text>
-                    {item.badge ? <Text style={styles.badge}>{item.badge}</Text> : <Text style={styles.chev}>›</Text>}
+                    {item.label === "Messagerie" && unreadMessages > 0 ? (
+                      <View style={styles.unreadBadge}>
+                        <Text style={styles.unreadBadgeText}>
+                          {unreadMessages > 99 ? "99+" : unreadMessages}
+                        </Text>
+                      </View>
+                    ) : item.badge ? (
+                      <Text style={styles.badge}>{item.badge}</Text>
+                    ) : (
+                      <Text style={styles.chev}>›</Text>
+                    )}
                   </Pressable>
                 ))}
               </View>
@@ -82,5 +102,19 @@ const styles = StyleSheet.create({
   itemIconText: { color: colors.yellow, fontWeight: "900" },
   itemText: { color: colors.text, fontWeight: "700", flex: 1, fontSize: 14 },
   badge: { color: colors.yellow, fontSize: 8, fontWeight: "900", letterSpacing: 1 },
+  unreadBadge: {
+    minWidth: 24,
+    height: 24,
+    borderRadius: 12,
+    paddingHorizontal: 6,
+    backgroundColor: colors.yellow,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  unreadBadgeText: {
+    color: "#080808",
+    fontSize: 10,
+    fontWeight: "900",
+  },
   chev: { color: colors.muted, fontSize: 24 },
 });
