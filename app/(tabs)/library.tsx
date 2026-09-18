@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, FlatList, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { router } from "expo-router";
 import { supabase } from "@/src/lib/supabase";
 import { colors, radius } from "@/src/theme";
+import { getExerciseIllustration } from "@/src/data/exerciseIllustrations";
 
 type ExerciseRow = {
   id: string;
@@ -108,25 +109,38 @@ export default function ExerciseLibraryScreen() {
           windowSize={7}
           ListHeaderComponent={<Text style={styles.count}>{filtered.length} mouvement{filtered.length > 1 ? "s" : ""}</Text>}
           ListEmptyComponent={<Text style={styles.empty}>Aucun mouvement ne correspond à ta recherche.</Text>}
-          renderItem={({ item }) => (
-            <Pressable
-              onPress={() => router.push(`/exercise/${item.id}` as never)}
-              style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
-            >
-              <View style={styles.mediaPlaceholder}>
-                <Text style={styles.mediaGlyph}>{item.video_url ? "▶" : item.image_url ? "▧" : "＋"}</Text>
-              </View>
-              <View style={styles.cardBody}>
-                <Text style={styles.cardTitle}>{item.name}</Text>
-                <View style={styles.metaRow}>
-                  {!!item.category && <Text style={styles.meta}>{item.category}</Text>}
-                  {!!item.difficulty && <Text style={styles.meta}>• {item.difficulty}</Text>}
+          renderItem={({ item }) => {
+            const illustration = getExerciseIllustration(item.name, item.image_url);
+
+            return (
+              <Pressable
+                onPress={() => router.push(`/exercise/${item.id}` as never)}
+                style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+              >
+                <View style={styles.mediaPlaceholder}>
+                  {illustration ? (
+                    <Image
+                      source={illustration}
+                      resizeMode="cover"
+                      style={styles.mediaImage}
+                      accessibilityLabel={`Illustration du mouvement ${item.name}`}
+                    />
+                  ) : (
+                    <Text style={styles.mediaGlyph}>{item.video_url ? "▶" : "＋"}</Text>
+                  )}
                 </View>
-                {!!item.equipment?.length && <Text style={styles.detail}>{item.equipment.join(" • ")}</Text>}
-              </View>
-              <Text style={styles.chevron}>›</Text>
-            </Pressable>
-          )}
+                <View style={styles.cardBody}>
+                  <Text style={styles.cardTitle}>{item.name}</Text>
+                  <View style={styles.metaRow}>
+                    {!!item.category && <Text style={styles.meta}>{item.category}</Text>}
+                    {!!item.difficulty && <Text style={styles.meta}>• {item.difficulty}</Text>}
+                  </View>
+                  {!!item.equipment?.length && <Text style={styles.detail}>{item.equipment.join(" • ")}</Text>}
+                </View>
+                <Text style={styles.chevron}>›</Text>
+              </Pressable>
+            );
+          }}
         />
       )}
     </View>
@@ -149,9 +163,10 @@ const styles = StyleSheet.create({
   error: { color: colors.red, textAlign: "center" },
   list: { paddingHorizontal: 20, paddingBottom: 120 },
   count: { color: colors.muted2, fontSize: 12, fontWeight: "700", marginBottom: 10 },
-  card: { minHeight: 92, flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: colors.borderSoft, backgroundColor: "rgba(11,11,12,0.94)", borderRadius: radius.md, marginBottom: 10, overflow: "hidden" },
+  card: { minHeight: 104, flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: colors.borderSoft, backgroundColor: "rgba(11,11,12,0.94)", borderRadius: radius.md, marginBottom: 10, overflow: "hidden" },
   cardPressed: { opacity: 0.75 },
-  mediaPlaceholder: { width: 82, alignSelf: "stretch", alignItems: "center", justifyContent: "center", backgroundColor: colors.surface3, borderRightWidth: 1, borderRightColor: colors.borderSoft },
+  mediaPlaceholder: { width: 104, alignSelf: "stretch", alignItems: "center", justifyContent: "center", backgroundColor: colors.surface3, borderRightWidth: 1, borderRightColor: colors.borderSoft, overflow: "hidden" },
+  mediaImage: { width: "100%", height: "100%" },
   mediaGlyph: { color: colors.yellow, fontSize: 24, fontWeight: "900" },
   cardBody: { flex: 1, paddingHorizontal: 14, paddingVertical: 12 },
   cardTitle: { color: colors.text, fontSize: 16, fontWeight: "900", lineHeight: 20 },

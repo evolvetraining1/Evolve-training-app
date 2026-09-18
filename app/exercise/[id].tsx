@@ -3,6 +3,7 @@ import { ActivityIndicator, Image, Linking, Pressable, ScrollView, StyleSheet, T
 import { router, useLocalSearchParams } from "expo-router";
 import { supabase } from "@/src/lib/supabase";
 import { colors, radius } from "@/src/theme";
+import { getExerciseIllustration } from "@/src/data/exerciseIllustrations";
 
 type ExerciseDetail = {
   id: string;
@@ -71,6 +72,10 @@ export default function ExerciseDetailScreen() {
     );
   }
 
+  const illustration = exercise
+    ? getExerciseIllustration(exercise.name, exercise.image_url)
+    : null;
+
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.topBar}>
@@ -91,8 +96,13 @@ export default function ExerciseDetailScreen() {
       <Text style={styles.title}>{exercise.name.toUpperCase()}</Text>
 
       <View style={styles.hero}>
-        {exercise.image_url ? (
-          <Image source={{ uri: exercise.image_url }} resizeMode="cover" style={styles.heroImage} />
+        {illustration ? (
+          <Image
+            source={illustration}
+            resizeMode="contain"
+            style={styles.heroImage}
+            accessibilityLabel={`Illustration du mouvement ${exercise.name}`}
+          />
         ) : (
           <View style={styles.heroPlaceholder}>
             <Text style={styles.heroGlyph}>▧</Text>
@@ -148,7 +158,7 @@ const styles = StyleSheet.create({
   brand: { color: colors.yellowSoft, fontSize: 12, fontWeight: "900", letterSpacing: 3 },
   eyebrow: { color: colors.yellowSoft, fontSize: 11, fontWeight: "900", letterSpacing: 1.4, textTransform: "uppercase", marginBottom: 7 },
   title: { color: colors.text, fontSize: 30, lineHeight: 33, fontWeight: "900", letterSpacing: 0.5, marginBottom: 18 },
-  hero: { height: 280, borderWidth: 1, borderColor: colors.borderSoft, borderRadius: radius.lg, overflow: "hidden", backgroundColor: colors.surface },
+  hero: { width: "100%", aspectRatio: 1, borderWidth: 1, borderColor: colors.borderSoft, borderRadius: radius.lg, overflow: "hidden", backgroundColor: colors.surface },
   heroImage: { width: "100%", height: "100%" },
   heroPlaceholder: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(15,15,16,0.95)" },
   heroGlyph: { color: colors.yellow, fontSize: 44, marginBottom: 10 },
