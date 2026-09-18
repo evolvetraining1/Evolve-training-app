@@ -976,13 +976,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
             ) : null}
           </Pressable>
           <View style={styles.logoWrap}><BrandLogo compact /></View>
-          <Pressable style={styles.squareButton}>
-            <SymbolView
-              name={{ ios: "bell", android: "notifications_none" }}
-              size={18}
-              tintColor={colors.text}
-            />
-          </Pressable>
+          <View style={styles.topbarSpacer} />
         </View>
 
         {dashboardEditMode ? (
@@ -1866,7 +1860,9 @@ const styles = StyleSheet.create({
     backgroundColor: Platform.OS === "ios" ? colors.bg : "transparent",
   },
   topbar: {
-    minHeight: 155,flexDirection:"row",alignItems:"flex-start",justifyContent:"space-between"}, squareButton:{width:54,height:54,borderRadius:16,borderWidth:1,borderColor:colors.border,backgroundColor:"#0A0A0B",alignItems:"center",justifyContent:"center",position:"relative"}, menuGlyph: {
+    minHeight: 155,flexDirection:"row",alignItems:"flex-start",justifyContent:"space-between"},
+  topbarSpacer:{width:54,height:54},
+  squareButton:{width:54,height:54,borderRadius:16,borderWidth:1,borderColor:colors.border,backgroundColor:"#0A0A0B",alignItems:"center",justifyContent:"center",position:"relative"}, menuGlyph: {
     color: colors.text,
     fontSize: 25,
     lineHeight: 29,
