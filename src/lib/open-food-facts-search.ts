@@ -15,11 +15,30 @@ function finiteNumber(value: unknown): number | null {
   return Number.isFinite(number) ? number : null;
 }
 
+function remoteSearchTerm(query: string) {
+  const normalized = query
+    .toLowerCase()
+    .replace(/œ/g, "oe")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+
+  if (/^(prot|proteine|proteines|protein|whey)$/.test(normalized)) {
+    return "whey protein";
+  }
+  if (normalized.includes("clear whey")) return "clear whey";
+  if (normalized.includes("isolate") || normalized.includes("isolat")) return "whey isolate";
+  if (normalized.includes("native whey") || normalized.includes("whey native")) return "whey native";
+  if (normalized.includes("caseine") || normalized.includes("casein")) return "casein";
+  if (normalized.includes("skyr")) return "skyr";
+  return query.trim();
+}
+
 export async function searchOpenFoodFactsProducts(
   query: string,
   limit = 12
 ): Promise<SearchableFood[]> {
-  const trimmed = query.trim();
+  const trimmed = remoteSearchTerm(query);
   if (trimmed.length < 3) return [];
 
   const params = new URLSearchParams({
@@ -33,7 +52,13 @@ export async function searchOpenFoodFactsProducts(
   });
 
   const response = await fetch(
-    `https://world.openfoodfacts.org/cgi/search.pl?${params.toString()}`
+    `https://world.openfoodfacts.org/cgi/search.pl?${params.toString()}`,
+    {
+      headers: {
+        "User-Agent": "EvolveTraining/0.8 (nutrition-search)",
+        Accept: "application/json",
+      },
+    }
   );
 
   if (!response.ok) {
