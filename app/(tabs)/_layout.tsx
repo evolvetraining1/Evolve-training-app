@@ -1,5 +1,5 @@
 import { Redirect, Tabs } from "expo-router";
-import { ActivityIndicator, Text, View } from "react-native";
+import { ActivityIndicator, Platform, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "@/src/theme";
 import { useAuth } from "@/src/store/auth";
@@ -45,7 +45,10 @@ export default function TabsLayout() {
         tabBarLabelStyle: { fontSize: 10, fontWeight: "700" },
         tabBarActiveTintColor: colors.yellow,
         tabBarInactiveTintColor: colors.muted,
-        sceneStyle: { backgroundColor: colors.bg },
+        sceneStyle: {
+          backgroundColor:
+            Platform.OS === "ios" ? colors.bg : "transparent",
+        },
       }}
     >
       <Tabs.Screen
