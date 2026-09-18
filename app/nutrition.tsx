@@ -67,11 +67,40 @@ type NutritionTargets = {
   fiber_target_g: number;
 };
 
+type DiabetesContext =
+  | "fasting"
+  | "pre_meal"
+  | "post_meal"
+  | "bedtime"
+  | "exercise"
+  | "other";
+
+type DiabetesLog = {
+  id: string;
+  logged_on: string;
+  logged_at: string;
+  context: DiabetesContext;
+  glucose_mg_dl: number;
+  carbs_g: number | null;
+  insulin_units: number | null;
+  activity_minutes: number | null;
+  notes: string | null;
+};
+
 const meals: { key: MealType; label: string }[] = [
   { key: "breakfast", label: "Petit-déjeuner" },
   { key: "lunch", label: "Déjeuner" },
   { key: "dinner", label: "Dîner" },
   { key: "snack", label: "Collation" },
+];
+
+const diabetesContexts: { key: DiabetesContext; label: string }[] = [
+  { key: "fasting", label: "À jeun" },
+  { key: "pre_meal", label: "Avant repas" },
+  { key: "post_meal", label: "Après repas" },
+  { key: "bedtime", label: "Coucher" },
+  { key: "exercise", label: "Autour sport" },
+  { key: "other", label: "Autre" },
 ];
 
 function today() {
@@ -142,6 +171,17 @@ export default function NutritionScreen() {
     useState<ImagePicker.ImagePickerAsset | null>(null);
   const [savingCustomProduct, setSavingCustomProduct] = useState(false);
 
+  const [showDiabetesTracker, setShowDiabetesTracker] = useState(false);
+  const [diabetesLogs, setDiabetesLogs] = useState<DiabetesLog[]>([]);
+  const [diabetesContext, setDiabetesContext] =
+    useState<DiabetesContext>("pre_meal");
+  const [glucoseMgDl, setGlucoseMgDl] = useState("");
+  const [diabetesCarbs, setDiabetesCarbs] = useState("");
+  const [insulinUnits, setInsulinUnits] = useState("");
+  const [activityMinutes, setActivityMinutes] = useState("");
+  const [diabetesNotes, setDiabetesNotes] = useState("");
+  const [savingDiabetesLog, setSavingDiabetesLog] = useState(false);
+
   const load = useCallback(async () => {
     try {
       setLoading(true);
@@ -162,6 +202,7 @@ export default function NutritionScreen() {
         targetsResult,
         entriesResult,
         communityProductsResult,
+        diabetesLogsResult,
       ] = await Promise.all([
         supabase
           .from("nutrition_profile")
@@ -189,11 +230,19 @@ export default function NutritionScreen() {
           .select("id, barcode, name, brand, kcal100, protein100, carbs100, fat100, fiber100, serving_size_g, source, label_image_path")
           .order("created_at", { ascending: false })
           .limit(500),
+
+        supabase
+          .from("diabetes_logs")
+          .select("id, logged_on, logged_at, context, glucose_mg_dl, carbs_g, insulin_units, activity_minutes, notes")
+          .eq("user_id", user.id)
+          .eq("logged_on", today())
+          .order("logged_at", { ascending: false }),
       ]);
 
       if (profileResult.error) throw profileResult.error;
       if (targetsResult.error) throw targetsResult.error;
       if (entriesResult.error) throw entriesResult.error;
+      if (diabetesLogsResult.error) throw diabetesLogsResult.error;
 
       const nutritionProfile = profileResult.data;
 
@@ -227,6 +276,20 @@ export default function NutritionScreen() {
 
       setEntries(
         (entriesResult.data ?? []) as NutritionEntry[]
+      );
+
+      setDiabetesLogs(
+        ((diabetesLogsResult.data ?? []) as any[]).map((item) => ({
+          ...item,
+          glucose_mg_dl: Number(item.glucose_mg_dl),
+          carbs_g: item.carbs_g != null ? Number(item.carbs_g) : null,
+          insulin_units:
+            item.insulin_units != null ? Number(item.insulin_units) : null,
+          activity_minutes:
+            item.activity_minutes != null
+              ? Number(item.activity_minutes)
+              : null,
+        })) as DiabetesLog[]
       );
 
       if (communityProductsResult.error) {
@@ -746,6 +809,88 @@ export default function NutritionScreen() {
     }
   }
 
+  async function saveDiabetesLog() {
+    try {
+      setMessage("");
+
+      const glucose = numberValue(glucoseMgDl);
+      const carbs = diabetesCarbs.trim() ? numberValue(diabetesCarbs) : null;
+      const insulin = insulinUnits.trim() ? numberValue(insulinUnits) : null;
+      const activity = activityMinutes.trim()
+        ? Math.round(numberValue(activityMinutes))
+        : null;
+
+      if (glucose <= 0 || glucose > 1000) {
+        setMessage("Entre une glycémie valide en mg/dL.");
+        return;
+      }
+
+      if (
+        (carbs != null && carbs < 0) ||
+        (insulin != null && insulin < 0) ||
+        (activity != null && activity < 0)
+      ) {
+        setMessage("Vérifie les valeurs du suivi glycémie.");
+        return;
+      }
+
+      setSavingDiabetesLog(true);
+
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError) throw userError;
+      if (!user) throw new Error("Utilisateur non connecté.");
+
+      const { error } = await supabase.from("diabetes_logs").insert({
+        user_id: user.id,
+        logged_on: today(),
+        logged_at: new Date().toISOString(),
+        context: diabetesContext,
+        glucose_mg_dl: glucose,
+        carbs_g: carbs,
+        insulin_units: insulin,
+        activity_minutes: activity,
+        notes: diabetesNotes.trim() || null,
+      });
+
+      if (error) throw error;
+
+      setGlucoseMgDl("");
+      setDiabetesCarbs("");
+      setInsulinUnits("");
+      setActivityMinutes("");
+      setDiabetesNotes("");
+
+      await load();
+      setShowDiabetesTracker(true);
+      setMessage("Mesure glycémique enregistrée.");
+    } catch (e: any) {
+      setMessage(e?.message ?? "Impossible d'enregistrer la mesure.");
+    } finally {
+      setSavingDiabetesLog(false);
+    }
+  }
+
+  async function removeDiabetesLog(id: string) {
+    try {
+      const { error } = await supabase
+        .from("diabetes_logs")
+        .delete()
+        .eq("id", id);
+
+      if (error) throw error;
+
+      setDiabetesLogs((current) =>
+        current.filter((item) => item.id !== id)
+      );
+    } catch (e: any) {
+      setMessage(e?.message ?? "Impossible de supprimer cette mesure.");
+    }
+  }
+
   async function removeEntry(id: string) {
     try {
       const { error } = await supabase
@@ -1084,6 +1229,200 @@ export default function NutritionScreen() {
             ]}
           />
         </View>
+      </Card>
+
+      <Card style={styles.diabetesCard}>
+        <Pressable
+          style={styles.diabetesHeader}
+          onPress={() => setShowDiabetesTracker((value) => !value)}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={styles.diabetesEyebrow}>SUIVI OPTIONNEL</Text>
+            <Text style={styles.diabetesTitle}>Glycémie & diabète</Text>
+            <Text style={styles.diabetesSubtitle}>
+              Glycémie, glucides, insuline déclarée et activité.
+            </Text>
+          </View>
+
+          <Text style={styles.diabetesToggle}>
+            {showDiabetesTracker ? "−" : "+"}
+          </Text>
+        </Pressable>
+
+        {showDiabetesTracker ? (
+          <View style={styles.diabetesContent}>
+            <Text style={styles.diabetesSafety}>
+              Journal de suivi uniquement — Evolve ne calcule aucune dose d'insuline.
+            </Text>
+
+            <Text style={styles.fieldLabel}>Contexte</Text>
+
+            <View style={styles.diabetesContextRow}>
+              {diabetesContexts.map((item) => (
+                <Pressable
+                  key={item.key}
+                  onPress={() => setDiabetesContext(item.key)}
+                  style={[
+                    styles.diabetesContextButton,
+                    diabetesContext === item.key &&
+                      styles.diabetesContextButtonActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.diabetesContextText,
+                      diabetesContext === item.key &&
+                        styles.diabetesContextTextActive,
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Text style={styles.fieldLabel}>Glycémie</Text>
+
+            <View style={styles.diabetesInputRow}>
+              <TextInput
+                value={glucoseMgDl}
+                onChangeText={setGlucoseMgDl}
+                keyboardType="decimal-pad"
+                placeholder="Ex. 120"
+                placeholderTextColor={colors.muted}
+                style={[styles.input, { flex: 1 }]}
+              />
+              <Text style={styles.diabetesUnit}>mg/dL</Text>
+            </View>
+
+            <View style={styles.diabetesGrid}>
+              <View style={styles.diabetesField}>
+                <Text style={styles.diabetesFieldLabel}>GLUCIDES (G)</Text>
+                <TextInput
+                  value={diabetesCarbs}
+                  onChangeText={setDiabetesCarbs}
+                  keyboardType="decimal-pad"
+                  placeholder="Facultatif"
+                  placeholderTextColor={colors.muted}
+                  style={styles.input}
+                />
+              </View>
+
+              <View style={styles.diabetesField}>
+                <Text style={styles.diabetesFieldLabel}>INSULINE (U)</Text>
+                <TextInput
+                  value={insulinUnits}
+                  onChangeText={setInsulinUnits}
+                  keyboardType="decimal-pad"
+                  placeholder="Facultatif"
+                  placeholderTextColor={colors.muted}
+                  style={styles.input}
+                />
+              </View>
+
+              <View style={styles.diabetesField}>
+                <Text style={styles.diabetesFieldLabel}>ACTIVITÉ (MIN)</Text>
+                <TextInput
+                  value={activityMinutes}
+                  onChangeText={setActivityMinutes}
+                  keyboardType="number-pad"
+                  placeholder="Facultatif"
+                  placeholderTextColor={colors.muted}
+                  style={styles.input}
+                />
+              </View>
+            </View>
+
+            <Text style={styles.fieldLabel}>Note</Text>
+            <TextInput
+              value={diabetesNotes}
+              onChangeText={setDiabetesNotes}
+              placeholder="Repas, sensation, correction, sport..."
+              placeholderTextColor={colors.muted}
+              style={[styles.input, styles.diabetesNotesInput]}
+              multiline
+            />
+
+            <PrimaryButton
+              label={
+                savingDiabetesLog
+                  ? "ENREGISTREMENT..."
+                  : "ENREGISTRER LA MESURE"
+              }
+              onPress={() => void saveDiabetesLog()}
+            />
+
+            {diabetesLogs.length ? (
+              <View style={styles.diabetesHistory}>
+                <Text style={styles.diabetesHistoryTitle}>
+                  AUJOURD'HUI
+                </Text>
+
+                {diabetesLogs.map((item) => {
+                  const contextLabel =
+                    diabetesContexts.find(
+                      (context) => context.key === item.context
+                    )?.label ?? "Autre";
+
+                  const time = new Date(item.logged_at).toLocaleTimeString(
+                    "fr-FR",
+                    { hour: "2-digit", minute: "2-digit" }
+                  );
+
+                  return (
+                    <View key={item.id} style={styles.diabetesLogRow}>
+                      <View style={{ flex: 1 }}>
+                        <View style={styles.diabetesLogTop}>
+                          <Text style={styles.diabetesGlucose}>
+                            {Math.round(item.glucose_mg_dl)} mg/dL
+                          </Text>
+                          <Text style={styles.diabetesTime}>{time}</Text>
+                        </View>
+
+                        <Text style={styles.diabetesContextLabel}>
+                          {contextLabel}
+                        </Text>
+
+                        <Text style={styles.diabetesLogMeta}>
+                          {[
+                            item.carbs_g != null
+                              ? `${round1(item.carbs_g)} g glucides`
+                              : null,
+                            item.insulin_units != null
+                              ? `${round1(item.insulin_units)} U insuline`
+                              : null,
+                            item.activity_minutes != null
+                              ? `${item.activity_minutes} min activité`
+                              : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" • ") || "Mesure seule"}
+                        </Text>
+
+                        {item.notes ? (
+                          <Text style={styles.diabetesLogNotes}>
+                            {item.notes}
+                          </Text>
+                        ) : null}
+                      </View>
+
+                      <Pressable
+                        onPress={() => void removeDiabetesLog(item.id)}
+                        style={styles.deleteButton}
+                      >
+                        <Text style={styles.deleteText}>×</Text>
+                      </Pressable>
+                    </View>
+                  );
+                })}
+              </View>
+            ) : (
+              <Text style={styles.diabetesEmpty}>
+                Aucune mesure aujourd'hui.
+              </Text>
+            )}
+          </View>
+        ) : null}
       </Card>
 
       <View style={styles.actionRow}>
@@ -1662,6 +2001,163 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   macroLabel: {
+    color: colors.muted,
+    fontSize: 12,
+    marginTop: 4,
+  },
+  diabetesCard: {
+    marginBottom: 18,
+    overflow: "hidden",
+  },
+  diabetesHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  diabetesEyebrow: {
+    color: colors.yellow,
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 1.2,
+  },
+  diabetesTitle: {
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: "900",
+    marginTop: 4,
+  },
+  diabetesSubtitle: {
+    color: colors.muted,
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 4,
+  },
+  diabetesToggle: {
+    color: colors.yellow,
+    fontSize: 30,
+    fontWeight: "700",
+    marginLeft: 12,
+  },
+  diabetesContent: {
+    marginTop: 16,
+    gap: 10,
+  },
+  diabetesSafety: {
+    color: colors.muted,
+    fontSize: 11,
+    lineHeight: 16,
+    borderLeftWidth: 2,
+    borderLeftColor: colors.yellow,
+    paddingLeft: 10,
+    marginBottom: 2,
+  },
+  diabetesContextRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 7,
+  },
+  diabetesContextButton: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 999,
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+    backgroundColor: colors.surface2,
+  },
+  diabetesContextButtonActive: {
+    borderColor: colors.yellow,
+    backgroundColor: "#191500",
+  },
+  diabetesContextText: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  diabetesContextTextActive: {
+    color: colors.yellow,
+  },
+  diabetesInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  diabetesUnit: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  diabetesGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginTop: 2,
+  },
+  diabetesField: {
+    width: "48%",
+    gap: 5,
+  },
+  diabetesFieldLabel: {
+    color: colors.muted,
+    fontSize: 10,
+    fontWeight: "900",
+  },
+  diabetesNotesInput: {
+    minHeight: 80,
+    textAlignVertical: "top",
+  },
+  diabetesHistory: {
+    marginTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: 14,
+  },
+  diabetesHistoryTitle: {
+    color: colors.muted,
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 1,
+    marginBottom: 6,
+  },
+  diabetesLogRow: {
+    flexDirection: "row",
+    gap: 10,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderSoft,
+  },
+  diabetesLogTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  diabetesGlucose: {
+    color: colors.yellow,
+    fontSize: 18,
+    fontWeight: "900",
+  },
+  diabetesTime: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  diabetesContextLabel: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: "800",
+    marginTop: 2,
+  },
+  diabetesLogMeta: {
+    color: colors.muted,
+    fontSize: 11,
+    marginTop: 4,
+  },
+  diabetesLogNotes: {
+    color: colors.text,
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 5,
+  },
+  diabetesEmpty: {
     color: colors.muted,
     fontSize: 12,
     marginTop: 4,
