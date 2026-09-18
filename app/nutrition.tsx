@@ -19,21 +19,14 @@ import { Card, Label, PrimaryButton, ScreenHeader } from "@/src/components/ui";
 import { colors } from "@/src/theme";
 import { supabase } from "@/src/lib/supabase";
 import { localDateString } from "@/src/lib/date";
+import { normalizeFoodText, searchFoods, type SearchableFood } from "@/src/lib/food-search";
+import { searchOpenFoodFactsProducts } from "@/src/lib/open-food-facts-search";
 
 const ciqualFoods = require("../src/data/ciqual-foods.json");
 
 type MealType = "breakfast" | "lunch" | "dinner" | "snack";
 
-type CiqualFood = {
-  code: string;
-  name: string;
-  kcal100: number | null;
-  protein100: number | null;
-  carbs100: number | null;
-  fat100: number | null;
-  fiber100: number | null;
-  source: string;
-};
+type CiqualFood = SearchableFood;
 
 type NutritionEntry = {
   id: string;
@@ -114,6 +107,7 @@ export default function NutritionScreen() {
   const [foodName, setFoodName] = useState("");
   const [grams, setGrams] = useState("");
   const [selectedFood, setSelectedFood] = useState<CiqualFood | null>(null);
+  const [remoteFoods, setRemoteFoods] = useState<CiqualFood[]>([]);
 
   const load = useCallback(async () => {
     try {
@@ -221,15 +215,56 @@ export default function NutritionScreen() {
     );
   }, [entries]);
 
-  const suggestions = useMemo(() => {
-    const query = foodName.trim().toLowerCase();
+  useEffect(() => {
+    const query = foodName.trim();
 
-    if (query.length < 2 || selectedFood) return [];
+    if (selectedFood || query.length < 3) {
+      setRemoteFoods([]);
+      return;
+    }
 
-    return (ciqualFoods as CiqualFood[])
-      .filter((food) => food.name.toLowerCase().includes(query))
-      .slice(0, 8);
+    let cancelled = false;
+
+    const timeout = setTimeout(() => {
+      void searchOpenFoodFactsProducts(query, 12)
+        .then((results) => {
+          if (!cancelled) setRemoteFoods(results);
+        })
+        .catch(() => {
+          if (!cancelled) setRemoteFoods([]);
+        });
+    }, 450);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+    };
   }, [foodName, selectedFood]);
+
+  const suggestions = useMemo(() => {
+    if (selectedFood) return [];
+
+    const query = foodName.trim();
+    if (normalizeFoodText(query).length < 2) return [];
+
+    const local = searchFoods(
+      ciqualFoods as CiqualFood[],
+      query,
+      12
+    );
+
+    const remote = searchFoods(remoteFoods, query, 8);
+    const seen = new Set<string>();
+
+    return [...local, ...remote]
+      .filter((food) => {
+        const key = normalizeFoodText(food.name);
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, 16);
+  }, [foodName, selectedFood, remoteFoods]);
 
   const calculated = useMemo(() => {
     const quantity = numberValue(grams);
@@ -862,7 +897,7 @@ export default function NutritionScreen() {
           <View style={styles.suggestions}>
             {suggestions.map((food) => (
               <Pressable
-                key={food.code}
+                key={`${food.source}-${food.code}-${food.name}`}
                 style={styles.suggestionRow}
                 onPress={() => chooseFood(food)}
               >
@@ -882,7 +917,11 @@ export default function NutritionScreen() {
           <View style={styles.selectedFood}>
             <Text style={styles.selectedLabel}>ALIMENT SÉLECTIONNÉ</Text>
             <Text style={styles.selectedName}>{selectedFood.name}</Text>
-            <Text style={styles.selectedSource}>Source : Ciqual 2025</Text>
+            <Text style={styles.selectedSource}>
+              Source : {selectedFood.source === "open_food_facts"
+                ? "Open Food Facts"
+                : "Ciqual 2025"}
+            </Text>
           </View>
         ) : null}
 
