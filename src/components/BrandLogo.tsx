@@ -1,18 +1,26 @@
 import { Image, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function BrandLogo({ compact = false }: { compact?: boolean }) {
+  const insets = useSafeAreaInsets();
+
   if (compact) {
     return (
-      <View style={styles.compact}>
+      <View
+        style={[
+          styles.compact,
+          { marginTop: Math.max(insets.top + 8, 32) },
+        ]}
+      >
         <Image
           source={require("@/assets/evolve-logo-header.png")}
           resizeMode="contain"
           style={styles.logoCompact}
         />
 
-        <View style={styles.textBlock}>
-          <Text style={styles.brandMain}>EVOLVE</Text>
-          <Text style={styles.brandSub}>TRAINING</Text>
+        <View style={styles.textBlockCompact}>
+          <Text style={styles.brandMainCompact}>EVOLVE</Text>
+          <Text style={styles.brandSubCompact}>TRAINING</Text>
         </View>
       </View>
     );
@@ -43,11 +51,10 @@ const styles = StyleSheet.create({
   },
 
   compact: {
-    width: 260,
-    height: 210,
+    width: 132,
+    height: 62,
     alignItems: "center",
-    justifyContent: "flex-start",
-    marginTop: 18,
+    justifyContent: "center",
   },
 
   logo: {
@@ -56,13 +63,18 @@ const styles = StyleSheet.create({
   },
 
   logoCompact: {
-    width: 145,
-    height: 120,
+    width: 58,
+    height: 40,
   },
 
   textBlock: {
     alignItems: "center",
     marginTop: -4,
+  },
+
+  textBlockCompact: {
+    alignItems: "center",
+    marginTop: -3,
   },
 
   brandMain: {
@@ -79,5 +91,21 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 5,
     lineHeight: 18,
+  },
+
+  brandMainCompact: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 2.4,
+    lineHeight: 11,
+  },
+
+  brandSubCompact: {
+    color: "#FFFFFF",
+    fontSize: 6,
+    fontWeight: "700",
+    letterSpacing: 1.8,
+    lineHeight: 8,
   },
 });

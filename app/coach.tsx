@@ -126,6 +126,17 @@ export default function CoachScreen() {
       </Card>
 
       <Card style={styles.section}>
+        <Label>Suivi athlètes</Label>
+        <Text style={styles.muted}>
+          Consulte les données, performances et statistiques de tous tes athlètes.
+        </Text>
+        <PrimaryButton
+          label="MES ATHLÈTES"
+          onPress={() => router.push("/coach-athletes" as any)}
+        />
+      </Card>
+
+      <Card style={styles.section}>
         <Label>Inviter un athlète</Label>
         <TextInput
           value={inviteEmail}

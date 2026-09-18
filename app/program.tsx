@@ -31,6 +31,20 @@ const PROGRAMS = [
     price: 200,
     image: require("@/assets/protocole-2pm.png"),
   },
+
+  {
+    id: "evolve-initium",
+    title: "EVOLVE INITIUM",
+    price: 300,
+    image: require("@/assets/evolve-initium.png"),
+  },
+
+  {
+    id: "suivi-nutrition",
+    title: "SUIVI NUTRITION",
+    price: 300,
+    image: require("@/assets/suivi-nutrition.png"),
+  },
 ];
 
 export default function ProgramScreen() {
@@ -40,15 +54,6 @@ export default function ProgramScreen() {
       contentContainerStyle={styles.page}
       showsVerticalScrollIndicator={false}
     >
-      <Pressable
-        onPress={() => router.replace("/(tabs)")}
-        style={styles.back}
-      >
-        <Text style={styles.backText}>
-          ← RETOUR
-        </Text>
-      </Pressable>
-
       <Text style={styles.kicker}>
         EVOLVE TRAINING
       </Text>
@@ -132,16 +137,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingTop: 18,
     paddingBottom: 110,
-  },
-
-  back: {
-    marginBottom: 24,
-  },
-
-  backText: {
-    color: colors.yellow,
-    fontSize: 15,
-    fontWeight: "900",
   },
 
   kicker: {

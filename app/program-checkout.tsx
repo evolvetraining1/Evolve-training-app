@@ -47,6 +47,28 @@ const PROGRAMS = {
     level: "Selon l'évaluation initiale",
     image: require("@/assets/protocole-2pm.png"),
   },
+  "evolve-initium": {
+    title: "EVOLVE INITIUM",
+    price: 300,
+    description:
+      "Un accompagnement structuré pour construire des bases solides, retrouver de la régularité et progresser durablement. Initium pose les fondations de l’entraînement afin de développer autonomie, discipline et progression.",
+    sessions: "3 à 4 séances / semaine",
+    duration: "12 semaines",
+    level: "Débutant à intermédiaire",
+    image: require("@/assets/evolve-initium.png"),
+  },
+
+  "suivi-nutrition": {
+    title: "SUIVI NUTRITION",
+    price: 300,
+    description:
+      "Un accompagnement nutritionnel personnalisé construit autour de tes objectifs, de ton mode de vie et de ta pratique sportive. Analyse, stratégie adaptée, suivi précis et ajustements continus pour obtenir des résultats concrets et durables.",
+    sessions: "Suivi personnalisé",
+    duration: "12 semaines",
+    level: "Tous niveaux",
+    image: require("@/assets/suivi-nutrition.png"),
+  },
+
 } as const;
 
 export default function ProgramCheckoutScreen() {

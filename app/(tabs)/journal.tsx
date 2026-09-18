@@ -253,44 +253,54 @@ export default function JournalScreen() {
       setMessage("");
 
       const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
 
-      if (userError) throw userError;
+      if (sessionError) throw sessionError;
+
+      const user = session?.user;
       if (!user) throw new Error("Utilisateur non connecté.");
 
-      const { data: routines, error: routinesError } = await supabase
-        .from("routine_catalog")
-        .select("*")
-        .eq("active", true)
-        .order("sort_order", { ascending: true });
+      const [
+        routinesResult,
+        userRoutinesResult,
+        logsResult,
+      ] = await Promise.all([
+        supabase
+          .from("routine_catalog")
+          .select("id, slug, name, category, input_type, unit, description, default_enabled, polarity, target_min, target_max, recovery_weight, stress_weight, readiness_weight, sort_order")
+          .eq("active", true)
+          .order("sort_order", { ascending: true }),
 
-      if (routinesError) throw routinesError;
+        supabase
+          .from("user_routines")
+          .select("routine_id, enabled")
+          .eq("athlete_id", user.id)
+          .eq("enabled", true),
 
-      const typedRoutines = (routines ?? []) as Routine[];
+        supabase
+          .from("routine_logs")
+          .select("routine_id, value, bool_value")
+          .eq("athlete_id", user.id)
+          .eq("log_date", today()),
+      ]);
+
+      if (routinesResult.error) throw routinesResult.error;
+      if (userRoutinesResult.error) throw userRoutinesResult.error;
+      if (logsResult.error) throw logsResult.error;
+
+      const typedRoutines =
+        (routinesResult.data ?? []) as Routine[];
+
+      const userRoutines = userRoutinesResult.data ?? [];
+      const logs = logsResult.data ?? [];
 
       setCatalog(typedRoutines);
 
-      const { data: userRoutines, error: urError } = await supabase
-        .from("user_routines")
-        .select("routine_id, enabled")
-        .eq("athlete_id", user.id)
-        .eq("enabled", true);
-
-      if (urError) throw urError;
-
       setCustomIds(
-        (userRoutines ?? []).map((row: any) => row.routine_id)
+        userRoutines.map((row: any) => row.routine_id)
       );
-
-      const { data: logs, error: logsError } = await supabase
-        .from("routine_logs")
-        .select("routine_id, value, bool_value")
-        .eq("athlete_id", user.id)
-        .eq("log_date", today());
-
-      if (logsError) throw logsError;
 
       const loaded: Record<string, RoutineValue> = {};
 
@@ -373,9 +383,10 @@ export default function JournalScreen() {
   async function addRoutine(routine: Routine) {
     try {
       const {
-        data: { user },
-      } = await supabase.auth.getUser();
+        data: { session },
+      } = await supabase.auth.getSession();
 
+      const user = session?.user;
       if (!user) throw new Error("Utilisateur non connecté.");
 
       const { error } = await supabase
@@ -411,11 +422,13 @@ export default function JournalScreen() {
       setMessage("");
 
       const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
 
-      if (userError) throw userError;
+      if (sessionError) throw sessionError;
+
+      const user = session?.user;
       if (!user) throw new Error("Utilisateur non connecté.");
 
       const valuesToSave: Record<string, RoutineValue> = {
@@ -535,8 +548,6 @@ export default function JournalScreen() {
       });
 
       setValues(valuesToSave);
-
-      await load();
 
       setMessage("Journal enregistré.");
     } catch (e: any) {
