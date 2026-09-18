@@ -17,6 +17,7 @@ import Svg, {
 import { router, useLocalSearchParams } from "expo-router";
 import { Card, ScreenHeader } from "@/src/components/ui";
 import { colors } from "@/src/theme";
+import { supabase } from "@/src/lib/supabase";
 import { getCoachAthleteStepsHistory } from "@/src/lib/coachApi";
 
 export default function CoachAthleteStepsScreen() {
@@ -39,6 +40,41 @@ export default function CoachAthleteStepsScreen() {
         setError(e?.message ?? "Impossible de charger les pas.")
       )
       .finally(() => setLoading(false));
+  }, [athleteId, range]);
+
+  useEffect(() => {
+    if (!athleteId) return;
+
+    const channel = supabase
+      .channel(`coach-athlete-steps-${athleteId}-${range}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "daily_steps",
+          filter: `user_id=eq.${athleteId}`,
+        },
+        () => {
+          void getCoachAthleteStepsHistory(athleteId, range)
+            .then(setHistory)
+            .catch((e: any) =>
+              setError(e?.message ?? "Impossible d'actualiser les pas.")
+            );
+        }
+      )
+      .subscribe();
+
+    const fallbackTimer = setInterval(() => {
+      void getCoachAthleteStepsHistory(athleteId, range)
+        .then(setHistory)
+        .catch(() => {});
+    }, 30_000);
+
+    return () => {
+      clearInterval(fallbackTimer);
+      void supabase.removeChannel(channel);
+    };
   }, [athleteId, range]);
 
   const stats = useMemo(() => {
