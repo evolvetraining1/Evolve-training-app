@@ -33,24 +33,33 @@ export default function MessagingScreen(){
  useEffect(() => {
   if (!conversationId || !userId) return;
 
-  const unreadIds = messages
-    .filter(
-      (message) =>
-        message.sender_id !== userId &&
-        !message.read_at
-    )
-    .map((message) => message.id);
+  const hasUnreadIncoming = messages.some(
+    (message) =>
+      message.sender_id !== userId &&
+      !message.read_at
+  );
 
-  if (!unreadIds.length) return;
+  if (!hasUnreadIncoming) return;
+
+  const readAt = new Date().toISOString();
 
   void supabase
-    .from("messages")
-    .update({ read_at: new Date().toISOString() })
-    .in("id", unreadIds)
+    .rpc("mark_conversation_messages_read", {
+      p_conversation_id: conversationId,
+    })
     .then(({ error }) => {
       if (error) {
         console.warn("Mark messages as read failed:", error.message);
+        return;
       }
+
+      setMessages((current) =>
+        current.map((message) =>
+          message.sender_id !== userId && !message.read_at
+            ? { ...message, read_at: readAt }
+            : message
+        )
+      );
     });
 }, [conversationId, userId, messages]);
 
