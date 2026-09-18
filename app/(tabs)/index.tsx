@@ -1716,10 +1716,10 @@ const styles = StyleSheet.create({
   dashboardLayoutPlaceholder: {
     minHeight: 420,
   },
-  root:{flex:1,backgroundColor: "transparent"},
-  pageScroll:{flex:1,backgroundColor: "transparent"},
-  page:{paddingHorizontal:15,paddingTop:18,paddingBottom:105,backgroundColor: "transparent"},
-  center:{flex:1,alignItems:"center",justifyContent:"center",backgroundColor: "transparent"},
+  root:{flex:1,backgroundColor: colors.bg},
+  pageScroll:{flex:1,backgroundColor: colors.bg},
+  page:{paddingHorizontal:15,paddingTop:18,paddingBottom:105,backgroundColor: colors.bg},
+  center:{flex:1,alignItems:"center",justifyContent:"center",backgroundColor: colors.bg},
   topbar: {
     minHeight: 155,flexDirection:"row",alignItems:"flex-start",justifyContent:"space-between"}, squareButton:{width:54,height:54,borderRadius:16,borderWidth:1,borderColor:colors.border,backgroundColor:"#0A0A0B",alignItems:"center",justifyContent:"center",position:"relative"}, menuGlyph: {
     color: colors.text,
