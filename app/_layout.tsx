@@ -27,7 +27,7 @@ export default function RootLayout() {
         <AuthProvider>
           <SessionProvider>
             <StatusBar style="light" />
-            <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "transparent" } }}>
+            <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#050505" } }}>
               <Stack.Screen name="index" />
               <Stack.Screen name="login" />
               <Stack.Screen name="(tabs)" />
