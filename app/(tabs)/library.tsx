@@ -121,7 +121,7 @@ export default function ExerciseLibraryScreen() {
                   {illustration ? (
                     <Image
                       source={illustration}
-                      resizeMode="cover"
+                      resizeMode="contain"
                       style={styles.mediaImage}
                       accessibilityLabel={`Illustration du mouvement ${item.name}`}
                     />
@@ -163,9 +163,9 @@ const styles = StyleSheet.create({
   error: { color: colors.red, textAlign: "center" },
   list: { paddingHorizontal: 20, paddingBottom: 120 },
   count: { color: colors.muted2, fontSize: 12, fontWeight: "700", marginBottom: 10 },
-  card: { minHeight: 104, flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: colors.borderSoft, backgroundColor: "rgba(11,11,12,0.94)", borderRadius: radius.md, marginBottom: 10, overflow: "hidden" },
+  card: { minHeight: 124, flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: colors.borderSoft, backgroundColor: "rgba(11,11,12,0.94)", borderRadius: radius.md, marginBottom: 10, overflow: "hidden" },
   cardPressed: { opacity: 0.75 },
-  mediaPlaceholder: { width: 104, alignSelf: "stretch", alignItems: "center", justifyContent: "center", backgroundColor: colors.surface3, borderRightWidth: 1, borderRightColor: colors.borderSoft, overflow: "hidden" },
+  mediaPlaceholder: { width: 104, height: 104, flexShrink: 0, marginLeft: 10, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface3, borderWidth: 1, borderColor: colors.borderSoft, borderRadius: radius.sm, overflow: "hidden" },
   mediaImage: { width: "100%", height: "100%" },
   mediaGlyph: { color: colors.yellow, fontSize: 24, fontWeight: "900" },
   cardBody: { flex: 1, paddingHorizontal: 14, paddingVertical: 12 },
