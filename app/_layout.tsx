@@ -1,4 +1,5 @@
 import { Stack } from "expo-router";
+import { DarkTheme, ThemeProvider } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
 import { ImageBackground, Platform, StyleSheet } from "react-native";
 import { useEffect } from "react";
@@ -8,6 +9,14 @@ import { AuthProvider } from "@/src/store/auth";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 export default function RootLayout() {
+  const navigationTheme = {
+    ...DarkTheme,
+    colors: {
+      ...DarkTheme.colors,
+      background: Platform.OS === "ios" ? "#050505" : "transparent",
+    },
+  };
+
   useEffect(() => {
     if (Platform.OS !== "android") return;
 
@@ -27,6 +36,7 @@ export default function RootLayout() {
         <AuthProvider>
           <SessionProvider>
             <StatusBar style="light" />
+            <ThemeProvider value={navigationTheme}>
             <Stack
               screenOptions={{
                 headerShown: false,
@@ -50,6 +60,7 @@ export default function RootLayout() {
               <Stack.Screen name="coach-workout" />
               <Stack.Screen name="invite" />
             </Stack>
+            </ThemeProvider>
           </SessionProvider>
         </AuthProvider>
       </ImageBackground>
