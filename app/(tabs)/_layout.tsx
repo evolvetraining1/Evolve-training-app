@@ -60,10 +60,7 @@ export default function TabsLayout() {
       />
       <Tabs.Screen
         name="library"
-        options={{
-          title: "Bibliothèque",
-          tabBarIcon: ({ color }) => icon("⌘", String(color)),
-        }}
+        options={{ href: null }}
       />
       <Tabs.Screen
         name="training"

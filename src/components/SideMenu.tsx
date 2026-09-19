@@ -11,19 +11,14 @@ type Props = {
 
 const sections = [
   { title: "COACHING", items: [
-    { icon: "▣", label: "Mes programmes", route: "/(tabs)/training" },
     { icon: "◷", label: "Historique & stats", route: "/history-stats" },
     { icon: "✉", label: "Messagerie", route: "/messaging" },
     { icon: "☷", label: "Journal & routine", route: "/(tabs)/journal" },
   ]},
   { title: "OUTILS", items: [
+    { icon: "⌘", label: "Bibliothèque de mouvements", route: "/(tabs)/library" },
     { icon: "1", label: "Calculateur 1RM", route: "/rm-calculator" },
     { icon: "◎", label: "Suivi nutrition", route: "/nutrition" },
-    { icon: "↗", label: "Performances", route: "/(tabs)/stats" },
-    ]},
-  { title: "COMPTE", items: [
-    { icon: "＋", label: "Programmes achetés", badge: "OFFRES" },
-    { icon: "●", label: "Profil & réglages", route: "/(tabs)/profile" },
   ]},
 ];
 
@@ -69,8 +64,6 @@ export default function SideMenu({
                           {unreadMessages > 99 ? "99+" : unreadMessages}
                         </Text>
                       </View>
-                    ) : item.badge ? (
-                      <Text style={styles.badge}>{item.badge}</Text>
                     ) : (
                       <Text style={styles.chev}>›</Text>
                     )}
@@ -101,7 +94,6 @@ const styles = StyleSheet.create({
   itemIcon: { width: 31, height: 31, borderRadius: 10, backgroundColor: colors.surface2, alignItems: "center", justifyContent: "center", marginRight: 12 },
   itemIconText: { color: colors.yellow, fontWeight: "900" },
   itemText: { color: colors.text, fontWeight: "700", flex: 1, fontSize: 14 },
-  badge: { color: colors.yellow, fontSize: 8, fontWeight: "900", letterSpacing: 1 },
   unreadBadge: {
     minWidth: 24,
     height: 24,
