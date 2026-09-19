@@ -992,7 +992,9 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
               </View>
             ) : null}
           </Pressable>
-          <View style={styles.logoWrap}><BrandLogo compact /></View>
+          <View style={[styles.logoWrap, { top: insets.top + 2 }]}>
+            <BrandLogo compact />
+          </View>
           <View style={styles.topbarSpacer} />
         </View>
 
@@ -1877,13 +1879,13 @@ const styles = StyleSheet.create({
     backgroundColor: Platform.OS === "ios" ? colors.bg : "transparent",
   },
   topbar: {
-    minHeight: 155,flexDirection:"row",alignItems:"flex-start",justifyContent:"space-between"},
+    minHeight: 178,flexDirection:"row",alignItems:"flex-start",justifyContent:"space-between"},
   topbarSpacer:{width:54,height:54},
   squareButton:{width:54,height:54,borderRadius:16,borderWidth:1,borderColor:colors.border,backgroundColor:"#0A0A0B",alignItems:"center",justifyContent:"center",position:"relative"}, menuGlyph: {
     color: colors.text,
     fontSize: 25,
     lineHeight: 29,
-  }, bell:{color:colors.text,fontSize:26}, notification:{position:"absolute",right:-3,top:-4,width:22,height:22,borderRadius:11,backgroundColor:colors.yellow,alignItems:"center",justifyContent:"center"}, notificationText:{color:"#080808",fontSize:11,fontWeight:"900"}, logoWrap:{position:"absolute",left:"50%",transform:[{translateX:-76}],top:-10,width:152,height:120,alignItems:"center",overflow:"hidden"},
+  }, bell:{color:colors.text,fontSize:26}, notification:{position:"absolute",right:-3,top:-4,width:22,height:22,borderRadius:11,backgroundColor:colors.yellow,alignItems:"center",justifyContent:"center"}, notificationText:{color:"#080808",fontSize:11,fontWeight:"900"}, logoWrap:{position:"absolute",left:"50%",transform:[{translateX:-82}],width:164,height:146,alignItems:"center",justifyContent:"center",overflow:"hidden"},
   dashboardEditTopbar:{
     flexDirection:"row",
     alignItems:"center",

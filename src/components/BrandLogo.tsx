@@ -1,27 +1,14 @@
-import { Image, StyleSheet, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Image, StyleSheet, View } from "react-native";
 
 export default function BrandLogo({ compact = false }: { compact?: boolean }) {
-  const insets = useSafeAreaInsets();
-
   if (compact) {
     return (
-      <View
-        style={[
-          styles.compact,
-          { marginTop: Math.max(insets.top + 8, 32) },
-        ]}
-      >
+      <View style={styles.compact}>
         <Image
           source={require("@/assets/evolve-logo-header.png")}
           resizeMode="contain"
           style={styles.logoCompact}
         />
-
-        <View style={styles.textBlockCompact}>
-          <Text style={styles.brandMainCompact}>EVOLVE</Text>
-          <Text style={styles.brandSubCompact}>TRAINING</Text>
-        </View>
       </View>
     );
   }
@@ -33,11 +20,6 @@ export default function BrandLogo({ compact = false }: { compact?: boolean }) {
         resizeMode="contain"
         style={styles.logo}
       />
-
-      <View style={styles.textBlock}>
-        <Text style={styles.brandMain}>EVOLVE</Text>
-        <Text style={styles.brandSub}>TRAINING</Text>
-      </View>
     </View>
   );
 }
@@ -51,61 +33,19 @@ const styles = StyleSheet.create({
   },
 
   compact: {
-    width: 132,
-    height: 62,
+    width: 154,
+    height: 142,
     alignItems: "center",
     justifyContent: "center",
   },
 
   logo: {
-    width: 135,
-    height: 120,
+    width: 190,
+    height: 178,
   },
 
   logoCompact: {
-    width: 58,
-    height: 40,
-  },
-
-  textBlock: {
-    alignItems: "center",
-    marginTop: -4,
-  },
-
-  textBlockCompact: {
-    alignItems: "center",
-    marginTop: -3,
-  },
-
-  brandMain: {
-    color: "#FFFFFF",
-    fontSize: 23,
-    fontWeight: "800",
-    letterSpacing: 6,
-    lineHeight: 27,
-  },
-
-  brandSub: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "700",
-    letterSpacing: 5,
-    lineHeight: 18,
-  },
-
-  brandMainCompact: {
-    color: "#FFFFFF",
-    fontSize: 10,
-    fontWeight: "800",
-    letterSpacing: 2.4,
-    lineHeight: 11,
-  },
-
-  brandSubCompact: {
-    color: "#FFFFFF",
-    fontSize: 6,
-    fontWeight: "700",
-    letterSpacing: 1.8,
-    lineHeight: 8,
+    width: 142,
+    height: 133,
   },
 });
