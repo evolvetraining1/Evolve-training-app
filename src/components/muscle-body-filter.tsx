@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import Svg, { Ellipse, G, Path } from "react-native-svg";
+import Svg, { Ellipse, G, Image as SvgImage, Path } from "react-native-svg";
 import { BODY_GROUPS, BodyGroupKey } from "@/src/data/exercise-muscle-groups";
 import { colors, radius } from "@/src/theme";
 
@@ -9,148 +9,98 @@ type Props = {
   onClear: () => void;
 };
 
-const bodyFill = "#17191C";
-const bodyStroke = "#555A60";
-const muscleFill = "#30343A";
-const muscleStroke = "#6A7179";
-const selectedFill = colors.yellow;
+const anatomyImage = require("../../assets/anatomy-selector.png");
 const selectedStroke = "#FFE39A";
 
-function zoneStyle(selected: BodyGroupKey[], group: BodyGroupKey) {
+function highlight(selected: BodyGroupKey[], group: BodyGroupKey) {
   const active = selected.includes(group);
   return {
-    fill: active ? selectedFill : muscleFill,
-    stroke: active ? selectedStroke : muscleStroke,
-    strokeWidth: active ? 1.6 : 1.05,
+    fill: active ? colors.yellow : "#000000",
+    fillOpacity: active ? 0.68 : 0.001,
+    stroke: active ? selectedStroke : "transparent",
+    strokeWidth: active ? 4 : 0,
   };
 }
 
-function FrontBody({ selected, onToggle }: { selected: BodyGroupKey[]; onToggle: (group: BodyGroupKey) => void }) {
-  const shoulders = zoneStyle(selected, "shoulders");
-  const chest = zoneStyle(selected, "chest");
-  const arms = zoneStyle(selected, "arms");
-  const core = zoneStyle(selected, "core");
-  const quads = zoneStyle(selected, "quads");
-  const calves = zoneStyle(selected, "calves");
-
+function FrontHighlights({ selected, onToggle }: { selected: BodyGroupKey[]; onToggle: (group: BodyGroupKey) => void }) {
   return (
-    <G transform="translate(91 13)">
-      <Ellipse cx={0} cy={22} rx={15} ry={19} fill={bodyFill} stroke={bodyStroke} strokeWidth={1.3} />
-      <Path d="M-8 39 L-7 54 L-20 63 L20 63 L7 54 L8 39 Z" fill={bodyFill} stroke={bodyStroke} strokeWidth={1.2} />
-      <Path d="M-20 59 C-30 60 -38 63 -45 69 L-35 96 L-29 137 L-20 162 L20 162 L29 137 L35 96 L45 69 C38 63 30 60 20 59 Z" fill={bodyFill} stroke={bodyStroke} strokeWidth={1.4} />
-      <Path d="M-21 155 L-29 174 L-22 184 L22 184 L29 174 L21 155 Z" fill={bodyFill} stroke={bodyStroke} strokeWidth={1.3} />
-
-      <Ellipse onPress={() => onToggle("shoulders")} cx={-39} cy={75} rx={12} ry={15} rotation={18} origin="-39 75" {...shoulders} />
-      <Ellipse onPress={() => onToggle("shoulders")} cx={39} cy={75} rx={12} ry={15} rotation={-18} origin="39 75" {...shoulders} />
-
-      <G onPress={() => onToggle("arms")} {...arms}>
-        <Path d="M-47 82 C-54 96 -54 114 -50 129 L-39 128 L-34 92 Z" />
-        <Path d="M47 82 C54 96 54 114 50 129 L39 128 L34 92 Z" />
-        <Path d="M-50 129 C-55 147 -61 164 -61 180 L-51 183 L-38 132 Z" />
-        <Path d="M50 129 C55 147 61 164 61 180 L51 183 L38 132 Z" />
-      </G>
-      <Path d="M-61 178 L-66 190 L-60 199 L-53 188 L-50 181 Z" fill={bodyFill} stroke={bodyStroke} strokeWidth={1.1} />
-      <Path d="M61 178 L66 190 L60 199 L53 188 L50 181 Z" fill={bodyFill} stroke={bodyStroke} strokeWidth={1.1} />
-
-      <G onPress={() => onToggle("chest")} {...chest}>
-        <Path d="M-5 66 C-13 62 -27 64 -32 72 L-29 94 C-20 99 -10 98 -4 91 Z" />
-        <Path d="M5 66 C13 62 27 64 32 72 L29 94 C20 99 10 98 4 91 Z" />
+    <G>
+      <G onPress={() => onToggle("shoulders")} {...highlight(selected, "shoulders")}>
+        <Ellipse cx={270} cy={283} rx={57} ry={67} rotation={24} origin="270 283" />
+        <Ellipse cx={507} cy={283} rx={57} ry={67} rotation={-24} origin="507 283" />
       </G>
 
-      <G onPress={() => onToggle("core")} {...core}>
-        <Path d="M-5 96 L-18 99 L-17 114 L-5 114 Z" />
-        <Path d="M5 96 L18 99 L17 114 L5 114 Z" />
-        <Path d="M-5 115 L-17 116 L-15 132 L-5 132 Z" />
-        <Path d="M5 115 L17 116 L15 132 L5 132 Z" />
-        <Path d="M-5 133 L-14 134 L-11 151 L-4 156 Z" />
-        <Path d="M5 133 L14 134 L11 151 L4 156 Z" />
-        <Path d="M-19 99 C-27 110 -25 139 -13 151 L-15 118 Z" />
-        <Path d="M19 99 C27 110 25 139 13 151 L15 118 Z" />
+      <G onPress={() => onToggle("chest")} {...highlight(selected, "chest")}>
+        <Path d="M382 248 C344 230 300 246 290 282 C291 329 328 360 382 348 Z" />
+        <Path d="M390 248 C428 230 472 246 482 282 C481 329 444 360 390 348 Z" />
       </G>
 
-      <G onPress={() => onToggle("quads")} {...quads}>
-        <Path d="M-22 181 C-34 196 -34 227 -27 248 L-16 243 L-7 186 Z" />
-        <Path d="M-7 186 L-15 244 L-8 253 L-1 244 L-1 187 Z" />
-        <Path d="M22 181 C34 196 34 227 27 248 L16 243 L7 186 Z" />
-        <Path d="M7 186 L15 244 L8 253 L1 244 L1 187 Z" />
+      <G onPress={() => onToggle("arms")} {...highlight(selected, "arms")}>
+        <Path d="M253 337 C221 363 211 415 225 456 C246 468 269 447 275 397 L286 338 Z" />
+        <Path d="M520 337 C552 363 562 415 548 456 C527 468 504 447 498 397 L487 338 Z" />
+        <Path d="M225 454 C199 483 184 542 187 584 C206 600 229 585 241 547 L259 466 Z" />
+        <Path d="M548 454 C574 483 589 542 586 584 C567 600 544 585 532 547 L514 466 Z" />
       </G>
-      <Path d="M-26 248 L-18 255 L-8 253 L-9 262 L-23 262 Z" fill={bodyFill} stroke={bodyStroke} strokeWidth={1.1} />
-      <Path d="M26 248 L18 255 L8 253 L9 262 L23 262 Z" fill={bodyFill} stroke={bodyStroke} strokeWidth={1.1} />
 
-      <G onPress={() => onToggle("calves")} {...calves}>
-        <Path d="M-24 263 C-31 277 -29 297 -21 306 L-13 295 L-12 264 Z" />
-        <Path d="M24 263 C31 277 29 297 21 306 L13 295 L12 264 Z" />
-        <Path d="M-12 264 L-13 295 L-18 313 L-8 313 L-3 269 Z" />
-        <Path d="M12 264 L13 295 L18 313 L8 313 L3 269 Z" />
+      <G onPress={() => onToggle("core")} {...highlight(selected, "core")}>
+        <Path d="M337 351 C319 385 318 475 334 549 L382 590 L382 356 Z" />
+        <Path d="M435 351 C453 385 454 475 438 549 L390 590 L390 356 Z" />
       </G>
-      <Path d="M-18 311 L-19 321 L-32 327 L-4 327 L-7 312 Z" fill={bodyFill} stroke={bodyStroke} strokeWidth={1.1} />
-      <Path d="M18 311 L19 321 L32 327 L4 327 L7 312 Z" fill={bodyFill} stroke={bodyStroke} strokeWidth={1.1} />
+
+      <G onPress={() => onToggle("quads")} {...highlight(selected, "quads")}>
+        <Path d="M310 585 C268 642 270 738 306 797 C344 792 367 726 373 620 L363 580 Z" />
+        <Path d="M463 585 C505 642 503 738 467 797 C429 792 406 726 400 620 L410 580 Z" />
+      </G>
+
+      <G onPress={() => onToggle("calves")} {...highlight(selected, "calves")}>
+        <Path d="M302 808 C270 851 282 960 318 1004 C348 965 358 876 333 813 Z" />
+        <Path d="M471 808 C503 851 491 960 455 1004 C425 965 415 876 440 813 Z" />
+      </G>
     </G>
   );
 }
 
-function BackBody({ selected, onToggle }: { selected: BodyGroupKey[]; onToggle: (group: BodyGroupKey) => void }) {
-  const shoulders = zoneStyle(selected, "shoulders");
-  const back = zoneStyle(selected, "back");
-  const arms = zoneStyle(selected, "arms");
-  const lowerBack = zoneStyle(selected, "lower_back");
-  const glutes = zoneStyle(selected, "glutes");
-  const hamstrings = zoneStyle(selected, "hamstrings");
-  const calves = zoneStyle(selected, "calves");
-
+function BackHighlights({ selected, onToggle }: { selected: BodyGroupKey[]; onToggle: (group: BodyGroupKey) => void }) {
   return (
-    <G transform="translate(269 13)">
-      <Ellipse cx={0} cy={22} rx={15} ry={19} fill={bodyFill} stroke={bodyStroke} strokeWidth={1.3} />
-      <Path d="M-8 39 L-7 54 L-20 63 L20 63 L7 54 L8 39 Z" fill={bodyFill} stroke={bodyStroke} strokeWidth={1.2} />
-      <Path d="M-20 59 C-30 60 -38 63 -45 69 L-35 96 L-29 137 L-20 162 L20 162 L29 137 L35 96 L45 69 C38 63 30 60 20 59 Z" fill={bodyFill} stroke={bodyStroke} strokeWidth={1.4} />
-      <Path d="M-21 155 L-29 174 L-22 184 L22 184 L29 174 L21 155 Z" fill={bodyFill} stroke={bodyStroke} strokeWidth={1.3} />
-
-      <Ellipse onPress={() => onToggle("shoulders")} cx={-39} cy={75} rx={12} ry={15} rotation={18} origin="-39 75" {...shoulders} />
-      <Ellipse onPress={() => onToggle("shoulders")} cx={39} cy={75} rx={12} ry={15} rotation={-18} origin="39 75" {...shoulders} />
-
-      <G onPress={() => onToggle("arms")} {...arms}>
-        <Path d="M-47 82 C-54 96 -54 114 -50 129 L-39 128 L-34 92 Z" />
-        <Path d="M47 82 C54 96 54 114 50 129 L39 128 L34 92 Z" />
-        <Path d="M-50 129 C-55 147 -61 164 -61 180 L-51 183 L-38 132 Z" />
-        <Path d="M50 129 C55 147 61 164 61 180 L51 183 L38 132 Z" />
-      </G>
-      <Path d="M-61 178 L-66 190 L-60 199 L-53 188 L-50 181 Z" fill={bodyFill} stroke={bodyStroke} strokeWidth={1.1} />
-      <Path d="M61 178 L66 190 L60 199 L53 188 L50 181 Z" fill={bodyFill} stroke={bodyStroke} strokeWidth={1.1} />
-
-      <G onPress={() => onToggle("back")} {...back}>
-        <Path d="M-5 54 L-28 66 L-22 89 L-5 105 Z" />
-        <Path d="M5 54 L28 66 L22 89 L5 105 Z" />
-        <Path d="M-22 90 C-31 99 -29 132 -15 143 L-5 108 Z" />
-        <Path d="M22 90 C31 99 29 132 15 143 L5 108 Z" />
+    <G>
+      <G onPress={() => onToggle("shoulders")} {...highlight(selected, "shoulders")}>
+        <Ellipse cx={875} cy={284} rx={57} ry={68} rotation={24} origin="875 284" />
+        <Ellipse cx={1115} cy={284} rx={57} ry={68} rotation={-24} origin="1115 284" />
       </G>
 
-      <G onPress={() => onToggle("lower_back")} {...lowerBack}>
-        <Path d="M-5 107 L-15 145 L-10 158 L-2 151 Z" />
-        <Path d="M5 107 L15 145 L10 158 L2 151 Z" />
+      <G onPress={() => onToggle("back")} {...highlight(selected, "back")}>
+        <Path d="M990 166 C941 209 898 247 901 329 C921 382 946 447 989 505 Z" />
+        <Path d="M998 166 C1047 209 1090 247 1087 329 C1067 382 1042 447 999 505 Z" />
+        <Path d="M989 334 C954 369 929 438 941 518 L989 568 Z" />
+        <Path d="M999 334 C1034 369 1059 438 1047 518 L999 568 Z" />
       </G>
 
-      <G onPress={() => onToggle("glutes")} {...glutes}>
-        <Path d="M-2 158 C-11 152 -25 159 -27 172 C-26 183 -15 188 -2 181 Z" />
-        <Path d="M2 158 C11 152 25 159 27 172 C26 183 15 188 2 181 Z" />
+      <G onPress={() => onToggle("arms")} {...highlight(selected, "arms")}>
+        <Path d="M858 341 C827 373 822 420 838 463 C861 473 882 443 887 395 L893 340 Z" />
+        <Path d="M1131 341 C1162 373 1167 420 1151 463 C1128 473 1107 443 1102 395 L1096 340 Z" />
+        <Path d="M838 458 C812 494 796 547 801 587 C820 603 842 584 853 545 L871 470 Z" />
+        <Path d="M1151 458 C1177 494 1193 547 1188 587 C1169 603 1147 584 1136 545 L1118 470 Z" />
       </G>
 
-      <G onPress={() => onToggle("hamstrings")} {...hamstrings}>
-        <Path d="M-24 184 C-32 202 -30 232 -22 251 L-11 243 L-5 185 Z" />
-        <Path d="M-5 185 L-10 244 L-4 253 L-1 244 L-1 185 Z" />
-        <Path d="M24 184 C32 202 30 232 22 251 L11 243 L5 185 Z" />
-        <Path d="M5 185 L10 244 L4 253 L1 244 L1 185 Z" />
+      <G onPress={() => onToggle("lower_back")} {...highlight(selected, "lower_back")}>
+        <Path d="M989 486 C963 512 946 550 949 591 L989 622 Z" />
+        <Path d="M999 486 C1025 512 1042 550 1039 591 L999 622 Z" />
       </G>
-      <Path d="M-22 250 L-13 255 L-4 253 L-8 262 L-22 262 Z" fill={bodyFill} stroke={bodyStroke} strokeWidth={1.1} />
-      <Path d="M22 250 L13 255 L4 253 L8 262 L22 262 Z" fill={bodyFill} stroke={bodyStroke} strokeWidth={1.1} />
 
-      <G onPress={() => onToggle("calves")} {...calves}>
-        <Path d="M-21 263 C-29 274 -29 297 -20 307 L-11 297 L-9 265 Z" />
-        <Path d="M21 263 C29 274 29 297 20 307 L11 297 L9 265 Z" />
-        <Path d="M-9 265 L-11 297 L-17 313 L-7 313 L-3 269 Z" />
-        <Path d="M9 265 L11 297 L17 313 L7 313 L3 269 Z" />
+      <G onPress={() => onToggle("glutes")} {...highlight(selected, "glutes")}>
+        <Path d="M989 576 C943 560 914 596 923 660 C944 685 972 680 989 652 Z" />
+        <Path d="M999 576 C1045 560 1074 596 1065 660 C1044 685 1016 680 999 652 Z" />
       </G>
-      <Path d="M-17 311 L-18 321 L-31 327 L-4 327 L-7 312 Z" fill={bodyFill} stroke={bodyStroke} strokeWidth={1.1} />
-      <Path d="M17 311 L18 321 L31 327 L4 327 L7 312 Z" fill={bodyFill} stroke={bodyStroke} strokeWidth={1.1} />
+
+      <G onPress={() => onToggle("hamstrings")} {...highlight(selected, "hamstrings")}>
+        <Path d="M931 661 C899 706 909 785 949 817 C977 783 984 710 972 657 Z" />
+        <Path d="M1057 661 C1089 706 1079 785 1039 817 C1011 783 1004 710 1016 657 Z" />
+      </G>
+
+      <G onPress={() => onToggle("calves")} {...highlight(selected, "calves")}>
+        <Path d="M940 812 C910 858 919 965 954 1004 C986 962 992 868 968 816 Z" />
+        <Path d="M1048 812 C1078 858 1069 965 1034 1004 C1002 962 996 868 1020 816 Z" />
+      </G>
     </G>
   );
 }
@@ -175,9 +125,10 @@ export function MuscleBodyFilter({ selected, onToggle, onClear }: Props) {
           <Text style={styles.bodyLabel}>FACE</Text>
           <Text style={styles.bodyLabel}>DOS</Text>
         </View>
-        <Svg viewBox="0 0 360 352" width="100%" height={316} accessibilityLabel="Anatomie musculaire neutre, face et dos">
-          <FrontBody selected={selected} onToggle={onToggle} />
-          <BackBody selected={selected} onToggle={onToggle} />
+        <Svg viewBox="0 0 1374 1145" width="100%" height={286} accessibilityLabel="Anatomie musculaire détaillée, face et dos">
+          <SvgImage href={anatomyImage} width={1374} height={1145} preserveAspectRatio="xMidYMid meet" />
+          <FrontHighlights selected={selected} onToggle={onToggle} />
+          <BackHighlights selected={selected} onToggle={onToggle} />
         </Svg>
       </View>
 
@@ -217,8 +168,8 @@ const styles = StyleSheet.create({
   helper: { color: colors.muted, fontSize: 12, lineHeight: 17 },
   clearButton: { minHeight: 36, justifyContent: "center", paddingHorizontal: 10, borderRadius: 999, backgroundColor: colors.surface3 },
   clearText: { color: colors.muted, fontSize: 12, fontWeight: "800" },
-  bodyMap: { position: "relative", alignSelf: "center", width: "100%", maxWidth: 390, backgroundColor: "rgba(255,255,255,0.018)", borderWidth: 1, borderColor: "rgba(255,255,255,0.035)", borderRadius: radius.md, overflow: "hidden" },
-  bodyLabelRow: { position: "absolute", zIndex: 1, top: 9, left: 0, right: 0, flexDirection: "row", justifyContent: "space-around" },
+  bodyMap: { position: "relative", alignSelf: "center", width: "100%", maxWidth: 390, backgroundColor: "#08090A", borderWidth: 1, borderColor: "rgba(255,255,255,0.06)", borderRadius: radius.md, overflow: "hidden" },
+  bodyLabelRow: { position: "absolute", zIndex: 1, top: 8, left: 0, right: 0, flexDirection: "row", justifyContent: "space-around" },
   bodyLabel: { color: colors.muted2, fontSize: 9, fontWeight: "900", letterSpacing: 1.6 },
   legend: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7 },
   legendSwatch: { width: 9, height: 9, borderRadius: 3, backgroundColor: colors.yellow, borderWidth: 1, borderColor: selectedStroke },
