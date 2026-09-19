@@ -33,8 +33,8 @@ const styles = StyleSheet.create({
   },
 
   compact: {
-    width: 154,
-    height: 142,
+    width: 142,
+    height: 132,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -45,7 +45,7 @@ const styles = StyleSheet.create({
   },
 
   logoCompact: {
-    width: 142,
-    height: 133,
+    width: 130,
+    height: 122,
   },
 });
