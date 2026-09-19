@@ -466,7 +466,9 @@ export async function getWorkoutTemplateDetail(workoutId: string) {
         id,
         name,
         category,
-        instructions
+        instructions,
+        image_url,
+        difficulty
       ),
       prescribed_sets (
         id,

@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import Svg, { Ellipse, G, Image as SvgImage, Path } from "react-native-svg";
+import Svg, { G, Image as SvgImage, Path } from "react-native-svg";
 import { BODY_GROUPS, BodyGroupKey } from "@/src/data/exercise-muscle-groups";
 import { colors, radius } from "@/src/theme";
 
@@ -26,8 +26,8 @@ function FrontHighlights({ selected, onToggle }: { selected: BodyGroupKey[]; onT
   return (
     <G>
       <G onPress={() => onToggle("shoulders")} {...highlight(selected, "shoulders")}>
-        <Ellipse cx={270} cy={283} rx={57} ry={67} rotation={24} origin="270 283" />
-        <Ellipse cx={507} cy={283} rx={57} ry={67} rotation={-24} origin="507 283" />
+        <Path d="M304 224 C270 224 238 248 233 282 C234 315 251 339 277 344 C291 322 302 286 318 250 Z" />
+        <Path d="M469 224 C503 224 535 248 540 282 C539 315 522 339 496 344 C482 322 471 286 455 250 Z" />
       </G>
 
       <G onPress={() => onToggle("chest")} {...highlight(selected, "chest")}>
@@ -64,8 +64,8 @@ function BackHighlights({ selected, onToggle }: { selected: BodyGroupKey[]; onTo
   return (
     <G>
       <G onPress={() => onToggle("shoulders")} {...highlight(selected, "shoulders")}>
-        <Ellipse cx={875} cy={284} rx={57} ry={68} rotation={24} origin="875 284" />
-        <Ellipse cx={1115} cy={284} rx={57} ry={68} rotation={-24} origin="1115 284" />
+        <Path d="M910 225 C876 225 843 249 838 283 C840 316 857 340 883 345 C897 322 908 286 924 251 Z" />
+        <Path d="M1078 225 C1112 225 1145 249 1150 283 C1148 316 1131 340 1105 345 C1091 322 1080 286 1064 251 Z" />
       </G>
 
       <G onPress={() => onToggle("back")} {...highlight(selected, "back")}>
