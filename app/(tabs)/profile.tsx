@@ -72,6 +72,12 @@ export default function ProfileScreen() {
       ) : null}
 
       <View style={{ height: 12 }} />
+      <PrimaryButton
+        label="MODIFIER MON PROFIL"
+        onPress={() => router.push("/edit-profile")}
+      />
+
+      <View style={{ height: 12 }} />
       <PrimaryButton label="SE DÉCONNECTER" onPress={signOut} />
     </ScrollView>
   );

@@ -11,6 +11,7 @@ import {
 import { router } from "expo-router";
 
 import { Card, ScreenHeader } from "@/src/components/ui";
+import { ProfileAvatar } from "@/src/components/profile-avatar";
 import { colors } from "@/src/theme";
 import { getCoachAthletes } from "@/src/lib/coachApi";
 
@@ -91,12 +92,10 @@ export default function CoachAthletesScreen() {
             }
           >
             <Card style={styles.athleteCard}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>
-                  {firstName.charAt(0).toUpperCase()}
-                  {lastName.charAt(0).toUpperCase()}
-                </Text>
-              </View>
+              <ProfileAvatar
+                name={`${firstName} ${lastName}`}
+                uri={profile?.avatar_url}
+              />
 
               <View style={styles.athleteInfo}>
                 <Text style={styles.athleteName}>
@@ -135,23 +134,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
-  },
-
-  avatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.yellow,
-    backgroundColor: colors.surface2,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  avatarText: {
-    color: colors.yellow,
-    fontSize: 17,
-    fontWeight: "900",
   },
 
   athleteInfo: {

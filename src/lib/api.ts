@@ -13,7 +13,7 @@ export async function getMyProfile() {
   const id = await currentUserId();
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, role, first_name, last_name, avatar_url")
+    .select("id, role, first_name, last_name, avatar_url, gender, age_years, height_cm, weight_kg")
     .eq("id", id)
     .single();
   if (error) throw error;

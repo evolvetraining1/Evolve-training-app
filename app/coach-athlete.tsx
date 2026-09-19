@@ -9,6 +9,7 @@ import {
 } from "react-native";
 
 import { Card, ScreenHeader } from "@/src/components/ui";
+import { ProfileAvatar } from "@/src/components/profile-avatar";
 import { colors } from "@/src/theme";
 import {
   getCoachAthleteOverview,
@@ -181,11 +182,20 @@ export default function CoachAthleteScreen() {
         <Text style={styles.backText}>‹ MES ATHLÈTES</Text>
       </Pressable>
 
-      <ScreenHeader
-        eyebrow="SUIVI ATHLÈTE"
-        title={athleteName || "Fiche athlète"}
-        subtitle="Analyse complète de l'activité et des performances."
-      />
+      <View style={styles.athleteHeader}>
+        <ProfileAvatar
+          name={athleteName}
+          uri={overview?.profile?.avatar_url}
+          size={68}
+        />
+        <View style={styles.athleteHeaderText}>
+          <ScreenHeader
+            eyebrow="SUIVI ATHLÈTE"
+            title={athleteName || "Fiche athlète"}
+            subtitle="Analyse complète de l'activité et des performances."
+          />
+        </View>
+      </View>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -475,6 +485,16 @@ const styles = StyleSheet.create({
     color: colors.yellow,
     fontWeight: "900",
     fontSize: 13,
+  },
+
+  athleteHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 14,
+  },
+
+  athleteHeaderText: {
+    flex: 1,
   },
 
   periods: {

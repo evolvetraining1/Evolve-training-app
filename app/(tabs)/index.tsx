@@ -511,6 +511,14 @@ export default function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      // Le profil est léger à recharger et peut avoir changé depuis l'onglet
+      // Profil (nom, sexe ou photo), même si le reste du dashboard est récent.
+      void getMyProfile()
+        .then(setProfile)
+        .catch((profileError) =>
+          console.warn("HOME PROFILE REFRESH ERROR", profileError)
+        );
+
       const stale =
         !lastHomeLoadAtRef.current ||
         Date.now() - lastHomeLoadAtRef.current > 120_000;
@@ -992,7 +1000,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
               </View>
             ) : null}
           </Pressable>
-          <View style={[styles.logoWrap, { top: Math.max(insets.top - 5, 20) }]}> 
+          <View style={[styles.logoWrap, { top: Math.max(insets.top - 5, 20) }]}>
             <BrandLogo compact />
           </View>
           <View style={styles.topbarSpacer} />
@@ -1071,7 +1079,15 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
               <Text style={styles.dashboardHandleText}>≡</Text>
             </Pressable>
           ) : null}
-          <Image source={require("@/assets/workout-male-faded.png")} style={styles.workoutImage} resizeMode="cover" />
+          <Image
+            source={
+              profile?.gender === "female"
+                ? require("@/assets/workout-female.jpg")
+                : require("@/assets/workout-male-faded.png")
+            }
+            style={styles.workoutImage}
+            resizeMode="cover"
+          />
           <View style={styles.imageShade} />
           <View style={styles.workoutContent}>
             <View style={styles.workoutHead}>
