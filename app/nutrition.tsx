@@ -9,7 +9,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import {
   CameraView,
   useCameraPermissions,
@@ -326,9 +326,11 @@ export default function NutritionScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load])
+  );
 
   const totals = useMemo(() => {
     return entries.reduce(
@@ -1231,6 +1233,30 @@ export default function NutritionScreen() {
         </View>
       </Card>
 
+      <Pressable
+        style={styles.aiPlateCard}
+        onPress={() =>
+          router.push({
+            pathname: "/nutrition-photo",
+            params: { mealType },
+          })
+        }
+      >
+        <View style={styles.aiPlateIcon}>
+          <Text style={styles.aiPlateIconText}>◎</Text>
+        </View>
+
+        <View style={styles.aiPlateCopy}>
+          <Text style={styles.aiPlateEyebrow}>ANALYSE IA</Text>
+          <Text style={styles.aiPlateTitle}>Photographier mon assiette</Text>
+          <Text style={styles.aiPlateSubtitle}>
+            Aliments, quantités et macros estimés, puis vérifiés par toi.
+          </Text>
+        </View>
+
+        <Text style={styles.aiPlateArrow}>›</Text>
+      </Pressable>
+
       <Card style={styles.diabetesCard}>
         <Pressable
           style={styles.diabetesHeader}
@@ -1855,6 +1881,57 @@ const styles = StyleSheet.create({
   },
   summaryCard: {
     marginBottom: 18,
+  },
+  aiPlateCard: {
+    minHeight: 112,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 13,
+    backgroundColor: "#151205",
+    borderWidth: 1,
+    borderColor: colors.yellow,
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 18,
+  },
+  aiPlateIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.yellow,
+  },
+  aiPlateIconText: {
+    color: colors.black,
+    fontSize: 27,
+    fontWeight: "900",
+  },
+  aiPlateCopy: {
+    flex: 1,
+  },
+  aiPlateEyebrow: {
+    color: colors.yellow,
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 1.4,
+  },
+  aiPlateTitle: {
+    color: colors.text,
+    fontSize: 17,
+    fontWeight: "900",
+    marginTop: 4,
+  },
+  aiPlateSubtitle: {
+    color: colors.muted,
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 4,
+  },
+  aiPlateArrow: {
+    color: colors.yellow,
+    fontSize: 31,
+    lineHeight: 34,
   },
 
   settingsTopRow: {

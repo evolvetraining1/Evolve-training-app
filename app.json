@@ -11,7 +11,20 @@
       "expo-audio",
       "expo-video",
       "expo-asset",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Evolve utilise tes photos uniquement pour estimer les aliments de ton repas.",
+          "cameraPermission": "Evolve utilise la caméra pour analyser ton assiette."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Evolve utilise la caméra pour scanner les produits et analyser les repas."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

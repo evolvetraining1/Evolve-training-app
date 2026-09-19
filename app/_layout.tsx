@@ -43,6 +43,7 @@ export default function RootLayout() {
               <Stack.Screen name="program" />
               <Stack.Screen name="program-workout" />
               <Stack.Screen name="nutrition" />
+              <Stack.Screen name="nutrition-photo" />
               <Stack.Screen name="messaging" />
               <Stack.Screen name="rm-calculator" />
               <Stack.Screen name="journal-trends" />
