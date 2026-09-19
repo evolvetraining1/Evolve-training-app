@@ -32,6 +32,7 @@ export type WellnessRoutine = {
   stress_weight: number;
   readiness_weight: number;
   sort_order: number;
+  created_by: string | null;
 };
 
 export type RoutineValue = {
@@ -155,6 +156,7 @@ export function routineQuality(
 
   if (routine.input_type === "boolean") {
     if (input.bool == null) return null;
+    if (routine.polarity === "neutral") return null;
     return routine.polarity === "lower_better"
       ? input.bool ? 0 : 1
       : input.bool ? 1 : 0;

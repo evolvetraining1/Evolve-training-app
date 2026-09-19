@@ -1,7 +1,8 @@
-import { router } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -14,6 +15,7 @@ import {
 import { PrimaryButton } from "@/src/components/ui";
 import { localDateString } from "@/src/lib/date";
 import {
+  archiveCustomRoutine,
   loadJournalDay,
   loadWellnessTrends,
   RoutinePreference,
@@ -107,6 +109,7 @@ export default function JournalScreen() {
   const [completedDates, setCompletedDates] = useState<Set<string>>(new Set());
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [scheduleById, setScheduleById] = useState<Record<string, number[]>>({});
   const [category, setCategory] = useState("all");
   const [search, setSearch] = useState("");
 
@@ -128,6 +131,10 @@ export default function JournalScreen() {
           .filter((routine) => routineIsEnabled(routine, day.preferences))
           .map((routine) => routine.id)
       );
+      setScheduleById(Object.fromEntries(day.catalog.map((routine) => {
+        const preference = day.preferences.find((row) => row.routine_id === routine.id);
+        return [routine.id, preference?.scheduled_days?.length ? preference.scheduled_days : [0, 1, 2, 3, 4, 5, 6]];
+      })));
       setCompletedDates(new Set(trends.filter((row) => row.completion_score > 0).map((row) => row.score_date)));
     } catch (error: any) {
       setMessage(error?.message ?? "Impossible de charger le journal.");
@@ -136,9 +143,9 @@ export default function JournalScreen() {
     }
   }, [selectedDate]);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     void load();
-  }, [load]);
+  }, [load]));
 
   const activeRoutines = useMemo(
     () => routinesForDate(catalog, preferences, selectedDate),
@@ -161,6 +168,13 @@ export default function JournalScreen() {
     () => calculateWellnessScores(activeRoutines, effectiveValues, baseline),
     [activeRoutines, effectiveValues, baseline]
   );
+
+  const dailyAdvice = useMemo(() => {
+    if (scores.readiness == null) return "Complète les données principales pour obtenir une recommandation du jour.";
+    if (scores.readiness >= 75) return "Disponibilité élevée : séance prévue possible si elle respecte ton plan et tes consignes médicales.";
+    if (scores.readiness >= 50) return "Disponibilité modérée : conserve la séance mais ajuste le volume selon tes sensations.";
+    return "Disponibilité basse : privilégie technique, mobilité ou récupération et évite de forcer aujourd’hui.";
+  }, [scores.readiness]);
 
   const dateStrip = useMemo(() => {
     const center = parseDate(selectedDate);
@@ -210,7 +224,7 @@ export default function JournalScreen() {
   async function saveCatalog() {
     try {
       setCatalogSaving(true);
-      await saveRoutinePreferences(catalog, selectedIds, preferences);
+      await saveRoutinePreferences(catalog, selectedIds, preferences, scheduleById);
       setCatalogOpen(false);
       await load();
     } catch (error: any) {
@@ -218,6 +232,36 @@ export default function JournalScreen() {
     } finally {
       setCatalogSaving(false);
     }
+  }
+
+  function toggleScheduledDay(routineId: string, day: number) {
+    setScheduleById((current) => {
+      const days = current[routineId] ?? [0, 1, 2, 3, 4, 5, 6];
+      if (days.includes(day) && days.length === 1) return current;
+      return {
+        ...current,
+        [routineId]: days.includes(day)
+          ? days.filter((value) => value !== day)
+          : [...days, day].sort((a, b) => a - b),
+      };
+    });
+  }
+
+  function confirmArchive(routine: WellnessRoutine) {
+    Alert.alert(
+      "Retirer cette habitude ?",
+      "Elle disparaîtra du journal, mais les anciennes réponses et tendances resteront conservées.",
+      [
+        { text: "Annuler", style: "cancel" },
+        {
+          text: "Retirer",
+          style: "destructive",
+          onPress: () => void archiveCustomRoutine(routine.id)
+            .then(load)
+            .catch((error: any) => setMessage(error?.message ?? "Impossible de retirer cette habitude.")),
+        },
+      ]
+    );
   }
 
   if (loading) {
@@ -285,6 +329,14 @@ export default function JournalScreen() {
           <Text style={styles.confidenceText}>{scores.answered}/{scores.expected} réponses · complète les données principales pour améliorer la précision.</Text>
         </View>
 
+        <View style={styles.coachCard}>
+          <View style={[styles.coachAccent, { backgroundColor: scoreColor(scores.readiness) }]} />
+          <View style={{ flex: 1, gap: 4 }}>
+            <Text style={styles.coachLabel}>REPÈRE DU JOUR</Text>
+            <Text style={styles.coachText}>{dailyAdvice}</Text>
+          </View>
+        </View>
+
         {scores.drivers.length ? (
           <View style={styles.driversCard}>
             <Text style={styles.blockEyebrow}>FACTEURS DU JOUR</Text>
@@ -304,6 +356,14 @@ export default function JournalScreen() {
             <Text style={styles.sectionSubtitle}>Réponds rapidement, puis termine ton journal.</Text>
           </View>
           <Pressable style={styles.editButton} onPress={() => setCatalogOpen(true)}><Text style={styles.editButtonText}>MODIFIER</Text></Pressable>
+        </View>
+
+        <View style={styles.completionRow}>
+          <Text style={styles.completionText}>{scores.answered}/{scores.expected} RÉPONSES</Text>
+          <View style={styles.completionTrack}>
+            <View style={[styles.completionFill, { width: `${scores.completion}%` }]} />
+          </View>
+          <Text style={styles.completionPercent}>{scores.completion}%</Text>
         </View>
 
         {activeRoutines.map((routine) => (
@@ -346,6 +406,21 @@ export default function JournalScreen() {
               <Pressable style={styles.closeButton} onPress={() => setCatalogOpen(false)}><Text style={styles.closeText}>×</Text></Pressable>
             </View>
 
+            <Pressable
+              style={styles.createButton}
+              onPress={() => {
+                setCatalogOpen(false);
+                router.push("/journal-routine-new" as never);
+              }}
+            >
+              <Text style={styles.createButtonPlus}>＋</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.createButtonTitle}>CRÉER UNE HABITUDE</Text>
+                <Text style={styles.createButtonText}>Question, objectif et jours entièrement personnalisables</Text>
+              </View>
+              <Text style={styles.createButtonArrow}>›</Text>
+            </Pressable>
+
             <TextInput value={search} onChangeText={setSearch} placeholder="Rechercher un comportement…" placeholderTextColor={colors.muted2} style={styles.searchInput} />
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categories}>
@@ -362,14 +437,42 @@ export default function JournalScreen() {
             <ScrollView contentContainerStyle={styles.catalogList} keyboardShouldPersistTaps="handled">
               {filteredCatalog.map((routine) => {
                 const selected = selectedIds.includes(routine.id);
+                const days = scheduleById[routine.id] ?? [0, 1, 2, 3, 4, 5, 6];
                 return (
-                  <Pressable key={routine.id} onPress={() => setSelectedIds((current) => selected ? current.filter((id) => id !== routine.id) : [...current, routine.id])} style={styles.catalogRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.catalogName}>{routine.name}</Text>
-                      <Text style={styles.catalogDescription}>{routine.description ?? CATEGORY_LABELS[routine.category]}</Text>
-                    </View>
-                    <View style={[styles.checkbox, selected && styles.checkboxSelected]}>{selected ? <Text style={styles.checkboxMark}>✓</Text> : null}</View>
-                  </Pressable>
+                  <View key={routine.id} style={styles.catalogRow}>
+                    <Pressable onPress={() => setSelectedIds((current) => selected ? current.filter((id) => id !== routine.id) : [...current, routine.id])} style={styles.catalogChoice}>
+                      <View style={{ flex: 1 }}>
+                        <View style={styles.catalogTitleRow}>
+                          <Text style={styles.catalogName}>{routine.name}</Text>
+                          {routine.created_by ? <Text style={styles.personalBadge}>PERSONNELLE</Text> : null}
+                        </View>
+                        <Text style={styles.catalogDescription}>{routine.description ?? CATEGORY_LABELS[routine.category]}</Text>
+                      </View>
+                      <View style={[styles.checkbox, selected && styles.checkboxSelected]}>{selected ? <Text style={styles.checkboxMark}>✓</Text> : null}</View>
+                    </Pressable>
+
+                    {selected ? (
+                      <View style={styles.scheduleBlock}>
+                        <Text style={styles.scheduleLabel}>JOURS DE SUIVI</Text>
+                        <View style={styles.scheduleDays}>
+                          {DAY_SHORT.map((label, day) => {
+                            const active = days.includes(day);
+                            return (
+                              <Pressable key={`${routine.id}-${day}`} onPress={() => toggleScheduledDay(routine.id, day)} style={[styles.dayButton, active && styles.dayButtonActive]}>
+                                <Text style={[styles.dayButtonText, active && styles.dayButtonTextActive]}>{label}</Text>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                      </View>
+                    ) : null}
+
+                    {routine.created_by ? (
+                      <Pressable style={styles.archiveButton} onPress={() => confirmArchive(routine)}>
+                        <Text style={styles.archiveButtonText}>RETIRER CETTE HABITUDE</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
                 );
               })}
             </ScrollView>
@@ -467,6 +570,10 @@ const styles = StyleSheet.create({
   progressTrack: { height: 6, borderRadius: 3, backgroundColor: colors.surface3, overflow: "hidden" },
   progressFill: { height: "100%", borderRadius: 3, backgroundColor: colors.yellow },
   confidenceText: { color: colors.muted2, fontSize: 11, lineHeight: 16 },
+  coachCard: { flexDirection: "row", gap: 12, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: "rgba(11,11,12,0.94)", padding: 14 },
+  coachAccent: { width: 5, borderRadius: 3 },
+  coachLabel: { color: colors.yellow, fontSize: 9, fontWeight: "900", letterSpacing: 1.2 },
+  coachText: { color: colors.text, fontSize: 13, lineHeight: 19, fontWeight: "700" },
   driversCard: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, backgroundColor: "rgba(9,9,10,0.94)", padding: 16, gap: 11 },
   blockEyebrow: { color: colors.yellow, fontSize: 11, fontWeight: "900", letterSpacing: 1.5 },
   driverRow: { flexDirection: "row", alignItems: "center", gap: 9 },
@@ -478,6 +585,11 @@ const styles = StyleSheet.create({
   sectionSubtitle: { color: colors.muted, fontSize: 12, lineHeight: 17, marginTop: 3 },
   editButton: { borderWidth: 1, borderColor: colors.yellow, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 9 },
   editButtonText: { color: colors.yellow, fontSize: 9, fontWeight: "900", letterSpacing: 0.8 },
+  completionRow: { flexDirection: "row", alignItems: "center", gap: 9, borderRadius: 999, backgroundColor: "rgba(255,255,255,0.04)", paddingHorizontal: 12, minHeight: 40 },
+  completionText: { color: colors.muted, fontSize: 9, fontWeight: "900", letterSpacing: 0.7 },
+  completionTrack: { flex: 1, height: 5, borderRadius: 3, backgroundColor: colors.surface3, overflow: "hidden" },
+  completionFill: { height: "100%", borderRadius: 3, backgroundColor: colors.yellow },
+  completionPercent: { minWidth: 31, color: colors.yellow, fontSize: 10, textAlign: "right", fontWeight: "900", fontVariant: ["tabular-nums"] },
   questionCard: { borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: "rgba(13,13,14,0.95)", padding: 16, gap: 9 },
   questionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   categoryBadge: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 5, backgroundColor: "rgba(255,196,0,0.1)" },
@@ -516,6 +628,11 @@ const styles = StyleSheet.create({
   modalSubtitle: { color: colors.muted, fontSize: 12, marginTop: 4 },
   closeButton: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.surface3, alignItems: "center", justifyContent: "center" },
   closeText: { color: colors.text, fontSize: 27, lineHeight: 28 },
+  createButton: { minHeight: 76, flexDirection: "row", alignItems: "center", gap: 11, borderRadius: radius.md, borderWidth: 1, borderColor: colors.yellow, backgroundColor: "rgba(255,196,0,0.09)", paddingHorizontal: 14 },
+  createButtonPlus: { color: colors.yellow, fontSize: 27, fontWeight: "600" },
+  createButtonTitle: { color: colors.yellow, fontSize: 11, fontWeight: "900", letterSpacing: 1 },
+  createButtonText: { color: colors.muted, fontSize: 11, lineHeight: 16, marginTop: 3 },
+  createButtonArrow: { color: colors.yellow, fontSize: 28 },
   searchInput: { minHeight: 54, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: "#090D10", color: colors.text, paddingHorizontal: 16, fontSize: 15, fontWeight: "700" },
   categories: { gap: 8, paddingRight: 20 },
   categoryChip: { borderRadius: 999, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: colors.surface2 },
@@ -523,9 +640,21 @@ const styles = StyleSheet.create({
   categoryChipText: { color: colors.muted, fontSize: 9, fontWeight: "900", letterSpacing: 0.7 },
   categoryChipTextActive: { color: colors.yellow },
   catalogList: { paddingBottom: 16 },
-  catalogRow: { minHeight: 72, flexDirection: "row", alignItems: "center", gap: 14, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.07)", paddingVertical: 12 },
+  catalogRow: { minHeight: 72, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.07)", paddingVertical: 10, gap: 10 },
+  catalogChoice: { minHeight: 58, flexDirection: "row", alignItems: "center", gap: 14 },
+  catalogTitleRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 7 },
   catalogName: { color: colors.text, fontSize: 16, fontWeight: "800" },
+  personalBadge: { color: colors.yellow, fontSize: 7, fontWeight: "900", letterSpacing: 0.7, borderRadius: 999, borderWidth: 1, borderColor: "rgba(255,196,0,0.45)", paddingHorizontal: 6, paddingVertical: 3 },
   catalogDescription: { color: colors.muted, fontSize: 12, lineHeight: 17, marginTop: 3 },
+  scheduleBlock: { gap: 7, paddingBottom: 4 },
+  scheduleLabel: { color: colors.muted2, fontSize: 8, fontWeight: "900", letterSpacing: 1 },
+  scheduleDays: { flexDirection: "row", justifyContent: "space-between", gap: 6 },
+  dayButton: { flex: 1, height: 34, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2, alignItems: "center", justifyContent: "center" },
+  dayButtonActive: { borderColor: colors.yellow, backgroundColor: "rgba(255,196,0,0.13)" },
+  dayButtonText: { color: colors.muted2, fontSize: 10, fontWeight: "900" },
+  dayButtonTextActive: { color: colors.yellow },
+  archiveButton: { alignSelf: "flex-start", paddingVertical: 5 },
+  archiveButtonText: { color: colors.red, fontSize: 8, fontWeight: "900", letterSpacing: 0.7 },
   checkbox: { width: 28, height: 28, borderRadius: 6, borderWidth: 2, borderColor: colors.muted, alignItems: "center", justifyContent: "center" },
   checkboxSelected: { borderColor: colors.yellow, backgroundColor: colors.yellow },
   checkboxMark: { color: colors.black, fontSize: 17, fontWeight: "900" },

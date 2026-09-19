@@ -2,6 +2,8 @@ import { localDateString } from "@/src/lib/date";
 import { supabase } from "@/src/lib/supabase";
 import {
   buildBaselines,
+  RoutineInputType,
+  RoutinePolarity,
   RoutineValue,
   WellnessRoutine,
   WellnessScores,
@@ -23,6 +25,18 @@ export type WellnessTrendRow = {
   habit_score: number | null;
   completion_score: number;
   confidence_score: number;
+};
+
+export type CustomRoutineDraft = {
+  name: string;
+  description: string;
+  category: string;
+  inputType: RoutineInputType;
+  unit: string;
+  polarity: RoutinePolarity;
+  target: number | null;
+  impact: "habit" | "recovery" | "stress";
+  scheduledDays: number[];
 };
 
 async function currentUser() {
@@ -71,7 +85,7 @@ export async function loadJournalDay(date: string) {
     await Promise.all([
       supabase
         .from("routine_catalog")
-        .select("id, slug, name, category, input_type, unit, description, default_enabled, polarity, target_min, target_max, recovery_weight, stress_weight, readiness_weight, sort_order")
+        .select("id, slug, name, category, input_type, unit, description, default_enabled, polarity, target_min, target_max, recovery_weight, stress_weight, readiness_weight, sort_order, created_by")
         .eq("active", true)
         .order("sort_order", { ascending: true }),
       supabase
@@ -132,7 +146,8 @@ export async function loadJournalDay(date: string) {
 export async function saveRoutinePreferences(
   catalog: WellnessRoutine[],
   selectedIds: string[],
-  existing: RoutinePreference[]
+  existing: RoutinePreference[],
+  schedules: Record<string, number[]> = {}
 ) {
   const user = await currentUser();
   const rows = catalog.map((routine, index) => {
@@ -142,9 +157,11 @@ export async function saveRoutinePreferences(
       routine_id: routine.id,
       enabled: selectedIds.includes(routine.id),
       target_value: previous?.target_value ?? null,
-      scheduled_days: previous?.scheduled_days?.length
-        ? previous.scheduled_days
-        : [0, 1, 2, 3, 4, 5, 6],
+      scheduled_days: schedules[routine.id]?.length
+        ? schedules[routine.id]
+        : previous?.scheduled_days?.length
+          ? previous.scheduled_days
+          : [0, 1, 2, 3, 4, 5, 6],
       position: previous?.position ?? index,
       updated_at: new Date().toISOString(),
     };
@@ -153,6 +170,84 @@ export async function saveRoutinePreferences(
   const { error } = await supabase
     .from("user_routines")
     .upsert(rows, { onConflict: "athlete_id,routine_id" });
+  if (error) throw error;
+}
+
+export async function createCustomRoutine(input: CustomRoutineDraft) {
+  const user = await currentUser();
+  const name = input.name.trim();
+  const description = input.description.trim();
+  if (name.length < 2 || name.length > 80) {
+    throw new Error("Le nom doit contenir entre 2 et 80 caractères.");
+  }
+  if (!input.scheduledDays.length) {
+    throw new Error("Sélectionne au moins un jour.");
+  }
+
+  const numericInput = ["number", "minutes", "hours", "count"].includes(input.inputType);
+  if (numericInput && input.polarity !== "neutral" && input.target == null) {
+    throw new Error("Ajoute un objectif pour que cette habitude puisse être évaluée.");
+  }
+
+  const targetMin = input.polarity === "higher_better" ? input.target : null;
+  const targetMax = input.polarity === "lower_better" ? input.target : null;
+  const recoveryWeight = input.impact === "recovery" ? 0.75 : 0;
+  const stressWeight = input.impact === "stress" ? 0.75 : input.impact === "recovery" ? 0.25 : 0;
+  const readinessWeight = input.impact === "habit" ? 0.25 : 0.5;
+  const slug = `custom:${user.id}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
+
+  const { data: routine, error: routineError } = await supabase
+    .from("routine_catalog")
+    .insert({
+      slug,
+      name,
+      category: input.category,
+      input_type: input.inputType,
+      unit: input.unit.trim() || null,
+      description: description || null,
+      default_enabled: false,
+      polarity: input.polarity,
+      target_min: targetMin,
+      target_max: targetMax,
+      recovery_weight: recoveryWeight,
+      stress_weight: stressWeight,
+      readiness_weight: readinessWeight,
+      sort_order: 1000,
+      active: true,
+      created_by: user.id,
+      updated_at: new Date().toISOString(),
+    })
+    .select("id")
+    .single();
+  if (routineError) throw routineError;
+
+  const { error: preferenceError } = await supabase
+    .from("user_routines")
+    .insert({
+      athlete_id: user.id,
+      routine_id: routine.id,
+      enabled: true,
+      target_value: input.target,
+      scheduled_days: input.scheduledDays,
+      position: 1000,
+      updated_at: new Date().toISOString(),
+    });
+
+  if (preferenceError) {
+    await supabase.from("routine_catalog").delete().eq("id", routine.id);
+    throw preferenceError;
+  }
+
+  return routine.id as string;
+}
+
+export async function archiveCustomRoutine(routineId: string) {
+  const user = await currentUser();
+  const { error } = await supabase
+    .from("routine_catalog")
+    .update({ active: false, updated_at: new Date().toISOString() })
+    .eq("id", routineId)
+    .eq("created_by", user.id);
   if (error) throw error;
 }
 

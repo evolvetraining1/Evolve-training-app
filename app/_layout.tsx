@@ -46,6 +46,7 @@ export default function RootLayout() {
               <Stack.Screen name="messaging" />
               <Stack.Screen name="rm-calculator" />
               <Stack.Screen name="journal-trends" />
+              <Stack.Screen name="journal-routine-new" options={{ presentation: "modal" }} />
               <Stack.Screen name="exercise/[id]" />
               <Stack.Screen name="coach" />
               <Stack.Screen name="coach-workout" />
