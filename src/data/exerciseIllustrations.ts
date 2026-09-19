@@ -18,6 +18,7 @@ const localIllustrations: Record<string, ImageSourcePropType> = {
   "single arm band rowing": require("../../assets/exercises/single-arm-band-rowing.jpg"),
   "single leg deadlift": require("../../assets/exercises/single-leg-deadlift.jpg"),
   "single leg extension": require("../../assets/exercises/single-leg-extension.jpg"),
+  "one leg ghd back extension": require("../../assets/exercises/single-leg-ghd-hip-extension.jpg"),
   "single leg ghd hip extension": require("../../assets/exercises/single-leg-ghd-hip-extension.jpg"),
   "single leg glute bridge": require("../../assets/exercises/single-leg-glute-bridge.jpg"),
   "single leg ischio flexion": require("../../assets/exercises/single-leg-ischio-flexion.jpg"),
