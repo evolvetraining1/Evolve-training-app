@@ -9,6 +9,7 @@ import {
 } from "react-native";
 
 import { colors } from "@/src/theme";
+import { TAB_HEADER_TOP } from "@/src/components/ui";
 
 const PROGRAMS = [
   {
@@ -135,7 +136,7 @@ const styles = StyleSheet.create({
 
   page: {
     paddingHorizontal: 22,
-    paddingTop: 18,
+    paddingTop: TAB_HEADER_TOP,
     paddingBottom: 110,
   },
 

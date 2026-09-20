@@ -11,10 +11,10 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { router, useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 
-import { Card, Label, PrimaryButton, ScreenHeader } from "@/src/components/ui";
+import { Card, Label, PrimaryButton, ScreenHeader, goBackOrReplace } from "@/src/components/ui";
 import { localDateString } from "@/src/lib/date";
 import { supabase } from "@/src/lib/supabase";
 import { colors } from "@/src/theme";
@@ -317,7 +317,7 @@ export default function NutritionPhotoScreen() {
         .eq("id", analysisId);
       if (updateError) console.warn("NUTRITION_AI_ANALYSIS_UPDATE", updateError.message);
 
-      router.back();
+      goBackOrReplace();
     } catch (error) {
       setMessage(errorMessage(error));
     } finally {
@@ -334,7 +334,7 @@ export default function NutritionPhotoScreen() {
         contentContainerStyle={styles.page}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.back} onPress={() => router.back()}>
+        <Text style={styles.back} onPress={() => goBackOrReplace()}>
           ← RETOUR
         </Text>
 

@@ -1,4 +1,3 @@
-import { router } from "expo-router";
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
@@ -10,7 +9,7 @@ import {
   View,
 } from "react-native";
 
-import { PrimaryButton } from "@/src/components/ui";
+import { PrimaryButton, goBackOrReplace } from "@/src/components/ui";
 import { createCustomRoutine } from "@/src/lib/wellness-api";
 import { RoutineInputType, RoutinePolarity } from "@/src/lib/wellness";
 import { colors, radius } from "@/src/theme";
@@ -106,7 +105,7 @@ export default function NewJournalRoutineScreen() {
         impact: scored ? impact : "habit",
         scheduledDays,
       });
-      router.back();
+      goBackOrReplace();
     } catch (nextError: any) {
       setError(nextError?.message ?? "Impossible de créer cette habitude.");
     } finally {
@@ -121,7 +120,7 @@ export default function NewJournalRoutineScreen() {
       contentContainerStyle={styles.page}
     >
       <View style={styles.header}>
-        <Pressable style={styles.backButton} onPress={() => router.back()}>
+        <Pressable style={styles.backButton} onPress={() => goBackOrReplace()}>
           <Text style={styles.backText}>‹</Text>
         </Pressable>
         <View style={{ flex: 1 }}>

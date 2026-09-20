@@ -15,7 +15,7 @@ import Svg, {
   Text as SvgText,
 } from "react-native-svg";
 import { router, useLocalSearchParams } from "expo-router";
-import { Card, ScreenHeader } from "@/src/components/ui";
+import { Card, ScreenHeader, goBackOrReplace } from "@/src/components/ui";
 import { colors } from "@/src/theme";
 import { supabase } from "@/src/lib/supabase";
 import { getCoachAthleteStepsHistory } from "@/src/lib/coachApi";
@@ -96,7 +96,7 @@ export default function CoachAthleteStepsScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.page}>
-      <Pressable onPress={() => router.back()} style={styles.backButton}>
+      <Pressable onPress={() => goBackOrReplace()} style={styles.backButton}>
         <Text style={styles.backText}>‹ RETOUR ATHLÈTE</Text>
       </Pressable>
 

@@ -13,6 +13,7 @@ import {
 } from "react-native";
 
 import { colors } from "@/src/theme";
+import { goBackOrReplace } from "@/src/components/ui";
 
 const PROGRAMS = {
   "tactical-reconditioning": {
@@ -124,7 +125,7 @@ export default function ProgramCheckoutScreen() {
 
         <Pressable
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={() => goBackOrReplace()}
         >
           <Text style={styles.backText}>
             ← RETOUR
@@ -148,7 +149,7 @@ export default function ProgramCheckoutScreen() {
       >
         <Pressable
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={() => goBackOrReplace()}
         >
           <Text style={styles.backText}>
             ← RETOUR

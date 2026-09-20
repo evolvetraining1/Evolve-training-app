@@ -15,7 +15,6 @@ import {
 } from "react-native";
 
 import {
-  router,
   useLocalSearchParams,
 } from "expo-router";
 
@@ -25,6 +24,7 @@ import Svg, {
   Polyline,
   Text as SvgText,
 } from "react-native-svg";
+import { goBackOrReplace } from "@/src/components/ui";
 
 import { colors } from "@/src/theme";
 import { getExercisePerformanceHistory } from "@/src/lib/api";
@@ -121,7 +121,7 @@ export default function PerformanceChartScreen() {
           Mouvement introuvable
         </Text>
 
-        <Pressable onPress={() => router.back()}>
+        <Pressable onPress={() => goBackOrReplace()}>
           <Text style={styles.back}>
             ← RETOUR
           </Text>
@@ -214,7 +214,7 @@ export default function PerformanceChartScreen() {
 
         <Pressable
           style={styles.close}
-          onPress={() => router.back()}
+          onPress={() => goBackOrReplace()}
         >
           <Text style={styles.closeText}>
             FERMER ✕

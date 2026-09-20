@@ -1,4 +1,3 @@
-import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -13,6 +12,7 @@ import Svg, { Circle, Line, Path } from "react-native-svg";
 
 import { loadWellnessTrends, WellnessTrendRow } from "@/src/lib/wellness-api";
 import { colors, radius } from "@/src/theme";
+import { goBackOrReplace } from "@/src/components/ui";
 
 type MetricKey = "recovery_score" | "stress_score" | "readiness_score" | "habit_score";
 type PeriodKey = "S" | "M" | "6M";
@@ -94,7 +94,7 @@ export default function JournalTrendsScreen() {
   return (
     <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={styles.page}>
       <View style={styles.header}>
-        <Pressable style={styles.backButton} onPress={() => router.back()}><Text style={styles.backText}>‹</Text></Pressable>
+        <Pressable style={styles.backButton} onPress={() => goBackOrReplace()}><Text style={styles.backText}>‹</Text></Pressable>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>JOURNAL EVOLVE</Text>
           <Text style={styles.title}>TENDANCES</Text>

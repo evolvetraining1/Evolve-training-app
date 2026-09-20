@@ -17,7 +17,7 @@ import {
 import * as ImagePicker from "expo-image-picker";
 
 
-import { Card, Label, PrimaryButton, ScreenHeader } from "@/src/components/ui";
+import { BackScreenHeader, Card, Label, PrimaryButton } from "@/src/components/ui";
 import { colors } from "@/src/theme";
 import { supabase } from "@/src/lib/supabase";
 import { localDateString } from "@/src/lib/date";
@@ -1056,11 +1056,7 @@ export default function NutritionScreen() {
       contentContainerStyle={styles.page}
       keyboardShouldPersistTaps="handled"
     >
-      <Text style={styles.back} onPress={() => router.back()}>
-        ← RETOUR
-      </Text>
-
-      <ScreenHeader
+      <BackScreenHeader
         eyebrow="EVOLVE TRAINING"
         title="Suivi nutrition"
         subtitle="Tes apports réels de la journée."

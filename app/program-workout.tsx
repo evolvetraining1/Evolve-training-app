@@ -14,6 +14,7 @@ import {
 import { colors } from "@/src/theme";
 import { getWorkoutTemplateDetail } from "@/src/lib/api";
 import { getExerciseIllustration } from "@/src/data/exerciseIllustrations";
+import { goBackOrReplace } from "@/src/components/ui";
 
 function displaySet(set: any) {
   const parts: string[] = [];
@@ -192,7 +193,7 @@ export default function ProgramWorkoutScreen() {
 
         <Text
           style={styles.back}
-          onPress={() => router.back()}
+          onPress={() => goBackOrReplace()}
         >
           ← RETOUR
         </Text>
@@ -205,7 +206,7 @@ export default function ProgramWorkoutScreen() {
       style={styles.screen}
       contentContainerStyle={styles.page}
     >
-      <Text style={styles.back} onPress={() => router.back()}>
+      <Text style={styles.back} onPress={() => goBackOrReplace()}>
         ← RETOUR
       </Text>
 

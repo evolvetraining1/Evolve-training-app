@@ -9,10 +9,11 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { router, useFocusEffect } from "expo-router";
+import { useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Svg, { Circle, Line, Polyline, Text as SvgText } from "react-native-svg";
+import Svg, { Circle, Line, Polyline, Rect, Text as SvgText } from "react-native-svg";
 
+import { BackButton } from "@/src/components/ui";
 import { colors } from "@/src/theme";
 import { supabase } from "@/src/lib/supabase";
 import { DailySteps, getStepsHistory } from "@/src/lib/steps-storage";
@@ -20,8 +21,14 @@ import { getStoredDailySteps, probePedometer, watchTodaySteps } from "@/src/lib/
 import { getMyStepsHistory, syncMyDailySteps } from "@/src/lib/steps-cloud";
 import { localDateString } from "@/src/lib/date";
 
-type Tab = "workouts" | "nutrition";
 type Range = 7 | 30 | 90;
+type StepsPeriod = "day" | "week" | "month" | "year";
+
+type StepsChartPoint = {
+  key: string;
+  label: string;
+  value: number;
+};
 
 type WorkoutHistoryItem = {
   id: string;
@@ -100,6 +107,77 @@ function compactPrescription(notes?: string | null) {
 function formatLoad(value: unknown) {
   const load = Number(value ?? 0);
   return Number.isInteger(load) ? String(load) : load.toFixed(1).replace(".", ",");
+}
+
+function dateAtNoon(value: string | Date) {
+  if (value instanceof Date) {
+    return new Date(value.getFullYear(), value.getMonth(), value.getDate(), 12);
+  }
+  return new Date(`${value}T12:00:00`);
+}
+
+function addDays(value: Date, days: number) {
+  const next = dateAtNoon(value);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function startOfWeek(value: Date) {
+  const date = dateAtNoon(value);
+  const mondayOffset = date.getDay() === 0 ? -6 : 1 - date.getDay();
+  return addDays(date, mondayOffset);
+}
+
+function stepsPeriodBounds(period: StepsPeriod, offset: number) {
+  const today = dateAtNoon(new Date());
+  let start = today;
+  let naturalEnd = today;
+
+  if (period === "day") {
+    start = addDays(today, offset);
+    naturalEnd = start;
+  } else if (period === "week") {
+    start = addDays(startOfWeek(today), offset * 7);
+    naturalEnd = addDays(start, 6);
+  } else if (period === "month") {
+    start = new Date(today.getFullYear(), today.getMonth() + offset, 1, 12);
+    naturalEnd = new Date(start.getFullYear(), start.getMonth() + 1, 0, 12);
+  } else {
+    start = new Date(today.getFullYear() + offset, 0, 1, 12);
+    naturalEnd = new Date(start.getFullYear(), 11, 31, 12);
+  }
+
+  const end = offset === 0 && naturalEnd > today ? today : naturalEnd;
+  return { start, end };
+}
+
+function formatPeriodTitle(period: StepsPeriod, start: Date, end: Date) {
+  if (period === "day") {
+    return start.toLocaleDateString("fr-FR", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+  }
+
+  if (period === "year") return String(start.getFullYear());
+
+  const startLabel = start.toLocaleDateString("fr-FR", {
+    day: "numeric",
+    month: "short",
+  });
+  const endLabel = end.toLocaleDateString("fr-FR", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+  return `${startLabel} – ${endLabel}`;
+}
+
+function averageSteps(data: DailySteps[]) {
+  if (!data.length) return 0;
+  return Math.round(data.reduce((sum, item) => sum + item.steps, 0) / data.length);
 }
 
 function NutritionTrendChart({ data }: { data: NutritionDay[] }) {
@@ -226,45 +304,47 @@ function NutritionTrendChart({ data }: { data: NutritionDay[] }) {
 }
 
 
-function StepsTrendChart({ data }: { data: DailySteps[] }) {
+function StepsTrendChart({
+  data,
+  average,
+}: {
+  data: StepsChartPoint[];
+  average: number;
+}) {
   const { width: windowWidth } = useWindowDimensions();
-  const width = Math.max(windowWidth - 72, 260);
-  const height = 230;
-  const left = 48;
-  const right = 14;
-  const top = 20;
-  const bottom = 34;
+  const viewportWidth = Math.max(windowWidth - 72, 260);
+  const left = 50;
+  const right = 12;
+  const top = 24;
+  const bottom = 42;
+  const height = 250;
+  const minimumBarSlot = data.length > 12 ? 29 : 34;
+  const width = Math.max(
+    viewportWidth,
+    left + right + data.length * minimumBarSlot
+  );
 
-  const points = [...data]
-    .filter((item) => item.date && Number.isFinite(item.steps))
-    .sort((a, b) => a.date.localeCompare(b.date));
-
-  if (points.length < 2) {
+  if (!data.length) {
     return (
       <View style={styles.chartEmpty}>
         <Text style={styles.muted}>
-          Pas encore assez de jours enregistrés pour tracer une courbe.
+          Aucune donnée de pas pour cette période.
         </Text>
       </View>
     );
   }
 
-  const values = points.map((item) => item.steps);
+  const values = data.map((item) => item.value);
   const maxValue = Math.max(1000, ...values);
-  const roundedMax = Math.ceil(maxValue / 1000) * 1000;
+  const roundedMax = Math.ceil(maxValue / 5000) * 5000;
 
   const graphWidth = width - left - right;
   const graphHeight = height - top - bottom;
-
-  const x = (index: number) =>
-    left + (index / Math.max(points.length - 1, 1)) * graphWidth;
+  const slotWidth = graphWidth / Math.max(data.length, 1);
+  const barWidth = Math.max(7, Math.min(18, slotWidth * 0.58));
 
   const y = (value: number) =>
     top + ((roundedMax - value) / roundedMax) * graphHeight;
-
-  const linePoints = points
-    .map((item, index) => `${x(index)},${y(item.steps)}`)
-    .join(" ");
 
   const gridValues = [
     roundedMax,
@@ -274,8 +354,14 @@ function StepsTrendChart({ data }: { data: DailySteps[] }) {
     0,
   ];
 
+  const averageY = y(Math.min(average, roundedMax));
+
   return (
-    <View style={styles.chartShell}>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.stepsChartScroll}
+    >
       <Svg width={width} height={height}>
         {gridValues.map((value, index) => {
           const gy = y(value);
@@ -304,46 +390,52 @@ function StepsTrendChart({ data }: { data: DailySteps[] }) {
           );
         })}
 
-        <Polyline
-          points={linePoints}
-          fill="none"
-          stroke="#F5B400"
-          strokeWidth="3"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
+        {average > 0 ? (
+          <>
+            <Line
+              x1={left}
+              x2={width - right}
+              y1={averageY}
+              y2={averageY}
+              stroke="rgba(255,255,255,0.72)"
+              strokeWidth="1.5"
+              strokeDasharray="5 5"
+            />
+            <Rect x={2} y={averageY - 12} width={43} height={23} rx={6} fill="#F4F4F4" />
+            <SvgText x={23.5} y={averageY + 4} fill="#111111" fontSize="9" fontWeight="900" textAnchor="middle">
+              MOY.
+            </SvgText>
+          </>
+        ) : null}
 
-        {points.map((item, index) => (
-          <Circle
-            key={item.date}
-            cx={x(index)}
-            cy={y(item.steps)}
-            r="3.5"
-            fill="#F5B400"
-          />
-        ))}
-
-        <SvgText x={left} y={height - 8} fill="#858585" fontSize="9">
-          {new Date(`${points[0].date}T12:00:00`).toLocaleDateString("fr-FR", {
-            day: "2-digit",
-            month: "2-digit",
-          })}
-        </SvgText>
-
-        <SvgText
-          x={width - right}
-          y={height - 8}
-          fill="#858585"
-          fontSize="9"
-          textAnchor="end"
-        >
-          {new Date(`${points[points.length - 1].date}T12:00:00`).toLocaleDateString("fr-FR", {
-            day: "2-digit",
-            month: "2-digit",
-          })}
-        </SvgText>
+        {data.map((item, index) => {
+          const centerX = left + slotWidth * index + slotWidth / 2;
+          const barTop = y(item.value);
+          return (
+            <Fragment key={item.key}>
+              <Rect
+                x={centerX - barWidth / 2}
+                y={barTop}
+                width={barWidth}
+                height={Math.max(2, top + graphHeight - barTop)}
+                rx={barWidth / 2}
+                fill={item.value > 0 ? colors.yellow : "rgba(255,255,255,0.12)"}
+              />
+              <SvgText
+                x={centerX}
+                y={height - 13}
+                fill="#969696"
+                fontSize={data.length > 20 ? "8" : "9"}
+                fontWeight="700"
+                textAnchor="middle"
+              >
+                {item.label}
+              </SvgText>
+            </Fragment>
+          );
+        })}
       </Svg>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -351,6 +443,8 @@ export default function HistoryStatsScreen() {
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<"workouts" | "nutrition" | "steps">("workouts");
   const [range, setRange] = useState<Range>(30);
+  const [stepsPeriod, setStepsPeriod] = useState<StepsPeriod>("week");
+  const [stepsPeriodOffset, setStepsPeriodOffset] = useState(0);
   const [workouts, setWorkouts] = useState<WorkoutHistoryItem[]>([]);
   const [nutrition, setNutrition] = useState<NutritionDay[]>([]);
   const [stepsHistory, setStepsHistory] = useState<DailySteps[]>([]);
@@ -410,8 +504,8 @@ export default function HistoryStatsScreen() {
           .gte("eaten_on", sinceDate)
           .order("eaten_on", { ascending: true }),
         getStepsHistory().catch(() => []),
-        getMyStepsHistory(90).catch(() => []),
-        getStoredDailySteps(90).catch(() => []),
+        getMyStepsHistory(740).catch(() => []),
+        getStoredDailySteps(740).catch(() => []),
         probePedometer().catch(() => null),
       ]);
 
@@ -561,15 +655,6 @@ export default function HistoryStatsScreen() {
     return () => subscription.remove();
   }, [tab]);
 
-  const handleBack = useCallback(() => {
-    if (router.canGoBack()) {
-      router.back();
-      return;
-    }
-
-    router.replace("/(tabs)" as any);
-  }, []);
-
   const rangedNutrition = useMemo(() => {
     if (!nutrition.length) return [];
     const threshold = new Date();
@@ -605,39 +690,79 @@ export default function HistoryStatsScreen() {
   }, [rangedNutrition]);
 
   const stepsStats = useMemo(() => {
-    const today = new Date();
-    const todayKey = [
-      today.getFullYear(),
-      String(today.getMonth() + 1).padStart(2, "0"),
-      String(today.getDate()).padStart(2, "0"),
-    ].join("-");
-
     const sorted = [...stepsHistory].sort((a, b) =>
       a.date.localeCompare(b.date)
     );
-
-    const recent = sorted.slice(-range);
-
+    const todayKey = localDateString();
     const todaySteps =
       sorted.find((item) => item.date === todayKey)?.steps ?? 0;
+    const { start, end } = stepsPeriodBounds(stepsPeriod, stepsPeriodOffset);
+    const previous = stepsPeriodBounds(stepsPeriod, stepsPeriodOffset - 1);
+    const elapsedDays = Math.max(
+      0,
+      Math.round((end.getTime() - start.getTime()) / 86_400_000)
+    );
+    const previousComparableEnd = stepsPeriodOffset === 0
+      ? addDays(previous.start, elapsedDays)
+      : previous.end;
+    const startKey = localDateString(start);
+    const endKey = localDateString(end);
+    const previousStartKey = localDateString(previous.start);
+    const previousEndKey = localDateString(previousComparableEnd);
+    const currentRows = sorted.filter(
+      (item) => item.date >= startKey && item.date <= endKey
+    );
+    const previousRows = sorted.filter(
+      (item) => item.date >= previousStartKey && item.date <= previousEndKey
+    );
+    const average = averageSteps(currentRows);
+    const previousAverage = averageSteps(previousRows);
+    const change = previousAverage > 0
+      ? Math.round(((average - previousAverage) / previousAverage) * 100)
+      : null;
+    const best = currentRows.length
+      ? currentRows.reduce((max, item) => item.steps > max.steps ? item : max)
+      : null;
+    const stepsByDate = new Map(currentRows.map((item) => [item.date, item.steps]));
+    const chartPoints: StepsChartPoint[] = [];
 
-    const average =
-      recent.length > 0
-        ? Math.round(
-            recent.reduce((sum, item) => sum + item.steps, 0) /
-              recent.length
-          )
-        : 0;
+    if (stepsPeriod === "year") {
+      const cursor = new Date(start.getFullYear(), start.getMonth(), 1, 12);
+      const finalMonth = new Date(end.getFullYear(), end.getMonth(), 1, 12);
 
-    const best =
-      recent.length > 0
-        ? recent.reduce((max, item) =>
-            item.steps > max.steps ? item : max
-          )
-        : null;
+      while (cursor <= finalMonth) {
+        const monthKey = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`;
+        const monthRows = currentRows.filter((item) => item.date.startsWith(monthKey));
+        chartPoints.push({
+          key: monthKey,
+          label: cursor.toLocaleDateString("fr-FR", { month: "short" }).replace(".", "").toUpperCase(),
+          value: averageSteps(monthRows),
+        });
+        cursor.setMonth(cursor.getMonth() + 1);
+      }
+    } else {
+      let cursor = dateAtNoon(start);
+      while (cursor <= end) {
+        const key = localDateString(cursor);
+        const label = stepsPeriod === "month"
+          ? String(cursor.getDate()).padStart(2, "0")
+          : stepsPeriod === "day"
+          ? cursor.toLocaleDateString("fr-FR", { weekday: "short" }).replace(".", "").toUpperCase()
+          : cursor.toLocaleDateString("fr-FR", { weekday: "short" }).replace(".", "").toUpperCase();
+        chartPoints.push({ key, label, value: stepsByDate.get(key) ?? 0 });
+        cursor = addDays(cursor, 1);
+      }
+    }
 
-    return { today: todaySteps, average, best, recent };
-  }, [stepsHistory, range]);
+    return {
+      today: todaySteps,
+      average,
+      best,
+      change,
+      chartPoints,
+      periodTitle: formatPeriodTitle(stepsPeriod, start, end),
+    };
+  }, [stepsHistory, stepsPeriod, stepsPeriodOffset]);
 
   if (loading) {
 
@@ -668,15 +793,7 @@ export default function HistoryStatsScreen() {
       }
     >
       <View style={styles.header}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Revenir à la page précédente"
-          hitSlop={10}
-          onPress={handleBack}
-          style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
-        >
-          <Text style={styles.backText}>‹</Text>
-        </Pressable>
+        <BackButton />
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>MON SUIVI</Text>
           <Text style={styles.title}>Historique & stats</Text>
@@ -957,20 +1074,66 @@ export default function HistoryStatsScreen() {
             <Text style={styles.muted}>Suivi de tes pas enregistrés par Evolve.</Text>
           </View>
 
-          {/* PÉRIODE PAS */}
-          <View style={styles.rangeRow}>
-            {([7, 30, 90] as Range[]).map((value) => (
+          <View style={styles.stepsPeriodTabs}>
+            {([
+              ["day", "JOUR"],
+              ["week", "SEMAINE"],
+              ["month", "MOIS"],
+              ["year", "ANNÉE"],
+            ] as [StepsPeriod, string][]).map(([value, label]) => (
               <Pressable
                 key={value}
-                onPress={() => setRange(value)}
-                style={[styles.rangeButton, range === value && styles.rangeButtonActive]}
+                onPress={() => {
+                  setStepsPeriod(value);
+                  setStepsPeriodOffset(0);
+                }}
+                style={[
+                  styles.stepsPeriodButton,
+                  stepsPeriod === value && styles.stepsPeriodButtonActive,
+                ]}
               >
-                <Text style={[styles.rangeText, range === value && styles.rangeTextActive]}>
-                  {value} J
+                <Text style={[
+                  styles.stepsPeriodText,
+                  stepsPeriod === value && styles.stepsPeriodTextActive,
+                ]}>
+                  {label}
                 </Text>
               </Pressable>
             ))}
           </View>
+
+          <View style={styles.periodNavigation}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Période précédente"
+              onPress={() => setStepsPeriodOffset((value) => value - 1)}
+              style={({ pressed }) => [styles.periodArrow, pressed && styles.pressed]}
+            >
+              <Text style={styles.periodArrowText}>‹</Text>
+            </Pressable>
+            <Text style={styles.periodTitle}>{stepsStats.periodTitle.toUpperCase()}</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Période suivante"
+              disabled={stepsPeriodOffset >= 0}
+              onPress={() => setStepsPeriodOffset((value) => Math.min(0, value + 1))}
+              style={({ pressed }) => [
+                styles.periodArrow,
+                stepsPeriodOffset >= 0 && styles.periodArrowDisabled,
+                pressed && stepsPeriodOffset < 0 && styles.pressed,
+              ]}
+            >
+              <Text style={styles.periodArrowText}>›</Text>
+            </Pressable>
+          </View>
+
+          {stepsStats.change != null ? (
+            <View style={styles.changeBadge}>
+              <Text style={styles.changeBadgeText}>
+                {stepsStats.change > 0 ? "▲" : stepsStats.change < 0 ? "▼" : "•"} {Math.abs(stepsStats.change)}% vs période précédente
+              </Text>
+            </View>
+          ) : null}
 
           <View style={styles.metricsGrid}>
             <View style={styles.metricCard}>
@@ -998,10 +1161,12 @@ export default function HistoryStatsScreen() {
           <View style={styles.card}>
             <Text style={styles.cardTitle}>ÉVOLUTION DES PAS</Text>
             <Text style={styles.muted}>
-              Nombre de pas par jour sur la période sélectionnée.
+              {stepsPeriod === "year"
+                ? "Moyenne quotidienne pour chaque mois."
+                : "Nombre de pas pour chaque jour de la période."}
             </Text>
 
-            <StepsTrendChart data={stepsStats.recent} />
+            <StepsTrendChart data={stepsStats.chartPoints} average={stepsStats.average} />
           </View>
         </View>
       )}
@@ -1024,18 +1189,7 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 24,
   },
-  backButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface2,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   pressed: { opacity: 0.72 },
-  backText: { color: colors.text, fontSize: 30, lineHeight: 31 },
   eyebrow: {
     color: colors.yellow,
     fontSize: 10,
@@ -1178,6 +1332,59 @@ const styles = StyleSheet.create({
   rangeButtonActive: { borderColor: colors.yellow },
   rangeText: { color: colors.muted, fontSize: 11, fontWeight: "900" },
   rangeTextActive: { color: colors.yellow },
+  stepsPeriodTabs: {
+    flexDirection: "row",
+    padding: 4,
+    borderRadius: 14,
+    backgroundColor: colors.surface2,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  stepsPeriodButton: {
+    flex: 1,
+    minHeight: 40,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stepsPeriodButtonActive: { backgroundColor: colors.yellow },
+  stepsPeriodText: { color: colors.muted, fontSize: 9, fontWeight: "900" },
+  stepsPeriodTextActive: { color: "#111111" },
+  periodNavigation: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  periodArrow: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surface2,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  periodArrowDisabled: { opacity: 0.28 },
+  periodArrowText: { color: colors.text, fontSize: 28, lineHeight: 29 },
+  periodTitle: {
+    flex: 1,
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: "900",
+    textAlign: "center",
+    letterSpacing: 0.6,
+  },
+  changeBadge: {
+    alignSelf: "flex-start",
+    borderRadius: 10,
+    backgroundColor: "rgba(245,180,0,0.13)",
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+  },
+  changeBadgeText: { color: colors.yellow, fontSize: 10, fontWeight: "900" },
   metricsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   metricCard: {
     width: "48%",
@@ -1199,6 +1406,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   chartShell: { alignItems: "center", overflow: "hidden" },
+  stepsChartScroll: { minWidth: "100%" },
   chartEmpty: {
     height: 150,
     alignItems: "center",

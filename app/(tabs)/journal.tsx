@@ -12,7 +12,7 @@ import {
   View,
 } from "react-native";
 
-import { PrimaryButton } from "@/src/components/ui";
+import { PrimaryButton, TAB_HEADER_TOP } from "@/src/components/ui";
 import { localDateString } from "@/src/lib/date";
 import {
   archiveCustomRoutine,
@@ -531,7 +531,7 @@ function RoutineQuestion({ routine, input, derived, onBoolean, onNumeric }: {
 }
 
 const styles = StyleSheet.create({
-  page: { padding: 20, paddingTop: 58, paddingBottom: 140, gap: 14 },
+  page: { padding: 20, paddingTop: TAB_HEADER_TOP, paddingBottom: 140, gap: 14 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg, gap: 12 },
   loadingText: { color: colors.muted, fontSize: 13 },
   topRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },

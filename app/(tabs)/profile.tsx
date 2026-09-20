@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { router } from "expo-router";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
-import { Card, Label, PrimaryButton, ScreenHeader } from "@/src/components/ui";
+import { Card, Label, PrimaryButton, ScreenHeader, TAB_HEADER_TOP } from "@/src/components/ui";
 import { colors } from "@/src/theme";
 import { useAuth } from "@/src/store/auth";
 import { getMyProfile } from "@/src/lib/api";
@@ -84,7 +84,7 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  page: { padding: 20, paddingTop: 68, paddingBottom: 110, backgroundColor: "transparent" },
+  page: { padding: 20, paddingTop: TAB_HEADER_TOP, paddingBottom: 110, backgroundColor: "transparent" },
   role: { color: colors.yellow, fontSize: 24, fontWeight: "900", marginTop: 8 },
   status: { color: colors.muted, fontSize: 14, marginTop: 8 },
   error: { color: "#ff6464", fontSize: 14, lineHeight: 20, marginTop: 8 },

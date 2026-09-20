@@ -8,7 +8,7 @@ import {
   View,
 } from "react-native";
 
-import { Card, ScreenHeader } from "@/src/components/ui";
+import { Card, ScreenHeader, goBackOrReplace } from "@/src/components/ui";
 import { ProfileAvatar } from "@/src/components/profile-avatar";
 import { colors } from "@/src/theme";
 import {
@@ -178,7 +178,7 @@ export default function CoachAthleteScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.page}>
-      <Pressable onPress={() => router.back()} style={styles.backButton}>
+      <Pressable onPress={() => goBackOrReplace()} style={styles.backButton}>
         <Text style={styles.backText}>‹ MES ATHLÈTES</Text>
       </Pressable>
 

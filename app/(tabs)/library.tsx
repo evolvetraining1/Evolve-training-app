@@ -5,6 +5,7 @@ import { supabase } from "@/src/lib/supabase";
 import { colors, radius } from "@/src/theme";
 import { getExerciseIllustration } from "@/src/data/exerciseIllustrations";
 import { MuscleBodyFilter } from "@/src/components/muscle-body-filter";
+import { TAB_HEADER_TOP } from "@/src/components/ui";
 import {
   BodyGroupKey,
   getBodyGroupLabel,
@@ -199,7 +200,7 @@ export default function ExerciseLibraryScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, paddingTop: 44, backgroundColor: "transparent" },
+  screen: { flex: 1, paddingTop: TAB_HEADER_TOP, backgroundColor: "transparent" },
   listHeader: { gap: 14, paddingBottom: 18 },
   header: { paddingHorizontal: 20 },
   eyebrow: { color: colors.yellow, fontSize: 11, fontWeight: "900", letterSpacing: 2.6 },

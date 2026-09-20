@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { router, useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import { supabase } from "@/src/lib/supabase";
 import { colors, radius } from "@/src/theme";
 import { getExerciseIllustration } from "@/src/data/exerciseIllustrations";
+import { goBackOrReplace } from "@/src/components/ui";
 
 type ExerciseDetail = {
   id: string;
@@ -67,7 +68,7 @@ export default function ExerciseDetailScreen() {
     return (
       <View style={styles.state}>
         <Text style={styles.error}>{error ?? "Mouvement introuvable."}</Text>
-        <Pressable onPress={() => router.back()} style={styles.backButton}><Text style={styles.backButtonText}>Retour</Text></Pressable>
+        <Pressable onPress={() => goBackOrReplace()} style={styles.backButton}><Text style={styles.backButtonText}>Retour</Text></Pressable>
       </View>
     );
   }
@@ -79,7 +80,7 @@ export default function ExerciseDetailScreen() {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.topBar}>
-        <Pressable onPress={() => router.back()} hitSlop={12}><Text style={styles.back}>‹</Text></Pressable>
+        <Pressable onPress={() => goBackOrReplace()} hitSlop={12}><Text style={styles.back}>‹</Text></Pressable>
         <Text style={styles.brand}>EVOLVE TRAINING</Text>
         <View style={{ width: 32 }} />
       </View>

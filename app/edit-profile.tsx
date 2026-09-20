@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { router } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import {
   ActivityIndicator,
@@ -14,7 +13,7 @@ import {
 } from "react-native";
 
 import { ProfileAvatar } from "@/src/components/profile-avatar";
-import { Card, Label, PrimaryButton, ScreenHeader } from "@/src/components/ui";
+import { BackScreenHeader, Card, Label, PrimaryButton } from "@/src/components/ui";
 import { getMyProfile } from "@/src/lib/api";
 import {
   ProfileGender,
@@ -182,11 +181,7 @@ export default function EditProfileScreen() {
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.page}
       >
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
-          <Text style={styles.backText}>‹ PROFIL</Text>
-        </Pressable>
-
-        <ScreenHeader
+        <BackScreenHeader
           title="Modifier mon profil"
           subtitle="Ces informations personnalisent ton suivi et restent modifiables à tout moment."
         />

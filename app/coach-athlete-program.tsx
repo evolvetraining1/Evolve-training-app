@@ -9,7 +9,7 @@ import {
   View,
 } from "react-native";
 
-import { Card, ScreenHeader } from "@/src/components/ui";
+import { Card, ScreenHeader, goBackOrReplace } from "@/src/components/ui";
 import { colors } from "@/src/theme";
 import { supabase } from "@/src/lib/supabase";
 import { getCoachAthleteProgramWorkouts } from "@/src/lib/coachApi";
@@ -84,7 +84,7 @@ export default function CoachAthleteProgramScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.page}>
-      <Pressable onPress={() => router.back()} style={styles.backButton}>
+      <Pressable onPress={() => goBackOrReplace()} style={styles.backButton}>
         <Text style={styles.backText}>‹ RETOUR ATHLÈTE</Text>
       </Pressable>
 
