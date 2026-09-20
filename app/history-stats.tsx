@@ -1,20 +1,24 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Dimensions,
   Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle, Line, Polyline, Text as SvgText } from "react-native-svg";
 
 import { colors } from "@/src/theme";
 import { supabase } from "@/src/lib/supabase";
 import { DailySteps, getStepsHistory } from "@/src/lib/steps-storage";
+import { getStoredDailySteps, probePedometer, watchTodaySteps } from "@/src/lib/pedometer";
+import { getMyStepsHistory, syncMyDailySteps } from "@/src/lib/steps-cloud";
+import { localDateString } from "@/src/lib/date";
 
 type Tab = "workouts" | "nutrition";
 type Range = 7 | 30 | 90;
@@ -53,8 +57,54 @@ function formatDate(value?: string | null) {
   });
 }
 
+function mergeStepsHistory(...sources: DailySteps[][]): DailySteps[] {
+  const byDate = new Map<string, DailySteps>();
+
+  for (const source of sources) {
+    for (const item of source) {
+      if (!item?.date || !Number.isFinite(Number(item.steps))) continue;
+
+      const normalized: DailySteps = {
+        date: String(item.date),
+        steps: Math.max(0, Math.round(Number(item.steps))),
+        updatedAt: String(item.updatedAt ?? new Date().toISOString()),
+      };
+      const current = byDate.get(normalized.date);
+
+      // Un compteur journalier ne peut qu'augmenter. Conserver la valeur la
+      // plus haute évite qu'une ancienne copie locale écrase la lecture native.
+      if (!current || normalized.steps >= current.steps) {
+        byDate.set(normalized.date, normalized);
+      }
+    }
+  }
+
+  return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function workoutBlockLabel(notes?: string | null) {
+  const value = String(notes ?? "").trim().toUpperCase();
+  if (value.startsWith("WARM UP") || value.startsWith("WARMUP")) return "WARM UP";
+  if (value.startsWith("STRENGTH WORK") || value.startsWith("STRENGTH")) return "STRENGTH";
+  if (value.startsWith("RENFO")) return "RENFO";
+  if (value.startsWith("WOD")) return "WOD";
+  return "EXERCICE";
+}
+
+function compactPrescription(notes?: string | null) {
+  return String(notes ?? "")
+    .replace(/^(WARM\s*UP|WARMUP|STRENGTH\s*WORK|STRENGTH|RENFO|WOD)\s*[:\-–—]?\s*/i, "")
+    .trim();
+}
+
+function formatLoad(value: unknown) {
+  const load = Number(value ?? 0);
+  return Number.isInteger(load) ? String(load) : load.toFixed(1).replace(".", ",");
+}
+
 function NutritionTrendChart({ data }: { data: NutritionDay[] }) {
-  const width = Math.max(Dimensions.get("window").width - 40, 280);
+  const { width: windowWidth } = useWindowDimensions();
+  const width = Math.max(windowWidth - 72, 260);
   const height = 220;
   const left = 38;
   const right = 12;
@@ -177,7 +227,8 @@ function NutritionTrendChart({ data }: { data: NutritionDay[] }) {
 
 
 function StepsTrendChart({ data }: { data: DailySteps[] }) {
-  const width = Math.max(Dimensions.get("window").width - 40, 280);
+  const { width: windowWidth } = useWindowDimensions();
+  const width = Math.max(windowWidth - 72, 260);
   const height = 230;
   const left = 48;
   const right = 14;
@@ -297,6 +348,7 @@ function StepsTrendChart({ data }: { data: DailySteps[] }) {
 }
 
 export default function HistoryStatsScreen() {
+  const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<"workouts" | "nutrition" | "steps">("workouts");
   const [range, setRange] = useState<Range>(30);
   const [workouts, setWorkouts] = useState<WorkoutHistoryItem[]>([]);
@@ -323,7 +375,14 @@ export default function HistoryStatsScreen() {
       since.setDate(since.getDate() - 89);
       const sinceDate = since.toISOString().slice(0, 10);
 
-      const [sessionsResult, nutritionResult, stepsResult] = await Promise.all([
+      const [
+        sessionsResult,
+        nutritionResult,
+        legacyStepsResult,
+        cloudStepsResult,
+        nativeStepsResult,
+        pedometerResult,
+      ] = await Promise.all([
         supabase
           .from("workout_sessions")
           .select(`
@@ -350,7 +409,10 @@ export default function HistoryStatsScreen() {
           .eq("user_id", user.id)
           .gte("eaten_on", sinceDate)
           .order("eaten_on", { ascending: true }),
-        getStepsHistory()
+        getStepsHistory().catch(() => []),
+        getMyStepsHistory(90).catch(() => []),
+        getStoredDailySteps(90).catch(() => []),
+        probePedometer().catch(() => null),
       ]);
 
       if (sessionsResult.error) throw sessionsResult.error;
@@ -375,6 +437,8 @@ export default function HistoryStatsScreen() {
             completed,
             workout_exercises (
               id,
+              position,
+              prescription_notes,
               exercises ( id, name )
             )
           `)
@@ -429,9 +493,36 @@ export default function HistoryStatsScreen() {
         }))
       );
 
+      const nativeHistory = (nativeStepsResult ?? []).map((item) => ({
+        date: item.date,
+        steps: item.steps,
+        updatedAt: item.updatedAt > 0
+          ? new Date(item.updatedAt).toISOString()
+          : new Date().toISOString(),
+      }));
+
+      const liveToday = pedometerResult?.todaySteps != null
+        ? [{
+            date: localDateString(),
+            steps: pedometerResult.todaySteps,
+            updatedAt: new Date().toISOString(),
+          }]
+        : [];
+
       setStepsHistory(
-        Array.isArray(stepsResult) ? stepsResult : []
+        mergeStepsHistory(
+          Array.isArray(legacyStepsResult) ? legacyStepsResult : [],
+          Array.isArray(cloudStepsResult) ? cloudStepsResult : [],
+          nativeHistory,
+          liveToday
+        )
       );
+
+      if (pedometerResult?.todaySteps != null) {
+        void syncMyDailySteps(pedometerResult.todaySteps, { force: true }).catch(
+          (syncError) => console.warn("History steps sync failed:", syncError)
+        );
+      }
     } catch (e: any) {
       console.error("HISTORY STATS LOAD ERROR", e);
       setError(e?.message ?? "Impossible de charger l’historique.");
@@ -441,9 +532,43 @@ export default function HistoryStatsScreen() {
     }
   }, []);
 
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load])
+  );
+
   useEffect(() => {
-    load();
-  }, [load]);
+    if (tab !== "steps") return;
+
+    const subscription = watchTodaySteps(
+      (steps) => {
+        const today: DailySteps = {
+          date: localDateString(),
+          steps,
+          updatedAt: new Date().toISOString(),
+        };
+
+        setStepsHistory((current) => mergeStepsHistory(current, [today]));
+        void syncMyDailySteps(steps).catch((syncError) =>
+          console.warn("Live history steps sync failed:", syncError)
+        );
+      },
+      (stepError) => console.warn("Live history steps failed:", stepError),
+      10_000
+    );
+
+    return () => subscription.remove();
+  }, [tab]);
+
+  const handleBack = useCallback(() => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+
+    router.replace("/(tabs)" as any);
+  }, []);
 
   const rangedNutrition = useMemo(() => {
     if (!nutrition.length) return [];
@@ -527,7 +652,11 @@ export default function HistoryStatsScreen() {
   return (
     <ScrollView
       style={styles.screen}
-      contentContainerStyle={styles.page}
+      contentInsetAdjustmentBehavior="automatic"
+      contentContainerStyle={[
+        styles.page,
+        { paddingTop: Math.max(insets.top + 18, 44) },
+      ]}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
@@ -539,7 +668,13 @@ export default function HistoryStatsScreen() {
       }
     >
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Revenir à la page précédente"
+          hitSlop={10}
+          onPress={handleBack}
+          style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
+        >
           <Text style={styles.backText}>‹</Text>
         </Pressable>
         <View style={{ flex: 1 }}>
@@ -588,19 +723,52 @@ export default function HistoryStatsScreen() {
             workouts.map((session) => {
               const template = getNested(session.workout_templates);
               const expanded = expandedSessionId === session.id;
-              const exerciseGroups = new Map<string, any[]>();
+              const exerciseGroups = new Map<
+                string,
+                {
+                  id: string;
+                  name: string;
+                  position: number;
+                  notes: string;
+                  sets: any[];
+                }
+              >();
 
               for (const set of session.sets) {
                 const workoutExercise = getNested(set.workout_exercises);
                 const exercise = getNested(workoutExercise?.exercises);
                 const name = exercise?.name ?? "Exercice";
-                const current = exerciseGroups.get(name) ?? [];
-                current.push(set);
-                exerciseGroups.set(name, current);
+                const key = String(
+                  set.workout_exercise_id ?? workoutExercise?.id ?? set.id
+                );
+                const current = exerciseGroups.get(key) ?? {
+                  id: key,
+                  name,
+                  position: Number(workoutExercise?.position ?? 999),
+                  notes: String(workoutExercise?.prescription_notes ?? ""),
+                  sets: [] as any[],
+                };
+                current.sets.push(set);
+                exerciseGroups.set(key, current);
               }
 
+              const exercises = [...exerciseGroups.values()]
+                .map((exercise) => ({
+                  ...exercise,
+                  sets: exercise.sets.slice().sort(
+                    (a, b) => Number(a.set_number ?? 0) - Number(b.set_number ?? 0)
+                  ),
+                }))
+                .sort((a, b) => a.position - b.position);
+
+              const totalVolume = session.sets.reduce(
+                (sum, set) =>
+                  sum + Number(set.load_kg ?? 0) * Number(set.reps ?? 0),
+                0
+              );
+
               return (
-                <View key={session.id} style={styles.card}>
+                <View key={session.id} style={[styles.card, styles.sessionCard]}>
                   <Pressable
                     onPress={() =>
                       setExpandedSessionId(expanded ? null : session.id)
@@ -609,43 +777,115 @@ export default function HistoryStatsScreen() {
                   >
                     <View style={{ flex: 1 }}>
                       <Text style={styles.cardTitle}>{template?.name ?? "Séance"}</Text>
-                      <Text style={styles.muted}>
+                      <Text style={styles.sessionDate}>
                         {formatDate(session.completed_at ?? session.scheduled_for)}
                         {template?.week_number ? ` • S${template.week_number}` : ""}
                         {template?.day_number ? ` J${template.day_number}` : ""}
                       </Text>
                     </View>
                     <View style={styles.sessionMeta}>
-                      <Text style={styles.sessionCount}>{session.sets.length} séries</Text>
+                      <View style={styles.completedBadge}>
+                        <Text style={styles.completedBadgeText}>TERMINÉE</Text>
+                      </View>
                       <Text style={styles.chevron}>{expanded ? "⌃" : "⌄"}</Text>
                     </View>
                   </Pressable>
 
+                  <View style={styles.sessionSummary}>
+                    <View style={styles.summaryItem}>
+                      <Text style={styles.summaryValue}>{exercises.length}</Text>
+                      <Text style={styles.summaryLabel}>EXERCICES</Text>
+                    </View>
+                    <View style={styles.summaryDivider} />
+                    <View style={styles.summaryItem}>
+                      <Text style={styles.summaryValue}>{session.sets.length}</Text>
+                      <Text style={styles.summaryLabel}>SÉRIES</Text>
+                    </View>
+                    <View style={styles.summaryDivider} />
+                    <View style={styles.summaryItem}>
+                      <Text style={styles.summaryValue}>
+                        {totalVolume > 0
+                          ? `${Math.round(totalVolume).toLocaleString("fr-FR")} kg`
+                          : "—"}
+                      </Text>
+                      <Text style={styles.summaryLabel}>VOLUME</Text>
+                    </View>
+                  </View>
+
                   {expanded ? (
                     <View style={styles.expandedContent}>
-                      {Array.from(exerciseGroups.entries()).map(([name, sets]) => (
-                        <View key={name} style={styles.exerciseBlock}>
-                          <Text style={styles.exerciseName}>{name}</Text>
-                          {sets.map((set: any) => (
-                            <View key={set.id} style={styles.setRow}>
-                              <Text style={styles.setNumber}>S{set.set_number}</Text>
-                              <Text style={styles.setPerformance}>
-                                {Number(set.load_kg ?? 0)} kg × {Number(set.reps ?? 0)} reps
-                              </Text>
-                              <Text style={styles.setRpe}>
-                                {set.rpe != null ? `RPE ${set.rpe}` : ""}
+                      {exercises.map((exercise) => {
+                        const first = exercise.sets[0];
+                        const identical = exercise.sets.length > 1 && exercise.sets.every(
+                          (set) =>
+                            Number(set.reps ?? 0) === Number(first?.reps ?? 0) &&
+                            Number(set.load_kg ?? 0) === Number(first?.load_kg ?? 0) &&
+                            Number(set.rpe ?? 0) === Number(first?.rpe ?? 0)
+                        );
+
+                        return (
+                          <View key={exercise.id} style={styles.exerciseBlock}>
+                            <View style={styles.exerciseHeader}>
+                              <View style={{ flex: 1 }}>
+                                <Text style={styles.blockLabel}>
+                                  {workoutBlockLabel(exercise.notes)}
+                                </Text>
+                                <Text style={styles.exerciseName}>{exercise.name}</Text>
+                              </View>
+                              <Text style={styles.exerciseSetCount}>
+                                {exercise.sets.length} série{exercise.sets.length > 1 ? "s" : ""}
                               </Text>
                             </View>
-                          ))}
-                        </View>
-                      ))}
+
+                            {compactPrescription(exercise.notes) ? (
+                              <Text style={styles.exercisePrescription}>
+                                {compactPrescription(exercise.notes)}
+                              </Text>
+                            ) : null}
+
+                            <Text style={styles.performedLabel}>RÉALISÉ</Text>
+
+                            {identical ? (
+                              <View style={[styles.setRow, styles.compactSetRow]}>
+                                <Text style={styles.setPerformance}>
+                                  {exercise.sets.length} × {Number(first?.reps ?? 0)} reps
+                                  {Number(first?.load_kg ?? 0) > 0
+                                    ? ` @ ${formatLoad(first?.load_kg)} kg`
+                                    : ""}
+                                </Text>
+                                <Text style={styles.setRpe}>
+                                  {first?.rpe != null ? `RPE ${first.rpe}` : ""}
+                                </Text>
+                              </View>
+                            ) : (
+                              exercise.sets.map((set: any) => (
+                                <View key={set.id} style={styles.setRow}>
+                                  <Text style={styles.setNumber}>S{set.set_number}</Text>
+                                  <Text style={styles.setPerformance}>
+                                    {Number(set.reps ?? 0)} reps
+                                    {Number(set.load_kg ?? 0) > 0
+                                      ? ` @ ${formatLoad(set.load_kg)} kg`
+                                      : ""}
+                                  </Text>
+                                  <Text style={styles.setRpe}>
+                                    {set.rpe != null ? `RPE ${set.rpe}` : ""}
+                                  </Text>
+                                </View>
+                              ))
+                            )}
+                          </View>
+                        );
+                      })}
 
                       {!session.sets.length ? (
                         <Text style={styles.muted}>Aucune série détaillée enregistrée.</Text>
                       ) : null}
 
                       {session.session_rpe != null ? (
-                        <Text style={styles.sessionRpe}>RPE séance : {session.session_rpe}</Text>
+                        <View style={styles.sessionRpeRow}>
+                          <Text style={styles.sessionRpeLabel}>RESSENTI DE LA SÉANCE</Text>
+                          <Text style={styles.sessionRpe}>RPE {session.session_rpe}/10</Text>
+                        </View>
                       ) : null}
                     </View>
                   ) : null}
@@ -771,7 +1011,7 @@ export default function HistoryStatsScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  page: { padding: 20, paddingTop: 64, paddingBottom: 100 },
+  page: { paddingHorizontal: 20, paddingBottom: 100 },
   center: {
     flex: 1,
     alignItems: "center",
@@ -794,6 +1034,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  pressed: { opacity: 0.72 },
   backText: { color: colors.text, fontSize: 30, lineHeight: 31 },
   eyebrow: {
     color: colors.yellow,
@@ -837,20 +1078,72 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     padding: 16,
   },
+  sessionCard: { padding: 0, overflow: "hidden" },
   cardTitle: { color: colors.text, fontSize: 17, fontWeight: "900" },
-  sessionHead: { flexDirection: "row", alignItems: "center", gap: 12 },
+  sessionHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 13,
+  },
+  sessionDate: { color: colors.muted, fontSize: 12, lineHeight: 19, marginTop: 3 },
   sessionMeta: { alignItems: "flex-end", gap: 4 },
-  sessionCount: { color: colors.yellow, fontSize: 11, fontWeight: "900" },
+  completedBadge: {
+    borderRadius: 999,
+    backgroundColor: "rgba(58, 196, 116, 0.14)",
+    borderWidth: 1,
+    borderColor: "rgba(58, 196, 116, 0.35)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  completedBadgeText: { color: colors.green, fontSize: 9, fontWeight: "900" },
   chevron: { color: colors.muted, fontSize: 20 },
-  expandedContent: {
-    marginTop: 16,
-    paddingTop: 14,
+  sessionSummary: {
+    flexDirection: "row",
+    alignItems: "stretch",
     borderTopWidth: 1,
     borderTopColor: colors.borderSoft,
-    gap: 14,
+    backgroundColor: colors.surface2,
+    paddingVertical: 11,
   },
-  exerciseBlock: { gap: 7 },
-  exerciseName: { color: colors.text, fontSize: 14, fontWeight: "900" },
+  summaryItem: { flex: 1, alignItems: "center", justifyContent: "center", gap: 3 },
+  summaryDivider: { width: 1, backgroundColor: colors.borderSoft },
+  summaryValue: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: "900",
+    fontVariant: ["tabular-nums"],
+  },
+  summaryLabel: { color: colors.muted, fontSize: 8, fontWeight: "900", letterSpacing: 0.8 },
+  expandedContent: {
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSoft,
+    gap: 12,
+  },
+  exerciseBlock: {
+    gap: 7,
+    padding: 13,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    backgroundColor: "rgba(255,255,255,0.018)",
+  },
+  exerciseHeader: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  blockLabel: { color: colors.yellow, fontSize: 9, fontWeight: "900", letterSpacing: 1 },
+  exerciseName: { color: colors.text, fontSize: 15, fontWeight: "900", marginTop: 3 },
+  exerciseSetCount: { color: colors.muted, fontSize: 10, fontWeight: "800" },
+  exercisePrescription: { color: colors.muted, fontSize: 12, lineHeight: 18 },
+  performedLabel: {
+    color: colors.green,
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 1,
+    marginTop: 2,
+  },
   setRow: {
     minHeight: 34,
     flexDirection: "row",
@@ -859,10 +1152,18 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface2,
     paddingHorizontal: 10,
   },
+  compactSetRow: { paddingLeft: 12 },
   setNumber: { color: colors.muted, width: 34, fontSize: 11, fontWeight: "800" },
   setPerformance: { color: colors.text, flex: 1, fontSize: 13, fontWeight: "800" },
   setRpe: { color: colors.yellow, fontSize: 11, fontWeight: "900" },
-  sessionRpe: { color: colors.muted, fontSize: 12, fontWeight: "800" },
+  sessionRpeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: 4,
+  },
+  sessionRpeLabel: { color: colors.muted, fontSize: 9, fontWeight: "900", letterSpacing: 0.8 },
+  sessionRpe: { color: colors.yellow, fontSize: 12, fontWeight: "900" },
   rangeRow: { flexDirection: "row", gap: 8 },
   rangeButton: {
     paddingHorizontal: 18,

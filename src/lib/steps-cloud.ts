@@ -84,6 +84,29 @@ export async function syncStoredStepHistoryToCloud(days = 30): Promise<number> {
   return rows.length;
 }
 
+export async function getMyStepsHistory(periodDays = 90) {
+  const userId = await currentUserId();
+  if (!userId) return [];
+
+  const since = new Date();
+  since.setDate(since.getDate() - Math.max(periodDays - 1, 0));
+
+  const { data, error } = await supabase
+    .from("daily_steps")
+    .select("date, steps, updated_at")
+    .eq("user_id", userId)
+    .gte("date", localDateString(since))
+    .order("date", { ascending: true });
+
+  if (error) throw error;
+
+  return (data ?? []).map((row: any) => ({
+    date: String(row.date),
+    steps: Math.max(0, Math.round(Number(row.steps ?? 0))),
+    updatedAt: String(row.updated_at ?? new Date().toISOString()),
+  }));
+}
+
 export function resetStepCloudSyncThrottle() {
   lastSyncAt = 0;
   lastSyncedSteps = null;
