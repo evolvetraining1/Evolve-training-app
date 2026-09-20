@@ -1188,19 +1188,6 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
               </View>
             </View>
 
-            {currentWeekWorkoutOptions.length > 1 ? (
-              <Pressable
-                disabled={dashboardEditMode}
-                onPress={() => setWorkoutPickerOpen(true)}
-                style={styles.chooseWorkoutButton}
-              >
-                <Text style={styles.chooseWorkoutButtonText}>
-                  CHOISIR UNE AUTRE SÉANCE
-                </Text>
-                <Text style={styles.chooseWorkoutChevron}>⌄</Text>
-              </Pressable>
-            ) : null}
-
             <ScrollView
           style={styles.homeWorkoutScroll}
           contentContainerStyle={styles.homeWorkoutScrollContent}
@@ -1294,6 +1281,19 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
         >
               <Text style={styles.play}>▶</Text><Text style={styles.startText}>{displayedSession?.status === "in_progress" ? "REPRENDRE LA SÉANCE" : "COMMENCER LA SÉANCE"}</Text>
             </Pressable>
+
+            {currentWeekWorkoutOptions.length > 1 ? (
+              <Pressable
+                disabled={dashboardEditMode}
+                onPress={() => setWorkoutPickerOpen(true)}
+                style={styles.chooseWorkoutButton}
+              >
+                <Text style={styles.chooseWorkoutButtonText}>
+                  CHOISIR UNE AUTRE SÉANCE
+                </Text>
+                <Text style={styles.chooseWorkoutChevron}>⌄</Text>
+              </Pressable>
+            ) : null}
           </View>
         </View>
 
@@ -2418,9 +2418,8 @@ const styles = StyleSheet.create({
   errorCard:{borderColor:"#632E2E",borderWidth:1,borderRadius:14,padding:12,marginBottom:12},error:{color:colors.red}, sectionHeader:{flexDirection:"row",justifyContent:"space-between",alignItems:"center",marginTop:11,marginBottom:10},sectionLeft:{flexDirection:"row",alignItems:"center"},yellowBar:{width:3,height:20,borderRadius:2,backgroundColor:colors.yellow,marginRight:10},sectionTitle:{color:colors.text,fontWeight:"800",fontSize:17},sectionAction:{color:colors.yellow,fontSize:13},
   workoutCard:{height:500,borderWidth:1,borderColor:colors.border,borderRadius:20,overflow:"hidden",backgroundColor:"#080809",position:"relative"},workoutImage:{position:"absolute",right:0,top:0,width:"49%",height:"83%"},imageShade:{position:"absolute",right:0,top:0,width:"58%",height:"84%",backgroundColor:"rgba(0,0,0,.28)"},workoutContent:{padding:15,paddingTop:17},workoutHead:{flexDirection:"row",alignItems:"center",gap:13,marginBottom:9,maxWidth:"73%"},hexIcon:{width:54,height:54,borderWidth:1,borderColor:colors.yellow,borderRadius:17,alignItems:"center",justifyContent:"center",backgroundColor:"rgba(0,0,0,.55)"},hexSmall:{width:48,height:48,borderRadius:15},hexGlyph:{color:colors.yellow,fontWeight:"900",fontSize:18},workoutTitle:{color:colors.text,fontWeight:"900",fontSize:23},workoutMeta:{color:colors.muted,fontSize:11,marginTop:7},exerciseRow:{minHeight:76,maxWidth:"64%",flexDirection:"row",alignItems:"center",gap:11,borderBottomWidth:1,borderBottomColor:colors.borderSoft},exerciseIndex:{width:38,height:38,borderRadius:19,backgroundColor:"rgba(255,196,0,.08)",alignItems:"center",justifyContent:"center"},exerciseIndexText:{color:colors.yellow,fontWeight:"900",fontSize:21},exerciseName:{color:colors.text,fontWeight:"800",fontSize:14},exerciseDetail:{color:colors.muted,fontSize:12,marginTop:5},arrowCircle:{width:32,height:32,borderRadius:16,backgroundColor:"rgba(20,20,21,.85)",alignItems:"center",justifyContent:"center"},arrowText:{color:colors.text,fontSize:28,lineHeight:29},emptyWorkout:{color:colors.muted,maxWidth:"55%",paddingVertical:54},
   chooseWorkoutButton:{
-    alignSelf:"flex-start",
-    height:32,
-    maxWidth:"72%",
+    alignSelf:"stretch",
+    height:40,
     borderWidth:1,
     borderColor:colors.yellow,
     borderRadius:10,
@@ -2428,8 +2427,9 @@ const styles = StyleSheet.create({
     paddingHorizontal:11,
     flexDirection:"row",
     alignItems:"center",
+    justifyContent:"center",
     gap:8,
-    marginBottom:2
+    marginTop:8
   },
   chooseWorkoutButtonText:{
     color:colors.yellow,
@@ -2444,7 +2444,7 @@ const styles = StyleSheet.create({
     marginTop:-3
   },
   homeWorkoutScroll:{
-  height:253,
+  height:239,
   marginTop:4
 },
 
