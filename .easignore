@@ -1,0 +1,20 @@
+node_modules/
+.expo/
+dist/
+.env
+.env.*
+!.env.example
+supabase/.temp/
+backups/
+
+# Anciennes copies locales : utiles dans Git, inutiles dans une build mobile.
+**/*.before-*
+assets/_program-images-backup/
+
+# Les versions JPEG optimisées sont utilisées par l'application.
+assets/evolve-gold-dark.png
+assets/evolve-initium.png
+assets/power-building.png
+assets/protocole-2pm.png
+assets/suivi-nutrition.png
+assets/tactical-reconditioning.png

@@ -36,7 +36,8 @@ function remoteSearchTerm(query: string) {
 
 export async function searchOpenFoodFactsProducts(
   query: string,
-  limit = 12
+  limit = 12,
+  signal?: AbortSignal
 ): Promise<SearchableFood[]> {
   const trimmed = remoteSearchTerm(query);
   if (trimmed.length < 3) return [];
@@ -54,6 +55,7 @@ export async function searchOpenFoodFactsProducts(
   const response = await fetch(
     `https://world.openfoodfacts.org/cgi/search.pl?${params.toString()}`,
     {
+      signal,
       headers: {
         "User-Agent": "EvolveTraining/0.8 (nutrition-search)",
         Accept: "application/json",

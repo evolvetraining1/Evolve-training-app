@@ -27,7 +27,6 @@
     "expo-screen-orientation": "~57.0.2",
     "expo-sensors": "~57.0.2",
     "expo-status-bar": "~57.0.0",
-    "expo-symbols": "~57.0.2",
     "expo-updates": "~57.0.21",
     "expo-video": "~57.0.3",
     "react": "19.2.3",
@@ -47,16 +46,5 @@
     "@types/react": "~19.2.0",
     "sharp": "^0.35.3",
     "typescript": "~6.0.3"
-  },
-  "expo": {
-    "android": {
-      "permissions": [
-        null,
-        null,
-        null,
-        null,
-        "android.permission.ACTIVITY_RECOGNITION"
-      ]
-    }
   }
 }

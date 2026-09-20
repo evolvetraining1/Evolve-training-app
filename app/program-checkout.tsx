@@ -23,7 +23,7 @@ const PROGRAMS = {
     sessions: "4 à 5 séances / semaine",
     duration: "60 à 75 min / séance",
     level: "Intermédiaire à avancé",
-    image: require("@/assets/tactical-reconditioning.png"),
+    image: require("@/assets/tactical-reconditioning.jpg"),
   },
 
   "power-building": {
@@ -34,7 +34,7 @@ const PROGRAMS = {
     sessions: "4 à 5 séances / semaine",
     duration: "60 à 90 min / séance",
     level: "Intermédiaire",
-    image: require("@/assets/power-building.png"),
+    image: require("@/assets/power-building.jpg"),
   },
 
   "protocole-2pm": {
@@ -45,7 +45,7 @@ const PROGRAMS = {
     sessions: "Adapté au protocole individuel",
     duration: "4 à 12 semaines",
     level: "Selon l'évaluation initiale",
-    image: require("@/assets/protocole-2pm.png"),
+    image: require("@/assets/protocole-2pm.jpg"),
   },
   "evolve-initium": {
     title: "EVOLVE INITIUM",
@@ -55,7 +55,7 @@ const PROGRAMS = {
     sessions: "3 à 4 séances / semaine",
     duration: "12 semaines",
     level: "Débutant à intermédiaire",
-    image: require("@/assets/evolve-initium.png"),
+    image: require("@/assets/evolve-initium.jpg"),
   },
 
   "suivi-nutrition": {
@@ -66,7 +66,7 @@ const PROGRAMS = {
     sessions: "Suivi personnalisé",
     duration: "12 semaines",
     level: "Tous niveaux",
-    image: require("@/assets/suivi-nutrition.png"),
+    image: require("@/assets/suivi-nutrition.jpg"),
   },
 
 } as const;

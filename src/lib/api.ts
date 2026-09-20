@@ -22,12 +22,11 @@ export async function getMyProfile() {
 
 export async function getMyUpcomingSessions() {
   const id = await currentUserId();
-  const today = localDateString();
 
   const { data, error } = await supabase
     .from("workout_sessions")
     .select(`
-      id, scheduled_for, status,
+      id, scheduled_for, status, completed_at,
       workout_template_id,
       workout_templates (
         id,
@@ -40,10 +39,8 @@ export async function getMyUpcomingSessions() {
       )
     `)
     .eq("athlete_id", id)
-    .in("status", ["planned", "in_progress"])
-    .or(`status.eq.in_progress,scheduled_for.gte.${today}`)
     .order("scheduled_for", { ascending: true })
-    .limit(50);
+    .limit(250);
 
   if (error) throw error;
 
@@ -160,15 +157,13 @@ export async function getNextWorkoutSession(sessionId: string) {
       )
     `)
     .eq("athlete_id", (current as any).athlete_id)
-    .eq("status", "planned")
+    .in("status", ["planned", "in_progress"])
     .eq("workout_templates.program_id", currentTemplate.program_id)
     .neq("id", sessionId);
 
   if (error) throw error;
 
   const currentWeek = Number(currentTemplate.week_number ?? 0);
-  const currentDay = Number(currentTemplate.day_number ?? 0);
-
   const ordered = (candidates ?? [])
     .map((session: any) => {
       const template = Array.isArray(session.workout_templates)
@@ -181,13 +176,15 @@ export async function getNextWorkoutSession(sessionId: string) {
         day: Number(template?.day_number ?? 0),
       };
     })
-    .filter(
-      ({ week, day }) =>
-        week > currentWeek ||
-        (week === currentWeek && day > currentDay)
-    )
+    // Une séance peut être réalisée dans n'importe quel ordre à l'intérieur
+    // de la semaine courante. On termine donc d'abord les séances restantes
+    // de cette semaine avant de proposer la suivante.
+    .filter(({ week }) => week >= currentWeek)
     .sort((a, b) => {
       if (a.week !== b.week) return a.week - b.week;
+      if (a.session.status !== b.session.status) {
+        return a.session.status === "in_progress" ? -1 : 1;
+      }
       if (a.day !== b.day) return a.day - b.day;
 
       return String(a.session.created_at ?? "").localeCompare(

@@ -39,18 +39,29 @@ export default function MessagingScreen(){
  useEffect(()=>{
   if(!userId||selectedContact)return;
 
+  let refreshTimer:ReturnType<typeof setTimeout>|null=null;
+
+  const scheduleRefresh=()=>{
+    if(refreshTimer)clearTimeout(refreshTimer);
+    refreshTimer=setTimeout(()=>{
+      refreshTimer=null;
+      void refreshContactUnreadCounts(userId);
+    },250);
+  };
+
   const channel=supabase
     .channel(`messaging-list-unread-${userId}`)
     .on(
       "postgres_changes",
       {event:"*",schema:"public",table:"messages"},
-      ()=>{void refreshContactUnreadCounts(userId);}
+      scheduleRefresh
     )
     .subscribe();
 
-  void refreshContactUnreadCounts(userId);
-
-  return()=>{void supabase.removeChannel(channel);};
+  return()=>{
+    if(refreshTimer)clearTimeout(refreshTimer);
+    void supabase.removeChannel(channel);
+  };
  },[userId,selectedContact]);
  useEffect(()=>{if(!conversationId)return; const channel=supabase.channel(`messages:${conversationId}`).on("postgres_changes",{event:"INSERT",schema:"public",table:"messages",filter:`conversation_id=eq.${conversationId}`},payload=>{const incoming=payload.new as Message; autoScrollUntilRef.current=Date.now()+700; setMessages(current=>current.some(m=>m.id===incoming.id)?current:[...current,incoming]); if(isMediaMessage(incoming)&&incoming.media_url){void getSignedMediaUrl(incoming.media_url).then(url=>setMediaUrls(current=>({...current,[incoming.id]:url}))).catch(()=>{});}}).subscribe(); return()=>{void supabase.removeChannel(channel);};},[conversationId]);
  async function markConversationRead(
@@ -82,9 +93,11 @@ export default function MessagingScreen(){
     return;
   }
 
+  const unreadIdSet = new Set(unreadIds);
+
   setMessages((current) =>
     current.map((message) =>
-      unreadIds.includes(message.id)
+      unreadIdSet.has(message.id)
         ? { ...message, read_at: readAt }
         : message
     )

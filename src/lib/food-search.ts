@@ -43,6 +43,8 @@ const COMMON_ALIASES: Record<string, string[]> = {
   lait: ["lait"],
 };
 
+const NORMALIZED_FOOD_NAMES = new WeakMap<object, string>();
+
 export function normalizeFoodText(value: string) {
   return String(value ?? "")
     .toLowerCase()
@@ -71,8 +73,17 @@ function queryVariants(query: string) {
   return [...variants].filter(Boolean);
 }
 
-function scoreFood(name: string, variants: string[]) {
-  const normalizedName = normalizeFoodText(name);
+function normalizedFoodName(food: SearchableFood) {
+  const cached = NORMALIZED_FOOD_NAMES.get(food);
+  if (cached != null) return cached;
+
+  const normalized = normalizeFoodText(food.name);
+  NORMALIZED_FOOD_NAMES.set(food, normalized);
+  return normalized;
+}
+
+function scoreFood(food: SearchableFood, variants: string[]) {
+  const normalizedName = normalizedFoodName(food);
   if (!normalizedName) return -1;
 
   let best = -1;
@@ -96,7 +107,7 @@ export function searchFoods<T extends SearchableFood>(foods: T[], query: string,
   if (!variants.length || normalizeFoodText(query).length < 2) return [];
 
   return foods
-    .map((food) => ({ food, score: scoreFood(food.name, variants) }))
+    .map((food) => ({ food, score: scoreFood(food, variants) }))
     .filter((item) => item.score >= 0)
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;

@@ -20,7 +20,7 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={styles.root}>
       <ImageBackground
-        source={require("../assets/evolve-gold-dark.png")}
+        source={require("../assets/evolve-gold-dark.jpg")}
         style={styles.background}
         resizeMode="cover"
       >

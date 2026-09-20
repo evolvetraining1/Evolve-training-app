@@ -15,35 +15,35 @@ const PROGRAMS = [
     id: "tactical-reconditioning",
     title: "TACTICAL RECONDITIONING",
     price: 300,
-    image: require("@/assets/tactical-reconditioning.png"),
+    image: require("@/assets/tactical-reconditioning.jpg"),
   },
 
   {
     id: "power-building",
     title: "POWER BUILDING",
     price: 300,
-    image: require("@/assets/power-building.png"),
+    image: require("@/assets/power-building.jpg"),
   },
 
   {
     id: "protocole-2pm",
     title: "PROTOCOLE 2PM",
     price: 200,
-    image: require("@/assets/protocole-2pm.png"),
+    image: require("@/assets/protocole-2pm.jpg"),
   },
 
   {
     id: "evolve-initium",
     title: "EVOLVE INITIUM",
     price: 300,
-    image: require("@/assets/evolve-initium.png"),
+    image: require("@/assets/evolve-initium.jpg"),
   },
 
   {
     id: "suivi-nutrition",
     title: "SUIVI NUTRITION",
     price: 300,
-    image: require("@/assets/suivi-nutrition.png"),
+    image: require("@/assets/suivi-nutrition.jpg"),
   },
 ];
 

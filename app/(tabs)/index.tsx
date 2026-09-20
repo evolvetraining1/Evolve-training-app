@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { router, useFocusEffect } from "expo-router";
-import { SymbolView } from "expo-symbols";
 import {
   ActivityIndicator, Image, Modal, Platform, Pressable, RefreshControl, ScrollView,
   StyleSheet, Text, TextInput, View
@@ -83,7 +82,7 @@ export default function HomeScreen() {
   const [sessions, setSessions] = useState<any[]>([]);
   const [checkin, setCheckin] = useState<any>(null);
   const [recentCheckins, setRecentCheckins] = useState<any[]>([]);
-  const [nextDetail, setNextDetail] = useState<any>(null);
+  const [workoutPreviewDetail, setWorkoutPreviewDetail] = useState<any>(null);
   const [performance, setPerformance] = useState<any>(null);
   const [todaySteps, setTodaySteps] = useState(0);
   const [unreadMessages, setUnreadMessages] = useState(0);
@@ -179,8 +178,13 @@ export default function HomeScreen() {
     useState<string | null>(null);
   const [switchingProgram, setSwitchingProgram] = useState(false);
   const [selectedProgramTemplates, setSelectedProgramTemplates] = useState<any[]>([]);
-  const [selectedTemplateDetail, setSelectedTemplateDetail] = useState<any>(null);
+  const [workoutPickerOpen, setWorkoutPickerOpen] = useState(false);
+  const [selectedWorkoutTemplateId, setSelectedWorkoutTemplateId] =
+    useState<string | null>(null);
   const lastHomeLoadAtRef = useRef(0);
+  const homeLoadInFlightRef = useRef(false);
+  const stepSyncOwnerRef = useRef<string | null>(null);
+  const stepHistorySyncKeyRef = useRef<string | null>(null);
 
 
   const orderedVisibleDashboardWidgets = useMemo(
@@ -253,8 +257,11 @@ export default function HomeScreen() {
       : 0;
 
   const load = useCallback(async () => {
+    if (homeLoadInFlightRef.current) return;
+
+    homeLoadInFlightRef.current = true;
+
     try {
-      lastHomeLoadAtRef.current = Date.now();
       setError(null);
 
       const results = await Promise.allSettled([
@@ -345,6 +352,7 @@ export default function HomeScreen() {
             : null;
 
       setSelectedProgramIdState(savedProgramId);
+      lastHomeLoadAtRef.current = Date.now();
 
     } catch (e: any) {
       console.error("HOME LOAD ERROR", e);
@@ -354,6 +362,7 @@ export default function HomeScreen() {
           "Impossible de charger les données"
       );
     } finally {
+      homeLoadInFlightRef.current = false;
       setLoading(false);
       setRefreshing(false);
     }
@@ -372,9 +381,13 @@ export default function HomeScreen() {
           }
 
           // Le capteur est lié au téléphone, mais la synchro cloud est liée
-          // au compte connecté. Un changement de compte doit donc forcer
-          // une nouvelle écriture immédiate pour le nouvel utilisateur.
-          resetStepCloudSyncThrottle();
+          // au compte connecté. On ne réinitialise le throttle qu'au vrai
+          // changement de compte, pas à chaque retour sur l'accueil.
+          if (stepSyncOwnerRef.current !== sessionUserId) {
+            stepSyncOwnerRef.current = sessionUserId;
+            stepHistorySyncKeyRef.current = null;
+            resetStepCloudSyncThrottle();
+          }
 
           const result = await probePedometer();
 
@@ -385,9 +398,13 @@ export default function HomeScreen() {
             await syncMyDailySteps(result.todaySteps, { force: true });
           }
 
-          // Android conserve l'historique natif même si l'app a été fermée.
-          // On le pousse au compte actuellement connecté.
-          await syncStoredStepHistoryToCloud(30);
+          // L'historique Android ne change pas rétroactivement : une synchro
+          // par compte et par jour suffit et évite 30 upserts à chaque focus.
+          const historySyncKey = `${sessionUserId}:${localDateString()}`;
+          if (stepHistorySyncKeyRef.current !== historySyncKey) {
+            await syncStoredStepHistoryToCloud(30);
+            stepHistorySyncKeyRef.current = historySyncKey;
+          }
 
           if (!active) return;
 
@@ -403,7 +420,7 @@ export default function HomeScreen() {
             (error) => {
               console.warn("STEP WATCH ERROR", error);
             },
-            5_000
+            15_000
           );
         } catch (error) {
           console.warn("STEP TRACKING START ERROR", error);
@@ -423,6 +440,9 @@ export default function HomeScreen() {
     useCallback(() => {
       let active = true;
       let channel: ReturnType<typeof supabase.channel> | null = null;
+      let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+      let refreshInFlight = false;
+      let refreshQueued = false;
 
       const startUnreadWatch = async () => {
         const {
@@ -437,44 +457,68 @@ export default function HomeScreen() {
         }
 
         const refreshUnread = async () => {
-          const { data: conversations, error: conversationsError } =
-            await supabase
-              .from("conversations")
-              .select("id")
-              .or(`coach_id.eq.${userId},athlete_id.eq.${userId}`);
+          if (refreshInFlight) {
+            refreshQueued = true;
+            return;
+          }
 
-          if (conversationsError) {
-            console.warn(
-              "UNREAD CONVERSATIONS ERROR",
-              conversationsError.message
+          refreshInFlight = true;
+
+          try {
+            const { data: conversations, error: conversationsError } =
+              await supabase
+                .from("conversations")
+                .select("id")
+                .or(`coach_id.eq.${userId},athlete_id.eq.${userId}`);
+
+            if (conversationsError) {
+              console.warn(
+                "UNREAD CONVERSATIONS ERROR",
+                conversationsError.message
+              );
+              return;
+            }
+
+            const conversationIds = (conversations ?? []).map(
+              (conversation: any) => String(conversation.id)
             );
-            return;
+
+            if (!conversationIds.length) {
+              if (active) setUnreadMessages(0);
+              return;
+            }
+
+            const { count, error: unreadError } = await supabase
+              .from("messages")
+              .select("id", { count: "exact", head: true })
+              .in("conversation_id", conversationIds)
+              .neq("sender_id", userId)
+              .is("read_at", null);
+
+            if (unreadError) {
+              console.warn("UNREAD MESSAGES ERROR", unreadError.message);
+              return;
+            }
+
+            if (active) {
+              setUnreadMessages(count ?? 0);
+            }
+          } finally {
+            refreshInFlight = false;
+
+            if (refreshQueued && active) {
+              refreshQueued = false;
+              scheduleRefreshUnread();
+            }
           }
+        };
 
-          const conversationIds = (conversations ?? []).map(
-            (conversation: any) => String(conversation.id)
-          );
-
-          if (!conversationIds.length) {
-            if (active) setUnreadMessages(0);
-            return;
-          }
-
-          const { count, error: unreadError } = await supabase
-            .from("messages")
-            .select("id", { count: "exact", head: true })
-            .in("conversation_id", conversationIds)
-            .neq("sender_id", userId)
-            .is("read_at", null);
-
-          if (unreadError) {
-            console.warn("UNREAD MESSAGES ERROR", unreadError.message);
-            return;
-          }
-
-          if (active) {
-            setUnreadMessages(count ?? 0);
-          }
+        const scheduleRefreshUnread = () => {
+          if (refreshTimer) clearTimeout(refreshTimer);
+          refreshTimer = setTimeout(() => {
+            refreshTimer = null;
+            void refreshUnread();
+          }, 250);
         };
 
         await refreshUnread();
@@ -491,7 +535,7 @@ export default function HomeScreen() {
               table: "messages",
             },
             () => {
-              void refreshUnread();
+              scheduleRefreshUnread();
             }
           )
           .subscribe();
@@ -502,6 +546,8 @@ export default function HomeScreen() {
       return () => {
         active = false;
 
+        if (refreshTimer) clearTimeout(refreshTimer);
+
         if (channel) {
           void supabase.removeChannel(channel);
         }
@@ -511,20 +557,28 @@ export default function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      // Le profil est léger à recharger et peut avoir changé depuis l'onglet
-      // Profil (nom, sexe ou photo), même si le reste du dashboard est récent.
-      void getMyProfile()
-        .then(setProfile)
-        .catch((profileError) =>
-          console.warn("HOME PROFILE REFRESH ERROR", profileError)
-        );
-
       const stale =
         !lastHomeLoadAtRef.current ||
         Date.now() - lastHomeLoadAtRef.current > 120_000;
 
       if (stale) {
         void load();
+      } else {
+        // Au retour d'une séance, son statut doit être rafraîchi même si le
+        // reste de l'accueil est encore en cache. Le profil peut également
+        // avoir changé depuis l'écran d'édition.
+        void Promise.allSettled([
+          getMyProfile(),
+          getMyUpcomingSessions(),
+        ]).then(([profileResult, sessionsResult]) => {
+          if (profileResult.status === "fulfilled") {
+            setProfile(profileResult.value);
+          }
+
+          if (sessionsResult.status === "fulfilled") {
+            setSessions(sessionsResult.value);
+          }
+        });
       }
 
       return () => {};
@@ -691,77 +745,112 @@ export default function HomeScreen() {
   const next = selectedProgramSessions[0] ?? null;
   const afterNext = selectedProgramSessions[1] ?? null;
 
-  const template: any =
+  const defaultTemplate: any =
     next?.workout_templates ??
     firstUnfinishedTemplate ??
     null;
 
+  const currentProgramWeek = Number(defaultTemplate?.week_number ?? 0);
 
-  useEffect(() => {
-    let cancelled = false;
+  const currentWeekWorkoutOptions = useMemo(() => {
+    if (!currentProgramWeek) return [];
 
-    async function loadSelectedTemplateDetail() {
-      if (!template?.id || next?.id) {
-        setSelectedTemplateDetail(null);
-        return;
-      }
+    const activeSessionByTemplateId = new Map<string, any>();
 
-      try {
-        const detail = await getWorkoutTemplateDetail(String(template.id));
+    for (const session of selectedProgramSessions) {
+      const templateId = String(session?.workout_template_id ?? "");
+      if (!templateId) continue;
 
-        if (!cancelled) {
-          setSelectedTemplateDetail(detail);
-        }
-      } catch (e) {
-        console.error("TEMPLATE DETAIL LOAD ERROR", e);
-
-        if (!cancelled) {
-          setSelectedTemplateDetail(null);
-        }
+      const previous = activeSessionByTemplateId.get(templateId);
+      if (!previous || session.status === "in_progress") {
+        activeSessionByTemplateId.set(templateId, session);
       }
     }
 
-    loadSelectedTemplateDetail();
+    return orderedProgramTemplates
+      .filter(
+        (item: any) =>
+          Number(item?.week_number ?? 0) === currentProgramWeek &&
+          !finishedTemplateIds.has(String(item?.id ?? ""))
+      )
+      .map((item: any) => ({
+        template: item,
+        session: activeSessionByTemplateId.get(String(item.id)) ?? null,
+      }));
+  }, [
+    currentProgramWeek,
+    finishedTemplateIds,
+    orderedProgramTemplates,
+    selectedProgramSessions,
+  ]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [template?.id, next?.id]);
+  const selectedWorkoutOption = useMemo(
+    () =>
+      currentWeekWorkoutOptions.find(
+        (option: any) =>
+          String(option.template?.id) === selectedWorkoutTemplateId
+      ) ?? null,
+    [currentWeekWorkoutOptions, selectedWorkoutTemplateId]
+  );
+
+  const displayedSession = selectedWorkoutOption
+    ? selectedWorkoutOption.session
+    : next;
+  const displayedTemplate = selectedWorkoutOption
+    ? selectedWorkoutOption.template
+    : defaultTemplate;
+
+  useEffect(() => {
+    setSelectedWorkoutTemplateId((current) => {
+      if (!current) return null;
+
+      return currentWeekWorkoutOptions.some(
+        (option: any) => String(option.template?.id) === current
+      )
+        ? current
+        : null;
+    });
+  }, [currentWeekWorkoutOptions]);
+
   useEffect(() => {
     let cancelled = false;
 
-    async function loadNextDetail() {
-      if (!next?.id || !next?.workout_template_id) {
+    async function loadWorkoutPreview() {
+      if (!displayedTemplate?.id) {
+        setWorkoutPreviewDetail(null);
         return;
       }
 
       try {
         const detail = await getWorkoutTemplateDetail(
-          String(next.workout_template_id)
+          String(displayedTemplate.id)
         );
 
         if (!cancelled) {
-          setNextDetail(detail);
+          setWorkoutPreviewDetail(detail);
         }
       } catch (e) {
-        console.error("NEXT WORKOUT DETAIL LOAD ERROR", e);
+        console.error("WORKOUT PREVIEW LOAD ERROR", e);
 
         if (!cancelled) {
-          setNextDetail(null);
+          setWorkoutPreviewDetail(null);
         }
       }
     }
 
-    loadNextDetail();
+    setWorkoutPreviewDetail(null);
+    loadWorkoutPreview();
 
     return () => {
       cancelled = true;
     };
-  }, [next?.id, next?.workout_template_id]);
+  }, [displayedTemplate?.id]);
 
-  const previewExercises = next?.id
-    ? (nextDetail?.workoutExercises ?? [])
-    : (selectedTemplateDetail?.workoutExercises ?? []);
+  const previewExercises =
+    String(workoutPreviewDetail?.workout?.id ?? "") ===
+    String(displayedTemplate?.id ?? "")
+      ? (workoutPreviewDetail?.workoutExercises ?? [])
+      : [];
   const checkinDates = useMemo(
     () => new Set(recentCheckins.map((x: any) => x.checkin_date)),
     [recentCheckins]
@@ -784,8 +873,9 @@ export default function HomeScreen() {
     if (!programId || programId === selectedProgramId) return;
 
     try {
-      setNextDetail(null);
-      setSelectedTemplateDetail(null);
+      setWorkoutPreviewDetail(null);
+      setSelectedWorkoutTemplateId(null);
+      setWorkoutPickerOpen(false);
       setSwitchingProgram(true);
 
       await setSelectedProgramId(programId);
@@ -986,11 +1076,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
 
         <View style={[styles.topbar, { paddingTop: insets.top + 12 }]}>
           <Pressable onPress={() => setMenuOpen(true)} style={styles.squareButton}>
-            <SymbolView
-              name={{ ios: "ellipsis", android: "more_vert" }}
-              size={18}
-              tintColor={colors.text}
-            />
+            <Text style={styles.menuGlyph}>⋮</Text>
 
             {unreadMessages > 0 ? (
               <View style={styles.notification}>
@@ -1093,10 +1179,27 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
             <View style={styles.workoutHead}>
               <HexIcon glyph="▮▮" />
               <View style={{ flex: 1 }}>
-                <Text style={styles.workoutTitle}>{template?.name || "Aucune séance"}</Text>
-                <Text style={styles.workoutMeta}>◷ {displayDuration(template?.estimated_minutes)}    ▥ Focus Force</Text>
+                <Text style={styles.workoutTitle}>{displayedTemplate?.name || "Aucune séance"}</Text>
+                <Text style={styles.workoutMeta}>
+                  {currentProgramWeek ? `S${currentProgramWeek} · ` : ""}
+                  {displayedTemplate?.day_number ? `J${displayedTemplate.day_number} · ` : ""}
+                  ◷ {displayDuration(displayedTemplate?.estimated_minutes)}
+                </Text>
               </View>
             </View>
+
+            {currentWeekWorkoutOptions.length > 1 ? (
+              <Pressable
+                disabled={dashboardEditMode}
+                onPress={() => setWorkoutPickerOpen(true)}
+                style={styles.chooseWorkoutButton}
+              >
+                <Text style={styles.chooseWorkoutButtonText}>
+                  CHOISIR UNE AUTRE SÉANCE
+                </Text>
+                <Text style={styles.chooseWorkoutChevron}>⌄</Text>
+              </Pressable>
+            ) : null}
 
             <ScrollView
           style={styles.homeWorkoutScroll}
@@ -1106,7 +1209,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
           showsVerticalScrollIndicator={false}
           overScrollMode="never"
         >
-{(next || template) ? (
+{(displayedSession || displayedTemplate) ? (
           previewExercises.length ? (
             <View style={styles.homeSessionGroups}>
               {homeSessionGroups.map((group) => (
@@ -1157,18 +1260,18 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
                 </ScrollView>
 
         <Pressable
-          disabled={!next && !template?.id}
+          disabled={!displayedSession && !displayedTemplate?.id}
           onPress={() => {
-            if (next?.id) {
+            if (displayedSession?.id) {
               router.push({
                 pathname: "/workout",
-                params: { sessionId: next.id },
+                params: { sessionId: displayedSession.id },
               });
               return;
             }
 
-            if (template?.id) {
-              getOrCreateWorkoutSession(String(template.id))
+            if (displayedTemplate?.id) {
+              getOrCreateWorkoutSession(String(displayedTemplate.id))
                 .then((session) => {
                   router.push({
                     pathname: "/workout",
@@ -1186,10 +1289,10 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
           }}
           style={[
             styles.startButton,
-            !next && !template?.id && { opacity: .45 }
+            !displayedSession && !displayedTemplate?.id && { opacity: .45 }
           ]}
         >
-              <Text style={styles.play}>▶</Text><Text style={styles.startText}>{next?.status === "in_progress" ? "REPRENDRE LA SÉANCE" : "COMMENCER LA SÉANCE"}</Text>
+              <Text style={styles.play}>▶</Text><Text style={styles.startText}>{displayedSession?.status === "in_progress" ? "REPRENDRE LA SÉANCE" : "COMMENCER LA SÉANCE"}</Text>
             </Pressable>
           </View>
         </View>
@@ -1771,6 +1874,112 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
       </NestableScrollContainer>
 
       <Modal
+        visible={workoutPickerOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setWorkoutPickerOpen(false)}
+      >
+        <View style={styles.workoutPickerBackdrop}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setWorkoutPickerOpen(false)}
+          />
+
+          <View style={styles.workoutPickerSheet}>
+            <View style={styles.workoutPickerHandle} />
+
+            <View style={styles.workoutPickerHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.workoutPickerEyebrow}>
+                  SEMAINE {currentProgramWeek || "—"}
+                </Text>
+                <Text style={styles.workoutPickerTitle}>
+                  Choisis ta séance
+                </Text>
+                <Text style={styles.workoutPickerSubtitle}>
+                  Tu peux les réaliser dans l’ordre que tu veux cette semaine.
+                </Text>
+              </View>
+
+              <Pressable
+                onPress={() => setWorkoutPickerOpen(false)}
+                style={styles.workoutPickerClose}
+              >
+                <Text style={styles.workoutPickerCloseText}>×</Text>
+              </Pressable>
+            </View>
+
+            <ScrollView
+              style={styles.workoutPickerList}
+              contentContainerStyle={styles.workoutPickerListContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {currentWeekWorkoutOptions.map((option: any) => {
+                const optionId = String(option.template?.id ?? "");
+                const active =
+                  optionId === String(displayedTemplate?.id ?? "");
+                const inProgress = option.session?.status === "in_progress";
+
+                return (
+                  <Pressable
+                    key={optionId}
+                    onPress={() => {
+                      setSelectedWorkoutTemplateId(optionId);
+                      setWorkoutPickerOpen(false);
+                    }}
+                    style={[
+                      styles.workoutPickerItem,
+                      active && styles.workoutPickerItemActive,
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.workoutPickerDay,
+                        active && styles.workoutPickerDayActive,
+                      ]}
+                    >
+                      <Text style={styles.workoutPickerDayLabel}>JOUR</Text>
+                      <Text style={styles.workoutPickerDayNumber}>
+                        {option.template?.day_number ?? "—"}
+                      </Text>
+                    </View>
+
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.workoutPickerItemName}>
+                        {option.template?.name ?? "Séance"}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.workoutPickerItemStatus,
+                          inProgress && styles.workoutPickerItemStatusActive,
+                        ]}
+                      >
+                        {inProgress ? "EN COURS" : "À FAIRE"}
+                        {option.template?.estimated_minutes
+                          ? ` · ${displayDuration(option.template.estimated_minutes)}`
+                          : ""}
+                      </Text>
+                    </View>
+
+                    <View
+                      style={[
+                        styles.workoutPickerCheck,
+                        active && styles.workoutPickerCheckActive,
+                      ]}
+                    >
+                      <Text style={styles.workoutPickerCheckText}>
+                        {active ? "✓" : ""}
+                      </Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
         visible={widgetPickerOpen}
         transparent
         animationType="slide"
@@ -2207,8 +2416,35 @@ const styles = StyleSheet.create({
 
   greetingRecovery:{flexDirection:"row",gap:10,alignItems:"stretch",marginBottom:18}, greetingBlock:{flex:1,justifyContent:"center",paddingLeft:4}, hello:{color:colors.muted,fontSize:15,marginBottom:3}, name:{color:colors.text,fontSize:33,fontWeight:"900",letterSpacing:-1}, fist:{fontSize:22}, recoveryCard:{flex:1.12,minHeight:108,borderWidth:1,borderColor:colors.border,borderRadius:17,backgroundColor:"#0A0A0B",padding:13,flexDirection:"row",alignItems:"center",gap:8}, recoveryLabel:{color:colors.muted,fontSize:10}, recoveryValue:{fontSize:27,fontWeight:"900",marginTop:3}, recoveryText:{color:colors.muted,fontSize:10,marginTop:2}, ring:{width:64,height:64,borderRadius:32,borderWidth:7,alignItems:"center",justifyContent:"center",backgroundColor:"#0B1009"}, ringBolt:{fontSize:24},
   errorCard:{borderColor:"#632E2E",borderWidth:1,borderRadius:14,padding:12,marginBottom:12},error:{color:colors.red}, sectionHeader:{flexDirection:"row",justifyContent:"space-between",alignItems:"center",marginTop:11,marginBottom:10},sectionLeft:{flexDirection:"row",alignItems:"center"},yellowBar:{width:3,height:20,borderRadius:2,backgroundColor:colors.yellow,marginRight:10},sectionTitle:{color:colors.text,fontWeight:"800",fontSize:17},sectionAction:{color:colors.yellow,fontSize:13},
-  workoutCard:{height:500,borderWidth:1,borderColor:colors.border,borderRadius:20,overflow:"hidden",backgroundColor:"#080809",position:"relative"},workoutImage:{position:"absolute",right:0,top:0,width:"49%",height:"83%"},imageShade:{position:"absolute",right:0,top:0,width:"58%",height:"84%",backgroundColor:"rgba(0,0,0,.28)"},workoutContent:{padding:15,paddingTop:17},workoutHead:{flexDirection:"row",alignItems:"center",gap:13,marginBottom:13,maxWidth:"73%"},hexIcon:{width:54,height:54,borderWidth:1,borderColor:colors.yellow,borderRadius:17,alignItems:"center",justifyContent:"center",backgroundColor:"rgba(0,0,0,.55)"},hexSmall:{width:48,height:48,borderRadius:15},hexGlyph:{color:colors.yellow,fontWeight:"900",fontSize:18},workoutTitle:{color:colors.text,fontWeight:"900",fontSize:23},workoutMeta:{color:colors.muted,fontSize:11,marginTop:7},exerciseRow:{minHeight:76,maxWidth:"64%",flexDirection:"row",alignItems:"center",gap:11,borderBottomWidth:1,borderBottomColor:colors.borderSoft},exerciseIndex:{width:38,height:38,borderRadius:19,backgroundColor:"rgba(255,196,0,.08)",alignItems:"center",justifyContent:"center"},exerciseIndexText:{color:colors.yellow,fontWeight:"900",fontSize:21},exerciseName:{color:colors.text,fontWeight:"800",fontSize:14},exerciseDetail:{color:colors.muted,fontSize:12,marginTop:5},arrowCircle:{width:32,height:32,borderRadius:16,backgroundColor:"rgba(20,20,21,.85)",alignItems:"center",justifyContent:"center"},arrowText:{color:colors.text,fontSize:28,lineHeight:29},emptyWorkout:{color:colors.muted,maxWidth:"55%",paddingVertical:54},homeWorkoutScroll:{
-  height:285,
+  workoutCard:{height:500,borderWidth:1,borderColor:colors.border,borderRadius:20,overflow:"hidden",backgroundColor:"#080809",position:"relative"},workoutImage:{position:"absolute",right:0,top:0,width:"49%",height:"83%"},imageShade:{position:"absolute",right:0,top:0,width:"58%",height:"84%",backgroundColor:"rgba(0,0,0,.28)"},workoutContent:{padding:15,paddingTop:17},workoutHead:{flexDirection:"row",alignItems:"center",gap:13,marginBottom:9,maxWidth:"73%"},hexIcon:{width:54,height:54,borderWidth:1,borderColor:colors.yellow,borderRadius:17,alignItems:"center",justifyContent:"center",backgroundColor:"rgba(0,0,0,.55)"},hexSmall:{width:48,height:48,borderRadius:15},hexGlyph:{color:colors.yellow,fontWeight:"900",fontSize:18},workoutTitle:{color:colors.text,fontWeight:"900",fontSize:23},workoutMeta:{color:colors.muted,fontSize:11,marginTop:7},exerciseRow:{minHeight:76,maxWidth:"64%",flexDirection:"row",alignItems:"center",gap:11,borderBottomWidth:1,borderBottomColor:colors.borderSoft},exerciseIndex:{width:38,height:38,borderRadius:19,backgroundColor:"rgba(255,196,0,.08)",alignItems:"center",justifyContent:"center"},exerciseIndexText:{color:colors.yellow,fontWeight:"900",fontSize:21},exerciseName:{color:colors.text,fontWeight:"800",fontSize:14},exerciseDetail:{color:colors.muted,fontSize:12,marginTop:5},arrowCircle:{width:32,height:32,borderRadius:16,backgroundColor:"rgba(20,20,21,.85)",alignItems:"center",justifyContent:"center"},arrowText:{color:colors.text,fontSize:28,lineHeight:29},emptyWorkout:{color:colors.muted,maxWidth:"55%",paddingVertical:54},
+  chooseWorkoutButton:{
+    alignSelf:"flex-start",
+    height:32,
+    maxWidth:"72%",
+    borderWidth:1,
+    borderColor:colors.yellow,
+    borderRadius:10,
+    backgroundColor:"rgba(255,196,0,.08)",
+    paddingHorizontal:11,
+    flexDirection:"row",
+    alignItems:"center",
+    gap:8,
+    marginBottom:2
+  },
+  chooseWorkoutButtonText:{
+    color:colors.yellow,
+    fontSize:9,
+    fontWeight:"900",
+    letterSpacing:.35
+  },
+  chooseWorkoutChevron:{
+    color:colors.yellow,
+    fontSize:15,
+    fontWeight:"900",
+    marginTop:-3
+  },
+  homeWorkoutScroll:{
+  height:253,
   marginTop:4
 },
 
@@ -2265,6 +2501,145 @@ homeSessionText:{
 },
 
 startButton:{height:57,borderRadius:10,backgroundColor:colors.yellow,alignItems:"center",justifyContent:"center",flexDirection:"row",gap:12,marginTop:15},play:{color:"#060606",fontSize:16},startText:{color:"#060606",fontWeight:"900",fontSize:13},
+  workoutPickerBackdrop:{
+    flex:1,
+    backgroundColor:"rgba(0,0,0,.76)",
+    justifyContent:"flex-end"
+  },
+  workoutPickerSheet:{
+    maxHeight:"76%",
+    backgroundColor:"#0A0A0B",
+    borderTopLeftRadius:26,
+    borderTopRightRadius:26,
+    borderWidth:1,
+    borderColor:colors.border,
+    paddingHorizontal:18,
+    paddingTop:10,
+    paddingBottom:34
+  },
+  workoutPickerHandle:{
+    alignSelf:"center",
+    width:48,
+    height:5,
+    borderRadius:3,
+    backgroundColor:"#4A4A4D",
+    marginBottom:18
+  },
+  workoutPickerHeader:{
+    flexDirection:"row",
+    alignItems:"flex-start",
+    gap:14,
+    marginBottom:16
+  },
+  workoutPickerEyebrow:{
+    color:colors.yellow,
+    fontSize:11,
+    fontWeight:"900",
+    letterSpacing:1.5,
+    marginBottom:5
+  },
+  workoutPickerTitle:{
+    color:colors.text,
+    fontSize:24,
+    fontWeight:"900"
+  },
+  workoutPickerSubtitle:{
+    color:colors.muted,
+    fontSize:12,
+    lineHeight:18,
+    marginTop:5
+  },
+  workoutPickerClose:{
+    width:42,
+    height:42,
+    borderRadius:13,
+    borderWidth:1,
+    borderColor:colors.border,
+    alignItems:"center",
+    justifyContent:"center"
+  },
+  workoutPickerCloseText:{
+    color:colors.text,
+    fontSize:25,
+    lineHeight:27
+  },
+  workoutPickerList:{
+    maxHeight:430
+  },
+  workoutPickerListContent:{
+    gap:10,
+    paddingBottom:8
+  },
+  workoutPickerItem:{
+    minHeight:78,
+    borderWidth:1,
+    borderColor:colors.border,
+    borderRadius:17,
+    backgroundColor:"#101012",
+    padding:12,
+    flexDirection:"row",
+    alignItems:"center",
+    gap:12
+  },
+  workoutPickerItemActive:{
+    borderColor:colors.yellow,
+    backgroundColor:"rgba(255,196,0,.07)"
+  },
+  workoutPickerDay:{
+    width:50,
+    height:50,
+    borderRadius:15,
+    borderWidth:1,
+    borderColor:colors.border,
+    alignItems:"center",
+    justifyContent:"center"
+  },
+  workoutPickerDayActive:{
+    borderColor:colors.yellow
+  },
+  workoutPickerDayLabel:{
+    color:colors.muted,
+    fontSize:8,
+    fontWeight:"900"
+  },
+  workoutPickerDayNumber:{
+    color:colors.text,
+    fontSize:20,
+    lineHeight:22,
+    fontWeight:"900"
+  },
+  workoutPickerItemName:{
+    color:colors.text,
+    fontSize:15,
+    fontWeight:"900"
+  },
+  workoutPickerItemStatus:{
+    color:colors.muted,
+    fontSize:10,
+    fontWeight:"800",
+    marginTop:5
+  },
+  workoutPickerItemStatusActive:{
+    color:colors.yellow
+  },
+  workoutPickerCheck:{
+    width:28,
+    height:28,
+    borderRadius:14,
+    borderWidth:1,
+    borderColor:colors.border,
+    alignItems:"center",
+    justifyContent:"center"
+  },
+  workoutPickerCheckActive:{
+    borderColor:colors.yellow,
+    backgroundColor:colors.yellow
+  },
+  workoutPickerCheckText:{
+    color:"#080808",
+    fontWeight:"900",
+    fontSize:15
+  },
   nextCard:{minHeight:100,borderWidth:1,borderColor:colors.border,borderRadius:18,backgroundColor:"#09090A",padding:14,flexDirection:"row",alignItems:"center",gap:12,marginTop:12},smallCap:{color:colors.muted,fontSize:10,letterSpacing:.4},nextTitle:{color:colors.text,fontSize:19,fontWeight:"800",marginTop:4},muted:{color:colors.muted,fontSize:12,marginTop:3},chevron:{color:colors.text,fontSize:38,paddingHorizontal:8},
   routineCard:{minHeight:126,borderWidth:1,borderColor:colors.border,borderRadius:18,backgroundColor:"#09090A",padding:14,flexDirection:"row",alignItems:"center"},streakBlock:{width:98,alignItems:"center"},fire:{fontSize:29},streakNumber:{color:colors.text,fontSize:28,fontWeight:"900",position:"absolute",right:7,top:0},streakDays:{color:colors.muted,fontSize:11,position:"absolute",right:3,top:34},routineDivider:{width:1,height:88,backgroundColor:colors.border,marginHorizontal:12},weekBlock:{flex:1},daysRow:{flexDirection:"row",justifyContent:"space-between"},dayCol:{alignItems:"center",gap:7},dayLabel:{color:colors.muted,fontSize:10},dayDot:{width:30,height:30,borderRadius:15,borderWidth:2,borderColor:colors.border,alignItems:"center",justifyContent:"center"},dayDone:{backgroundColor:"#3C8B1B",borderColor:"#3C8B1B"},dayToday:{borderColor:colors.yellow},dayCheck:{color:colors.text,fontWeight:"900"},routineMessage:{color:colors.muted,fontSize:11,marginTop:9},
   metricScroller:{gap:8,paddingRight:4},metricCard:{width:104,minHeight:145,borderRadius:16,borderWidth:1,borderColor:colors.border,backgroundColor:"#0A0A0B",padding:12,alignItems:"center"},metricIcon:{fontSize:26,marginBottom:8},metricLabel:{color:colors.muted,fontSize:9},metricValue:{color:colors.text,fontSize:24,fontWeight:"800",marginTop:8},metricState:{fontWeight:"800",fontSize:11,marginTop:6},

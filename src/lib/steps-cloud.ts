@@ -3,7 +3,9 @@ import { localDateString } from "./date";
 import { getStoredDailySteps } from "./pedometer";
 import { supabase } from "./supabase";
 
-const MIN_SYNC_INTERVAL_MS = 10_000;
+// Les pas restent instantanés à l'écran, mais une écriture cloud par minute
+// suffit largement et réduit la radio réseau, la batterie et les upserts.
+const MIN_SYNC_INTERVAL_MS = 60_000;
 let lastSyncAt = 0;
 let lastSyncedSteps: number | null = null;
 

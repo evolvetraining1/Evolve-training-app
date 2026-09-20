@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -156,6 +156,8 @@ export default function NutritionScreen() {
   const [remoteFoods, setRemoteFoods] = useState<CiqualFood[]>([]);
   const [communityFoods, setCommunityFoods] = useState<CiqualFood[]>([]);
   const remoteSearchCache = useRef(new Map<string, CiqualFood[]>());
+  const lastLoadAtRef = useRef(0);
+  const loadInFlightRef = useRef(false);
 
   const [showCustomProduct, setShowCustomProduct] = useState(false);
   const [pendingBarcode, setPendingBarcode] = useState("");
@@ -182,9 +184,22 @@ export default function NutritionScreen() {
   const [diabetesNotes, setDiabetesNotes] = useState("");
   const [savingDiabetesLog, setSavingDiabetesLog] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (options: { force?: boolean } = {}) => {
+    if (loadInFlightRef.current) return;
+
+    if (
+      !options.force &&
+      lastLoadAtRef.current > 0 &&
+      Date.now() - lastLoadAtRef.current < 60_000
+    ) {
+      setLoading(false);
+      return;
+    }
+
+    loadInFlightRef.current = true;
+
     try {
-      setLoading(true);
+      if (lastLoadAtRef.current === 0) setLoading(true);
       setMessage("");
 
       const {
@@ -317,11 +332,14 @@ export default function NutritionScreen() {
           )
         );
       }
+
+      lastLoadAtRef.current = Date.now();
     } catch (e: any) {
       setMessage(
         e?.message ?? "Impossible de charger le suivi nutrition."
       );
     } finally {
+      loadInFlightRef.current = false;
       setLoading(false);
     }
   }, []);
@@ -346,8 +364,10 @@ export default function NutritionScreen() {
     );
   }, [entries]);
 
+  const deferredFoodName = useDeferredValue(foodName);
+
   useEffect(() => {
-    const query = foodName.trim();
+    const query = deferredFoodName.trim();
 
     if (selectedFood || query.length < 3) {
       setRemoteFoods([]);
@@ -355,6 +375,7 @@ export default function NutritionScreen() {
     }
 
     let cancelled = false;
+    const controller = new AbortController();
 
     const normalizedQuery = normalizeFoodText(query);
     const cached = remoteSearchCache.current.get(normalizedQuery);
@@ -365,7 +386,7 @@ export default function NutritionScreen() {
     }
 
     const timeout = setTimeout(() => {
-      void searchOpenFoodFactsProducts(query, 12)
+      void searchOpenFoodFactsProducts(query, 12, controller.signal)
         .then((results) => {
           remoteSearchCache.current.set(normalizedQuery, results);
           if (!cancelled) setRemoteFoods(results);
@@ -377,14 +398,15 @@ export default function NutritionScreen() {
 
     return () => {
       cancelled = true;
+      controller.abort();
       clearTimeout(timeout);
     };
-  }, [foodName, selectedFood]);
+  }, [deferredFoodName, selectedFood]);
 
   const suggestions = useMemo(() => {
     if (selectedFood) return [];
 
-    const query = foodName.trim();
+    const query = deferredFoodName.trim();
     if (normalizeFoodText(query).length < 2) return [];
 
     const local = searchFoods(
@@ -405,7 +427,7 @@ export default function NutritionScreen() {
         return true;
       })
       .slice(0, 16);
-  }, [foodName, selectedFood, remoteFoods, communityFoods]);
+  }, [deferredFoodName, selectedFood, remoteFoods, communityFoods]);
 
   const calculated = useMemo(() => {
     const quantity = numberValue(grams);
@@ -802,7 +824,7 @@ export default function NutritionScreen() {
       setGrams("");
       setSelectedFood(null);
 
-      await load();
+      await load({ force: true });
       setMessage("Aliment ajouté.");
     } catch (e: any) {
       setMessage(e?.message ?? "Erreur lors de l'enregistrement.");
@@ -866,7 +888,7 @@ export default function NutritionScreen() {
       setActivityMinutes("");
       setDiabetesNotes("");
 
-      await load();
+      await load({ force: true });
       setShowDiabetesTracker(true);
       setMessage("Mesure glycémique enregistrée.");
     } catch (e: any) {
