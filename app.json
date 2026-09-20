@@ -9,7 +9,22 @@
     "plugins": [
       "expo-router",
       "expo-audio",
-      "expo-video"
+      "expo-video",
+      "expo-asset",
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Evolve utilise tes photos uniquement pour estimer les aliments de ton repas.",
+          "cameraPermission": "Evolve utilise la caméra pour analyser ton assiette."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Evolve utilise la caméra pour scanner les produits et analyser les repas."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
@@ -21,7 +36,10 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#000000"
-      }
+      },
+      "permissions": [
+        "android.permission.ACTIVITY_RECOGNITION"
+      ]
     },
     "extra": {
       "router": {},

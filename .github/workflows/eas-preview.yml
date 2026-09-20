@@ -1,0 +1,49 @@
+name: Publish Expo Preview
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - work/movement-illustrations
+    paths:
+      - "app/**"
+      - "assets/**"
+      - "src/**"
+      - ".github/workflows/eas-preview.yml"
+
+concurrency:
+  group: expo-preview-movement-illustrations
+  cancel-in-progress: true
+
+jobs:
+  publish-preview:
+    name: Publish preview update
+    runs-on: ubuntu-latest
+    env:
+      EXPO_PUBLIC_SUPABASE_URL: https://lwkeclsloqjruhorhbjp.supabase.co
+      EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_7HOyCwwt2tBXPN3D0EtGiQ_bALaYOs1
+
+    steps:
+      - name: Checkout test branch
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript check
+        run: npx tsc --noEmit
+
+      - name: Publish to preview channel
+        run: eas update --channel preview --platform all --message "Movement illustrations preview" --non-interactive

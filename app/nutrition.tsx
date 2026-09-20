@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -8,31 +9,40 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import {
   CameraView,
   useCameraPermissions,
 } from "expo-camera";
+import * as ImagePicker from "expo-image-picker";
 
 
-import { Card, Label, PrimaryButton, ScreenHeader } from "@/src/components/ui";
+import { BackScreenHeader, Card, Label, PrimaryButton } from "@/src/components/ui";
 import { colors } from "@/src/theme";
 import { supabase } from "@/src/lib/supabase";
 import { localDateString } from "@/src/lib/date";
+import { normalizeFoodText, searchFoods, type SearchableFood } from "@/src/lib/food-search";
+import { searchOpenFoodFactsProducts } from "@/src/lib/open-food-facts-search";
 
 const ciqualFoods = require("../src/data/ciqual-foods.json");
 
 type MealType = "breakfast" | "lunch" | "dinner" | "snack";
 
-type CiqualFood = {
-  code: string;
+type CiqualFood = SearchableFood;
+
+type CommunityProduct = {
+  id: string;
+  barcode: string | null;
   name: string;
+  brand: string | null;
   kcal100: number | null;
   protein100: number | null;
   carbs100: number | null;
   fat100: number | null;
   fiber100: number | null;
+  serving_size_g: number | null;
   source: string;
+  label_image_path: string | null;
 };
 
 type NutritionEntry = {
@@ -57,11 +67,40 @@ type NutritionTargets = {
   fiber_target_g: number;
 };
 
+type DiabetesContext =
+  | "fasting"
+  | "pre_meal"
+  | "post_meal"
+  | "bedtime"
+  | "exercise"
+  | "other";
+
+type DiabetesLog = {
+  id: string;
+  logged_on: string;
+  logged_at: string;
+  context: DiabetesContext;
+  glucose_mg_dl: number;
+  carbs_g: number | null;
+  insulin_units: number | null;
+  activity_minutes: number | null;
+  notes: string | null;
+};
+
 const meals: { key: MealType; label: string }[] = [
   { key: "breakfast", label: "Petit-déjeuner" },
   { key: "lunch", label: "Déjeuner" },
   { key: "dinner", label: "Dîner" },
   { key: "snack", label: "Collation" },
+];
+
+const diabetesContexts: { key: DiabetesContext; label: string }[] = [
+  { key: "fasting", label: "À jeun" },
+  { key: "pre_meal", label: "Avant repas" },
+  { key: "post_meal", label: "Après repas" },
+  { key: "bedtime", label: "Coucher" },
+  { key: "exercise", label: "Autour sport" },
+  { key: "other", label: "Autre" },
 ];
 
 function today() {
@@ -114,10 +153,53 @@ export default function NutritionScreen() {
   const [foodName, setFoodName] = useState("");
   const [grams, setGrams] = useState("");
   const [selectedFood, setSelectedFood] = useState<CiqualFood | null>(null);
+  const [remoteFoods, setRemoteFoods] = useState<CiqualFood[]>([]);
+  const [communityFoods, setCommunityFoods] = useState<CiqualFood[]>([]);
+  const remoteSearchCache = useRef(new Map<string, CiqualFood[]>());
+  const lastLoadAtRef = useRef(0);
+  const loadInFlightRef = useRef(false);
 
-  const load = useCallback(async () => {
+  const [showCustomProduct, setShowCustomProduct] = useState(false);
+  const [pendingBarcode, setPendingBarcode] = useState("");
+  const [customName, setCustomName] = useState("");
+  const [customBrand, setCustomBrand] = useState("");
+  const [customKcal, setCustomKcal] = useState("");
+  const [customProtein, setCustomProtein] = useState("");
+  const [customCarbs, setCustomCarbs] = useState("");
+  const [customFat, setCustomFat] = useState("");
+  const [customFiber, setCustomFiber] = useState("");
+  const [customServing, setCustomServing] = useState("");
+  const [customLabelPhoto, setCustomLabelPhoto] =
+    useState<ImagePicker.ImagePickerAsset | null>(null);
+  const [savingCustomProduct, setSavingCustomProduct] = useState(false);
+
+  const [showDiabetesTracker, setShowDiabetesTracker] = useState(false);
+  const [diabetesLogs, setDiabetesLogs] = useState<DiabetesLog[]>([]);
+  const [diabetesContext, setDiabetesContext] =
+    useState<DiabetesContext>("pre_meal");
+  const [glucoseMgDl, setGlucoseMgDl] = useState("");
+  const [diabetesCarbs, setDiabetesCarbs] = useState("");
+  const [insulinUnits, setInsulinUnits] = useState("");
+  const [activityMinutes, setActivityMinutes] = useState("");
+  const [diabetesNotes, setDiabetesNotes] = useState("");
+  const [savingDiabetesLog, setSavingDiabetesLog] = useState(false);
+
+  const load = useCallback(async (options: { force?: boolean } = {}) => {
+    if (loadInFlightRef.current) return;
+
+    if (
+      !options.force &&
+      lastLoadAtRef.current > 0 &&
+      Date.now() - lastLoadAtRef.current < 60_000
+    ) {
+      setLoading(false);
+      return;
+    }
+
+    loadInFlightRef.current = true;
+
     try {
-      setLoading(true);
+      if (lastLoadAtRef.current === 0) setLoading(true);
       setMessage("");
 
       const {
@@ -134,6 +216,8 @@ export default function NutritionScreen() {
         profileResult,
         targetsResult,
         entriesResult,
+        communityProductsResult,
+        diabetesLogsResult,
       ] = await Promise.all([
         supabase
           .from("nutrition_profile")
@@ -155,11 +239,25 @@ export default function NutritionScreen() {
           .eq("user_id", user.id)
           .eq("eaten_on", today())
           .order("created_at", { ascending: true }),
+
+        supabase
+          .from("nutrition_products")
+          .select("id, barcode, name, brand, kcal100, protein100, carbs100, fat100, fiber100, serving_size_g, source, label_image_path")
+          .order("created_at", { ascending: false })
+          .limit(500),
+
+        supabase
+          .from("diabetes_logs")
+          .select("id, logged_on, logged_at, context, glucose_mg_dl, carbs_g, insulin_units, activity_minutes, notes")
+          .eq("user_id", user.id)
+          .eq("logged_on", today())
+          .order("logged_at", { ascending: false }),
       ]);
 
       if (profileResult.error) throw profileResult.error;
       if (targetsResult.error) throw targetsResult.error;
       if (entriesResult.error) throw entriesResult.error;
+      if (diabetesLogsResult.error) throw diabetesLogsResult.error;
 
       const nutritionProfile = profileResult.data;
 
@@ -194,18 +292,63 @@ export default function NutritionScreen() {
       setEntries(
         (entriesResult.data ?? []) as NutritionEntry[]
       );
+
+      setDiabetesLogs(
+        ((diabetesLogsResult.data ?? []) as any[]).map((item) => ({
+          ...item,
+          glucose_mg_dl: Number(item.glucose_mg_dl),
+          carbs_g: item.carbs_g != null ? Number(item.carbs_g) : null,
+          insulin_units:
+            item.insulin_units != null ? Number(item.insulin_units) : null,
+          activity_minutes:
+            item.activity_minutes != null
+              ? Number(item.activity_minutes)
+              : null,
+        })) as DiabetesLog[]
+      );
+
+      if (communityProductsResult.error) {
+        console.warn("COMMUNITY PRODUCTS LOAD", communityProductsResult.error);
+      } else {
+        setCommunityFoods(
+          ((communityProductsResult.data ?? []) as CommunityProduct[]).map(
+            (product) => ({
+              code: product.barcode ?? product.id,
+              name: product.brand
+                ? `${product.name} — ${product.brand}`
+                : product.name,
+              kcal100:
+                product.kcal100 != null ? Number(product.kcal100) : null,
+              protein100:
+                product.protein100 != null ? Number(product.protein100) : null,
+              carbs100:
+                product.carbs100 != null ? Number(product.carbs100) : null,
+              fat100:
+                product.fat100 != null ? Number(product.fat100) : null,
+              fiber100:
+                product.fiber100 != null ? Number(product.fiber100) : null,
+              source: "evolve_community",
+            })
+          )
+        );
+      }
+
+      lastLoadAtRef.current = Date.now();
     } catch (e: any) {
       setMessage(
         e?.message ?? "Impossible de charger le suivi nutrition."
       );
     } finally {
+      loadInFlightRef.current = false;
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load])
+  );
 
   const totals = useMemo(() => {
     return entries.reduce(
@@ -221,15 +364,70 @@ export default function NutritionScreen() {
     );
   }, [entries]);
 
+  const deferredFoodName = useDeferredValue(foodName);
+
+  useEffect(() => {
+    const query = deferredFoodName.trim();
+
+    if (selectedFood || query.length < 3) {
+      setRemoteFoods([]);
+      return;
+    }
+
+    let cancelled = false;
+    const controller = new AbortController();
+
+    const normalizedQuery = normalizeFoodText(query);
+    const cached = remoteSearchCache.current.get(normalizedQuery);
+
+    if (cached) {
+      setRemoteFoods(cached);
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      void searchOpenFoodFactsProducts(query, 12, controller.signal)
+        .then((results) => {
+          remoteSearchCache.current.set(normalizedQuery, results);
+          if (!cancelled) setRemoteFoods(results);
+        })
+        .catch(() => {
+          if (!cancelled) setRemoteFoods([]);
+        });
+    }, 1200);
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+      clearTimeout(timeout);
+    };
+  }, [deferredFoodName, selectedFood]);
+
   const suggestions = useMemo(() => {
-    const query = foodName.trim().toLowerCase();
+    if (selectedFood) return [];
 
-    if (query.length < 2 || selectedFood) return [];
+    const query = deferredFoodName.trim();
+    if (normalizeFoodText(query).length < 2) return [];
 
-    return (ciqualFoods as CiqualFood[])
-      .filter((food) => food.name.toLowerCase().includes(query))
-      .slice(0, 8);
-  }, [foodName, selectedFood]);
+    const local = searchFoods(
+      ciqualFoods as CiqualFood[],
+      query,
+      12
+    );
+
+    const community = searchFoods(communityFoods, query, 10);
+    const remote = searchFoods(remoteFoods, query, 8);
+    const seen = new Set<string>();
+
+    return [...community, ...local, ...remote]
+      .filter((food) => {
+        const key = normalizeFoodText(food.name);
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, 16);
+  }, [deferredFoodName, selectedFood, remoteFoods, communityFoods]);
 
   const calculated = useMemo(() => {
     const quantity = numberValue(grams);
@@ -267,6 +465,193 @@ export default function NutritionScreen() {
     }
   }
 
+  function resetCustomProduct() {
+    setShowCustomProduct(false);
+    setPendingBarcode("");
+    setCustomName("");
+    setCustomBrand("");
+    setCustomKcal("");
+    setCustomProtein("");
+    setCustomCarbs("");
+    setCustomFat("");
+    setCustomFiber("");
+    setCustomServing("");
+    setCustomLabelPhoto(null);
+  }
+
+  function openCustomProduct(barcode: string) {
+    setShowScanner(false);
+    setScannerLocked(false);
+    setPendingBarcode(barcode);
+    setShowCustomProduct(true);
+    setSelectedFood(null);
+    setFoodName("");
+    setMessage("Produit inconnu : crée-le une fois, Evolve le reconnaîtra ensuite.");
+  }
+
+  function productRowToFood(product: CommunityProduct): CiqualFood {
+    return {
+      code: product.barcode ?? product.id,
+      name: product.brand
+        ? `${product.name} — ${product.brand}`
+        : product.name,
+      kcal100: product.kcal100 != null ? Number(product.kcal100) : null,
+      protein100:
+        product.protein100 != null ? Number(product.protein100) : null,
+      carbs100: product.carbs100 != null ? Number(product.carbs100) : null,
+      fat100: product.fat100 != null ? Number(product.fat100) : null,
+      fiber100: product.fiber100 != null ? Number(product.fiber100) : null,
+      source: "evolve_community",
+    };
+  }
+
+  async function takeNutritionLabelPhoto() {
+    try {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+
+      if (!permission.granted) {
+        setMessage("Autorise l'accès à la caméra pour photographier l'étiquette.");
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ["images"],
+        allowsEditing: false,
+        quality: 0.8,
+        exif: false,
+      });
+
+      if (result.canceled || !result.assets?.length) return;
+
+      setCustomLabelPhoto(result.assets[0]);
+      setMessage("Photo de l'étiquette ajoutée.");
+    } catch (e: any) {
+      setMessage(e?.message ?? "Impossible de prendre la photo.");
+    }
+  }
+
+  async function saveCustomProduct() {
+    try {
+      setMessage("");
+
+      const name = customName.trim();
+      if (!name) {
+        setMessage("Indique le nom du produit.");
+        return;
+      }
+
+      const kcal = numberValue(customKcal);
+      const protein = numberValue(customProtein);
+      const carbs = numberValue(customCarbs);
+      const fat = numberValue(customFat);
+      const fiber = customFiber.trim() ? numberValue(customFiber) : 0;
+      const serving = customServing.trim() ? numberValue(customServing) : null;
+
+      if (
+        kcal < 0 ||
+        protein < 0 ||
+        carbs < 0 ||
+        fat < 0 ||
+        fiber < 0 ||
+        (serving != null && serving <= 0)
+      ) {
+        setMessage("Vérifie les valeurs nutritionnelles.");
+        return;
+      }
+
+      setSavingCustomProduct(true);
+
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError) throw userError;
+      if (!user) throw new Error("Utilisateur non connecté.");
+
+      let labelImagePath: string | null = null;
+
+      if (customLabelPhoto?.uri) {
+        const arrayBuffer = await fetch(customLabelPhoto.uri).then((res) =>
+          res.arrayBuffer()
+        );
+        const extension =
+          customLabelPhoto.fileName?.split(".").pop()?.toLowerCase() ??
+          customLabelPhoto.uri.split(".").pop()?.toLowerCase() ??
+          "jpg";
+        const safeBarcode = pendingBarcode || `manual-${Date.now()}`;
+        const path = `${user.id}/${safeBarcode}-${Date.now()}.${extension}`;
+
+        const { data: uploaded, error: uploadError } = await supabase.storage
+          .from("nutrition-labels")
+          .upload(path, arrayBuffer, {
+            contentType: customLabelPhoto.mimeType ?? "image/jpeg",
+          });
+
+        if (uploadError) throw uploadError;
+        labelImagePath = uploaded.path;
+      }
+
+      const payload = {
+        barcode: pendingBarcode || null,
+        name,
+        brand: customBrand.trim() || null,
+        kcal100: kcal,
+        protein100: protein,
+        carbs100: carbs,
+        fat100: fat,
+        fiber100: fiber,
+        serving_size_g: serving,
+        source: "evolve_community",
+        label_image_path: labelImagePath,
+        created_by: user.id,
+        updated_at: new Date().toISOString(),
+      };
+
+      const { data: created, error } = await supabase
+        .from("nutrition_products")
+        .insert(payload)
+        .select("id, barcode, name, brand, kcal100, protein100, carbs100, fat100, fiber100, serving_size_g, source, label_image_path")
+        .single();
+
+      if (error) {
+        if (error.code === "23505" && pendingBarcode) {
+          const { data: existing, error: existingError } = await supabase
+            .from("nutrition_products")
+            .select("id, barcode, name, brand, kcal100, protein100, carbs100, fat100, fiber100, serving_size_g, source, label_image_path")
+            .eq("barcode", pendingBarcode)
+            .single();
+
+          if (existingError) throw existingError;
+          const food = productRowToFood(existing as CommunityProduct);
+          setSelectedFood(food);
+          setFoodName(food.name);
+          setCommunityFoods((current) => [
+            food,
+            ...current.filter((item) => item.code !== food.code),
+          ]);
+        } else {
+          throw error;
+        }
+      } else {
+        const food = productRowToFood(created as CommunityProduct);
+        setSelectedFood(food);
+        setFoodName(food.name);
+        setCommunityFoods((current) => [
+          food,
+          ...current.filter((item) => item.code !== food.code),
+        ]);
+      }
+
+      resetCustomProduct();
+      setMessage("Produit enregistré dans Evolve. Indique maintenant la quantité consommée.");
+    } catch (e: any) {
+      setMessage(e?.message ?? "Impossible de créer ce produit.");
+    } finally {
+      setSavingCustomProduct(false);
+    }
+  }
+
   async function handleBarcodeScanned({
     data,
   }: {
@@ -279,10 +664,33 @@ export default function NutritionScreen() {
       setScanningProduct(true);
       setMessage("Recherche du produit...");
 
+      const { data: communityProduct, error: communityError } = await supabase
+        .from("nutrition_products")
+        .select("id, barcode, name, brand, kcal100, protein100, carbs100, fat100, fiber100, serving_size_g, source, label_image_path")
+        .eq("barcode", data)
+        .maybeSingle();
+
+      if (communityError) throw communityError;
+
+      if (communityProduct) {
+        const food = productRowToFood(communityProduct as CommunityProduct);
+        setSelectedFood(food);
+        setFoodName(food.name);
+        setShowScanner(false);
+        setMessage("Produit Evolve reconnu. Indique la quantité consommée.");
+        return;
+      }
+
       const response = await fetch(
         `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(
           data
-        )}.json`
+        )}.json`,
+        {
+          headers: {
+            "User-Agent": "EvolveTraining/0.8 (barcode-scan)",
+            Accept: "application/json",
+          },
+        }
       );
 
       if (!response.ok) {
@@ -292,7 +700,8 @@ export default function NutritionScreen() {
       const result = await response.json();
 
       if (!result?.product) {
-        throw new Error("Produit introuvable.");
+        openCustomProduct(data);
+        return;
       }
 
       const product = result.product;
@@ -331,13 +740,33 @@ export default function NutritionScreen() {
         source: "open_food_facts",
       };
 
+      const hasNutrition =
+        scannedFood.kcal100 != null ||
+        scannedFood.protein100 != null ||
+        scannedFood.carbs100 != null ||
+        scannedFood.fat100 != null;
+
+      if (!hasNutrition) {
+        setCustomName(name);
+        openCustomProduct(data);
+        setCustomName(name);
+        return;
+      }
+
       setSelectedFood(scannedFood);
       setFoodName(scannedFood.name);
       setShowScanner(false);
       setMessage("Produit scanné. Indique la quantité consommée.");
     } catch (e: any) {
-      setMessage(e?.message ?? "Impossible de lire ce produit.");
-      setScannerLocked(false);
+      if (
+        String(e?.message ?? "").includes("Produit introuvable") ||
+        String(e?.message ?? "").includes("base produit")
+      ) {
+        openCustomProduct(data);
+      } else {
+        setMessage(e?.message ?? "Impossible de lire ce produit.");
+        setScannerLocked(false);
+      }
     } finally {
       setScanningProduct(false);
     }
@@ -380,10 +809,13 @@ export default function NutritionScreen() {
         fiber_g: calculated.fiber,
         meal_type: mealType,
         eaten_on: today(),
-        source:
-          selectedFood.source === "open_food_facts"
-            ? "open_food_facts"
-            : "ciqual_2025",
+        source: selectedFood.source,
+        barcode:
+          selectedFood.source === "open_food_facts" ||
+          selectedFood.source === "evolve_community"
+            ? selectedFood.code
+            : null,
+        source_food_id: selectedFood.code,
       });
 
       if (error) throw error;
@@ -392,12 +824,94 @@ export default function NutritionScreen() {
       setGrams("");
       setSelectedFood(null);
 
-      await load();
+      await load({ force: true });
       setMessage("Aliment ajouté.");
     } catch (e: any) {
       setMessage(e?.message ?? "Erreur lors de l'enregistrement.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function saveDiabetesLog() {
+    try {
+      setMessage("");
+
+      const glucose = numberValue(glucoseMgDl);
+      const carbs = diabetesCarbs.trim() ? numberValue(diabetesCarbs) : null;
+      const insulin = insulinUnits.trim() ? numberValue(insulinUnits) : null;
+      const activity = activityMinutes.trim()
+        ? Math.round(numberValue(activityMinutes))
+        : null;
+
+      if (glucose <= 0 || glucose > 1000) {
+        setMessage("Entre une glycémie valide en mg/dL.");
+        return;
+      }
+
+      if (
+        (carbs != null && carbs < 0) ||
+        (insulin != null && insulin < 0) ||
+        (activity != null && activity < 0)
+      ) {
+        setMessage("Vérifie les valeurs du suivi glycémie.");
+        return;
+      }
+
+      setSavingDiabetesLog(true);
+
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError) throw userError;
+      if (!user) throw new Error("Utilisateur non connecté.");
+
+      const { error } = await supabase.from("diabetes_logs").insert({
+        user_id: user.id,
+        logged_on: today(),
+        logged_at: new Date().toISOString(),
+        context: diabetesContext,
+        glucose_mg_dl: glucose,
+        carbs_g: carbs,
+        insulin_units: insulin,
+        activity_minutes: activity,
+        notes: diabetesNotes.trim() || null,
+      });
+
+      if (error) throw error;
+
+      setGlucoseMgDl("");
+      setDiabetesCarbs("");
+      setInsulinUnits("");
+      setActivityMinutes("");
+      setDiabetesNotes("");
+
+      await load({ force: true });
+      setShowDiabetesTracker(true);
+      setMessage("Mesure glycémique enregistrée.");
+    } catch (e: any) {
+      setMessage(e?.message ?? "Impossible d'enregistrer la mesure.");
+    } finally {
+      setSavingDiabetesLog(false);
+    }
+  }
+
+  async function removeDiabetesLog(id: string) {
+    try {
+      const { error } = await supabase
+        .from("diabetes_logs")
+        .delete()
+        .eq("id", id);
+
+      if (error) throw error;
+
+      setDiabetesLogs((current) =>
+        current.filter((item) => item.id !== id)
+      );
+    } catch (e: any) {
+      setMessage(e?.message ?? "Impossible de supprimer cette mesure.");
     }
   }
 
@@ -542,11 +1056,7 @@ export default function NutritionScreen() {
       contentContainerStyle={styles.page}
       keyboardShouldPersistTaps="handled"
     >
-      <Text style={styles.back} onPress={() => router.back()}>
-        ← RETOUR
-      </Text>
-
-      <ScreenHeader
+      <BackScreenHeader
         eyebrow="EVOLVE TRAINING"
         title="Suivi nutrition"
         subtitle="Tes apports réels de la journée."
@@ -741,6 +1251,224 @@ export default function NutritionScreen() {
         </View>
       </Card>
 
+      <Pressable
+        style={styles.aiPlateCard}
+        onPress={() =>
+          router.push({
+            pathname: "/nutrition-photo",
+            params: { mealType },
+          })
+        }
+      >
+        <View style={styles.aiPlateIcon}>
+          <Text style={styles.aiPlateIconText}>◎</Text>
+        </View>
+
+        <View style={styles.aiPlateCopy}>
+          <Text style={styles.aiPlateEyebrow}>ANALYSE IA</Text>
+          <Text style={styles.aiPlateTitle}>Photographier mon assiette</Text>
+          <Text style={styles.aiPlateSubtitle}>
+            Aliments, quantités et macros estimés, puis vérifiés par toi.
+          </Text>
+        </View>
+
+        <Text style={styles.aiPlateArrow}>›</Text>
+      </Pressable>
+
+      <Card style={styles.diabetesCard}>
+        <Pressable
+          style={styles.diabetesHeader}
+          onPress={() => setShowDiabetesTracker((value) => !value)}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={styles.diabetesEyebrow}>SUIVI OPTIONNEL</Text>
+            <Text style={styles.diabetesTitle}>Glycémie & diabète</Text>
+            <Text style={styles.diabetesSubtitle}>
+              Glycémie, glucides, insuline déclarée et activité.
+            </Text>
+          </View>
+
+          <Text style={styles.diabetesToggle}>
+            {showDiabetesTracker ? "−" : "+"}
+          </Text>
+        </Pressable>
+
+        {showDiabetesTracker ? (
+          <View style={styles.diabetesContent}>
+            <Text style={styles.diabetesSafety}>
+              Journal de suivi uniquement — Evolve ne calcule aucune dose d'insuline.
+            </Text>
+
+            <Text style={styles.fieldLabel}>Contexte</Text>
+
+            <View style={styles.diabetesContextRow}>
+              {diabetesContexts.map((item) => (
+                <Pressable
+                  key={item.key}
+                  onPress={() => setDiabetesContext(item.key)}
+                  style={[
+                    styles.diabetesContextButton,
+                    diabetesContext === item.key &&
+                      styles.diabetesContextButtonActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.diabetesContextText,
+                      diabetesContext === item.key &&
+                        styles.diabetesContextTextActive,
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Text style={styles.fieldLabel}>Glycémie</Text>
+
+            <View style={styles.diabetesInputRow}>
+              <TextInput
+                value={glucoseMgDl}
+                onChangeText={setGlucoseMgDl}
+                keyboardType="decimal-pad"
+                placeholder="Ex. 120"
+                placeholderTextColor={colors.muted}
+                style={[styles.input, { flex: 1 }]}
+              />
+              <Text style={styles.diabetesUnit}>mg/dL</Text>
+            </View>
+
+            <View style={styles.diabetesGrid}>
+              <View style={styles.diabetesField}>
+                <Text style={styles.diabetesFieldLabel}>GLUCIDES (G)</Text>
+                <TextInput
+                  value={diabetesCarbs}
+                  onChangeText={setDiabetesCarbs}
+                  keyboardType="decimal-pad"
+                  placeholder="Facultatif"
+                  placeholderTextColor={colors.muted}
+                  style={styles.input}
+                />
+              </View>
+
+              <View style={styles.diabetesField}>
+                <Text style={styles.diabetesFieldLabel}>INSULINE (U)</Text>
+                <TextInput
+                  value={insulinUnits}
+                  onChangeText={setInsulinUnits}
+                  keyboardType="decimal-pad"
+                  placeholder="Facultatif"
+                  placeholderTextColor={colors.muted}
+                  style={styles.input}
+                />
+              </View>
+
+              <View style={styles.diabetesField}>
+                <Text style={styles.diabetesFieldLabel}>ACTIVITÉ (MIN)</Text>
+                <TextInput
+                  value={activityMinutes}
+                  onChangeText={setActivityMinutes}
+                  keyboardType="number-pad"
+                  placeholder="Facultatif"
+                  placeholderTextColor={colors.muted}
+                  style={styles.input}
+                />
+              </View>
+            </View>
+
+            <Text style={styles.fieldLabel}>Note</Text>
+            <TextInput
+              value={diabetesNotes}
+              onChangeText={setDiabetesNotes}
+              placeholder="Repas, sensation, correction, sport..."
+              placeholderTextColor={colors.muted}
+              style={[styles.input, styles.diabetesNotesInput]}
+              multiline
+            />
+
+            <PrimaryButton
+              label={
+                savingDiabetesLog
+                  ? "ENREGISTREMENT..."
+                  : "ENREGISTRER LA MESURE"
+              }
+              onPress={() => void saveDiabetesLog()}
+            />
+
+            {diabetesLogs.length ? (
+              <View style={styles.diabetesHistory}>
+                <Text style={styles.diabetesHistoryTitle}>
+                  AUJOURD'HUI
+                </Text>
+
+                {diabetesLogs.map((item) => {
+                  const contextLabel =
+                    diabetesContexts.find(
+                      (context) => context.key === item.context
+                    )?.label ?? "Autre";
+
+                  const time = new Date(item.logged_at).toLocaleTimeString(
+                    "fr-FR",
+                    { hour: "2-digit", minute: "2-digit" }
+                  );
+
+                  return (
+                    <View key={item.id} style={styles.diabetesLogRow}>
+                      <View style={{ flex: 1 }}>
+                        <View style={styles.diabetesLogTop}>
+                          <Text style={styles.diabetesGlucose}>
+                            {Math.round(item.glucose_mg_dl)} mg/dL
+                          </Text>
+                          <Text style={styles.diabetesTime}>{time}</Text>
+                        </View>
+
+                        <Text style={styles.diabetesContextLabel}>
+                          {contextLabel}
+                        </Text>
+
+                        <Text style={styles.diabetesLogMeta}>
+                          {[
+                            item.carbs_g != null
+                              ? `${round1(item.carbs_g)} g glucides`
+                              : null,
+                            item.insulin_units != null
+                              ? `${round1(item.insulin_units)} U insuline`
+                              : null,
+                            item.activity_minutes != null
+                              ? `${item.activity_minutes} min activité`
+                              : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" • ") || "Mesure seule"}
+                        </Text>
+
+                        {item.notes ? (
+                          <Text style={styles.diabetesLogNotes}>
+                            {item.notes}
+                          </Text>
+                        ) : null}
+                      </View>
+
+                      <Pressable
+                        onPress={() => void removeDiabetesLog(item.id)}
+                        style={styles.deleteButton}
+                      >
+                        <Text style={styles.deleteText}>×</Text>
+                      </Pressable>
+                    </View>
+                  );
+                })}
+              </View>
+            ) : (
+              <Text style={styles.diabetesEmpty}>
+                Aucune mesure aujourd'hui.
+              </Text>
+            )}
+          </View>
+        ) : null}
+      </Card>
+
       <View style={styles.actionRow}>
         <View style={styles.actionActive}>
           <Text style={styles.actionIcon}>＋</Text>
@@ -820,6 +1548,144 @@ export default function NutritionScreen() {
         </Card>
       ) : null}
 
+      {showCustomProduct ? (
+        <Card style={styles.customProductCard}>
+          <Label>Créer ce produit dans Evolve</Label>
+
+          {pendingBarcode ? (
+            <Text style={styles.customBarcode}>Code-barres : {pendingBarcode}</Text>
+          ) : null}
+
+          <Text style={styles.customHelp}>
+            Recopie les valeurs indiquées pour 100 g. La photo de l'étiquette est conservée avec le produit pour la future lecture automatique.
+          </Text>
+
+          <Text style={styles.fieldLabel}>Nom du produit</Text>
+          <TextInput
+            value={customName}
+            onChangeText={setCustomName}
+            placeholder="Ex. Whey isolate vanille"
+            placeholderTextColor={colors.muted}
+            style={styles.input}
+          />
+
+          <Text style={styles.fieldLabel}>Marque (facultatif)</Text>
+          <TextInput
+            value={customBrand}
+            onChangeText={setCustomBrand}
+            placeholder="Ex. Nutripure"
+            placeholderTextColor={colors.muted}
+            style={styles.input}
+          />
+
+          <Pressable
+            style={styles.labelPhotoButton}
+            onPress={() => void takeNutritionLabelPhoto()}
+          >
+            <Text style={styles.labelPhotoButtonText}>
+              {customLabelPhoto ? "✓ PHOTO ÉTIQUETTE AJOUTÉE" : "📷 PHOTOGRAPHIER LES MACROS"}
+            </Text>
+          </Pressable>
+
+          {customLabelPhoto?.uri ? (
+            <Image
+              source={{ uri: customLabelPhoto.uri }}
+              style={styles.labelPhotoPreview}
+              resizeMode="cover"
+            />
+          ) : null}
+
+          <Text style={styles.customSectionTitle}>VALEURS POUR 100 G</Text>
+
+          <View style={styles.customMacroGrid}>
+            <View style={styles.customMacroField}>
+              <Text style={styles.customMacroLabel}>KCAL</Text>
+              <TextInput
+                value={customKcal}
+                onChangeText={setCustomKcal}
+                keyboardType="decimal-pad"
+                placeholder="0"
+                placeholderTextColor={colors.muted}
+                style={styles.input}
+              />
+            </View>
+
+            <View style={styles.customMacroField}>
+              <Text style={styles.customMacroLabel}>PROTÉINES</Text>
+              <TextInput
+                value={customProtein}
+                onChangeText={setCustomProtein}
+                keyboardType="decimal-pad"
+                placeholder="0"
+                placeholderTextColor={colors.muted}
+                style={styles.input}
+              />
+            </View>
+
+            <View style={styles.customMacroField}>
+              <Text style={styles.customMacroLabel}>GLUCIDES</Text>
+              <TextInput
+                value={customCarbs}
+                onChangeText={setCustomCarbs}
+                keyboardType="decimal-pad"
+                placeholder="0"
+                placeholderTextColor={colors.muted}
+                style={styles.input}
+              />
+            </View>
+
+            <View style={styles.customMacroField}>
+              <Text style={styles.customMacroLabel}>LIPIDES</Text>
+              <TextInput
+                value={customFat}
+                onChangeText={setCustomFat}
+                keyboardType="decimal-pad"
+                placeholder="0"
+                placeholderTextColor={colors.muted}
+                style={styles.input}
+              />
+            </View>
+
+            <View style={styles.customMacroField}>
+              <Text style={styles.customMacroLabel}>FIBRES</Text>
+              <TextInput
+                value={customFiber}
+                onChangeText={setCustomFiber}
+                keyboardType="decimal-pad"
+                placeholder="0"
+                placeholderTextColor={colors.muted}
+                style={styles.input}
+              />
+            </View>
+
+            <View style={styles.customMacroField}>
+              <Text style={styles.customMacroLabel}>1 DOSE (G)</Text>
+              <TextInput
+                value={customServing}
+                onChangeText={setCustomServing}
+                keyboardType="decimal-pad"
+                placeholder="30"
+                placeholderTextColor={colors.muted}
+                style={styles.input}
+              />
+            </View>
+          </View>
+
+          <PrimaryButton
+            label={
+              savingCustomProduct
+                ? "ENREGISTREMENT..."
+                : "ENREGISTRER LE PRODUIT"
+            }
+            onPress={() => void saveCustomProduct()}
+          />
+
+          <Pressable onPress={resetCustomProduct} style={styles.customCancel}>
+            <Text style={styles.customCancelText}>ANNULER</Text>
+          </Pressable>
+        </Card>
+      ) : null}
+
       <Card style={styles.formCard}>
         <Label>Ajouter un aliment</Label>
 
@@ -862,7 +1728,7 @@ export default function NutritionScreen() {
           <View style={styles.suggestions}>
             {suggestions.map((food) => (
               <Pressable
-                key={food.code}
+                key={`${food.source}-${food.code}-${food.name}`}
                 style={styles.suggestionRow}
                 onPress={() => chooseFood(food)}
               >
@@ -882,7 +1748,11 @@ export default function NutritionScreen() {
           <View style={styles.selectedFood}>
             <Text style={styles.selectedLabel}>ALIMENT SÉLECTIONNÉ</Text>
             <Text style={styles.selectedName}>{selectedFood.name}</Text>
-            <Text style={styles.selectedSource}>Source : Ciqual 2025</Text>
+            <Text style={styles.selectedSource}>
+              Source : {selectedFood.source === "open_food_facts"
+                ? "Open Food Facts"
+                : "Ciqual 2025"}
+            </Text>
           </View>
         ) : null}
 
@@ -1029,6 +1899,57 @@ const styles = StyleSheet.create({
   },
   summaryCard: {
     marginBottom: 18,
+  },
+  aiPlateCard: {
+    minHeight: 112,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 13,
+    backgroundColor: "#151205",
+    borderWidth: 1,
+    borderColor: colors.yellow,
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 18,
+  },
+  aiPlateIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.yellow,
+  },
+  aiPlateIconText: {
+    color: colors.black,
+    fontSize: 27,
+    fontWeight: "900",
+  },
+  aiPlateCopy: {
+    flex: 1,
+  },
+  aiPlateEyebrow: {
+    color: colors.yellow,
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 1.4,
+  },
+  aiPlateTitle: {
+    color: colors.text,
+    fontSize: 17,
+    fontWeight: "900",
+    marginTop: 4,
+  },
+  aiPlateSubtitle: {
+    color: colors.muted,
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 4,
+  },
+  aiPlateArrow: {
+    color: colors.yellow,
+    fontSize: 31,
+    lineHeight: 34,
   },
 
   settingsTopRow: {
@@ -1179,6 +2100,163 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
   },
+  diabetesCard: {
+    marginBottom: 18,
+    overflow: "hidden",
+  },
+  diabetesHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  diabetesEyebrow: {
+    color: colors.yellow,
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 1.2,
+  },
+  diabetesTitle: {
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: "900",
+    marginTop: 4,
+  },
+  diabetesSubtitle: {
+    color: colors.muted,
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 4,
+  },
+  diabetesToggle: {
+    color: colors.yellow,
+    fontSize: 30,
+    fontWeight: "700",
+    marginLeft: 12,
+  },
+  diabetesContent: {
+    marginTop: 16,
+    gap: 10,
+  },
+  diabetesSafety: {
+    color: colors.muted,
+    fontSize: 11,
+    lineHeight: 16,
+    borderLeftWidth: 2,
+    borderLeftColor: colors.yellow,
+    paddingLeft: 10,
+    marginBottom: 2,
+  },
+  diabetesContextRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 7,
+  },
+  diabetesContextButton: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 999,
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+    backgroundColor: colors.surface2,
+  },
+  diabetesContextButtonActive: {
+    borderColor: colors.yellow,
+    backgroundColor: "#191500",
+  },
+  diabetesContextText: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  diabetesContextTextActive: {
+    color: colors.yellow,
+  },
+  diabetesInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  diabetesUnit: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  diabetesGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginTop: 2,
+  },
+  diabetesField: {
+    width: "48%",
+    gap: 5,
+  },
+  diabetesFieldLabel: {
+    color: colors.muted,
+    fontSize: 10,
+    fontWeight: "900",
+  },
+  diabetesNotesInput: {
+    minHeight: 80,
+    textAlignVertical: "top",
+  },
+  diabetesHistory: {
+    marginTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: 14,
+  },
+  diabetesHistoryTitle: {
+    color: colors.muted,
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 1,
+    marginBottom: 6,
+  },
+  diabetesLogRow: {
+    flexDirection: "row",
+    gap: 10,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderSoft,
+  },
+  diabetesLogTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  diabetesGlucose: {
+    color: colors.yellow,
+    fontSize: 18,
+    fontWeight: "900",
+  },
+  diabetesTime: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  diabetesContextLabel: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: "800",
+    marginTop: 2,
+  },
+  diabetesLogMeta: {
+    color: colors.muted,
+    fontSize: 11,
+    marginTop: 4,
+  },
+  diabetesLogNotes: {
+    color: colors.text,
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 5,
+  },
+  diabetesEmpty: {
+    color: colors.muted,
+    fontSize: 12,
+    marginTop: 4,
+  },
   actionRow: {
     flexDirection: "row",
     gap: 10,
@@ -1283,6 +2361,73 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
 
+  customProductCard: {
+    gap: 10,
+    marginBottom: 18,
+  },
+  customBarcode: {
+    color: colors.yellow,
+    fontWeight: "900",
+    marginTop: 4,
+  },
+  customHelp: {
+    color: colors.muted,
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: 4,
+  },
+  labelPhotoButton: {
+    minHeight: 52,
+    borderWidth: 1,
+    borderColor: colors.yellow,
+    backgroundColor: "#191500",
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 14,
+    marginTop: 8,
+  },
+  labelPhotoButtonText: {
+    color: colors.yellow,
+    fontWeight: "900",
+    textAlign: "center",
+  },
+  labelPhotoPreview: {
+    width: "100%",
+    height: 190,
+    borderRadius: 14,
+    marginTop: 4,
+    backgroundColor: colors.surface2,
+  },
+  customSectionTitle: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: "900",
+    letterSpacing: 1,
+    marginTop: 8,
+  },
+  customMacroGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  customMacroField: {
+    width: "48%",
+    gap: 5,
+  },
+  customMacroLabel: {
+    color: colors.muted,
+    fontSize: 10,
+    fontWeight: "900",
+  },
+  customCancel: {
+    alignItems: "center",
+    paddingVertical: 10,
+  },
+  customCancelText: {
+    color: colors.muted,
+    fontWeight: "900",
+  },
   formCard: {
     gap: 10,
     marginBottom: 24,

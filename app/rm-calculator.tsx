@@ -7,7 +7,7 @@ import {
   View,
 } from "react-native";
 
-import { Card, Label, ScreenHeader } from "@/src/components/ui";
+import { BackScreenHeader, Card, Label } from "@/src/components/ui";
 import { colors } from "@/src/theme";
 
 function estimateOneRepMax(load: number, reps: number) {
@@ -50,7 +50,7 @@ export default function RmCalculatorScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.page}>
-      <ScreenHeader
+      <BackScreenHeader
         eyebrow="OUTILS"
         title="Calculateur RM"
         subtitle="Estime ton 1RM à partir d'une charge et d'un nombre de répétitions."

@@ -10,6 +10,7 @@ import {
 import { router, useLocalSearchParams } from "expo-router";
 
 import { colors } from "@/src/theme";
+import { goBackOrReplace } from "@/src/components/ui";
 import { getProgramDetail } from "@/src/lib/api";
 
 type Workout = {
@@ -100,7 +101,7 @@ export default function ProgramDetailScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.page}>
-      <Pressable onPress={() => router.back()}>
+      <Pressable onPress={() => goBackOrReplace()}>
         <Text style={styles.back}>← RETOUR</Text>
       </Pressable>
 

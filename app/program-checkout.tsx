@@ -13,6 +13,7 @@ import {
 } from "react-native";
 
 import { colors } from "@/src/theme";
+import { goBackOrReplace } from "@/src/components/ui";
 
 const PROGRAMS = {
   "tactical-reconditioning": {
@@ -23,7 +24,7 @@ const PROGRAMS = {
     sessions: "4 à 5 séances / semaine",
     duration: "60 à 75 min / séance",
     level: "Intermédiaire à avancé",
-    image: require("@/assets/tactical-reconditioning.png"),
+    image: require("@/assets/tactical-reconditioning.jpg"),
   },
 
   "power-building": {
@@ -34,7 +35,7 @@ const PROGRAMS = {
     sessions: "4 à 5 séances / semaine",
     duration: "60 à 90 min / séance",
     level: "Intermédiaire",
-    image: require("@/assets/power-building.png"),
+    image: require("@/assets/power-building.jpg"),
   },
 
   "protocole-2pm": {
@@ -45,8 +46,30 @@ const PROGRAMS = {
     sessions: "Adapté au protocole individuel",
     duration: "4 à 12 semaines",
     level: "Selon l'évaluation initiale",
-    image: require("@/assets/protocole-2pm.png"),
+    image: require("@/assets/protocole-2pm.jpg"),
   },
+  "evolve-initium": {
+    title: "EVOLVE INITIUM",
+    price: 300,
+    description:
+      "Un accompagnement structuré pour construire des bases solides, retrouver de la régularité et progresser durablement. Initium pose les fondations de l’entraînement afin de développer autonomie, discipline et progression.",
+    sessions: "3 à 4 séances / semaine",
+    duration: "12 semaines",
+    level: "Débutant à intermédiaire",
+    image: require("@/assets/evolve-initium.jpg"),
+  },
+
+  "suivi-nutrition": {
+    title: "SUIVI NUTRITION",
+    price: 300,
+    description:
+      "Un accompagnement nutritionnel personnalisé construit autour de tes objectifs, de ton mode de vie et de ta pratique sportive. Analyse, stratégie adaptée, suivi précis et ajustements continus pour obtenir des résultats concrets et durables.",
+    sessions: "Suivi personnalisé",
+    duration: "12 semaines",
+    level: "Tous niveaux",
+    image: require("@/assets/suivi-nutrition.jpg"),
+  },
+
 } as const;
 
 export default function ProgramCheckoutScreen() {
@@ -102,7 +125,7 @@ export default function ProgramCheckoutScreen() {
 
         <Pressable
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={() => goBackOrReplace()}
         >
           <Text style={styles.backText}>
             ← RETOUR
@@ -126,7 +149,7 @@ export default function ProgramCheckoutScreen() {
       >
         <Pressable
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={() => goBackOrReplace()}
         >
           <Text style={styles.backText}>
             ← RETOUR

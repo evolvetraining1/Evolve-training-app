@@ -2,17 +2,18 @@ import { supabase } from "@/src/lib/supabase";
 import { localDateString } from "@/src/lib/date";
 
 async function currentUserId() {
-  const { data, error } = await supabase.auth.getUser();
+  const { data, error } = await supabase.auth.getSession();
   if (error) throw error;
-  if (!data.user) throw new Error("Utilisateur non connecté");
-  return data.user.id;
+  const userId = data.session?.user?.id;
+  if (!userId) throw new Error("Utilisateur non connecté");
+  return userId;
 }
 
 export async function getMyProfile() {
   const id = await currentUserId();
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, role, first_name, last_name, avatar_url")
+    .select("id, role, first_name, last_name, avatar_url, gender, age_years, height_cm, weight_kg")
     .eq("id", id)
     .single();
   if (error) throw error;
@@ -21,12 +22,11 @@ export async function getMyProfile() {
 
 export async function getMyUpcomingSessions() {
   const id = await currentUserId();
-  const today = localDateString();
 
   const { data, error } = await supabase
     .from("workout_sessions")
     .select(`
-      id, scheduled_for, status, started_at, completed_at, session_rpe,
+      id, scheduled_for, status, completed_at,
       workout_template_id,
       workout_templates (
         id,
@@ -39,10 +39,8 @@ export async function getMyUpcomingSessions() {
       )
     `)
     .eq("athlete_id", id)
-    .in("status", ["planned", "in_progress"])
-    .or(`status.eq.in_progress,scheduled_for.gte.${today}`)
     .order("scheduled_for", { ascending: true })
-    .limit(50);
+    .limit(250);
 
   if (error) throw error;
 
@@ -82,7 +80,7 @@ export async function getSessionDetail(sessionId: string) {
 
   const { data: performed, error: performedError } = await supabase
     .from("performed_sets")
-    .select("*")
+    .select("workout_exercise_id, prescribed_set_id, set_number, reps, load_kg, rpe, completed")
     .eq("workout_session_id", sessionId);
 
   if (performedError) throw performedError;
@@ -159,15 +157,13 @@ export async function getNextWorkoutSession(sessionId: string) {
       )
     `)
     .eq("athlete_id", (current as any).athlete_id)
-    .eq("status", "planned")
+    .in("status", ["planned", "in_progress"])
     .eq("workout_templates.program_id", currentTemplate.program_id)
     .neq("id", sessionId);
 
   if (error) throw error;
 
   const currentWeek = Number(currentTemplate.week_number ?? 0);
-  const currentDay = Number(currentTemplate.day_number ?? 0);
-
   const ordered = (candidates ?? [])
     .map((session: any) => {
       const template = Array.isArray(session.workout_templates)
@@ -180,13 +176,15 @@ export async function getNextWorkoutSession(sessionId: string) {
         day: Number(template?.day_number ?? 0),
       };
     })
-    .filter(
-      ({ week, day }) =>
-        week > currentWeek ||
-        (week === currentWeek && day > currentDay)
-    )
+    // Une séance peut être réalisée dans n'importe quel ordre à l'intérieur
+    // de la semaine courante. On termine donc d'abord les séances restantes
+    // de cette semaine avant de proposer la suivante.
+    .filter(({ week }) => week >= currentWeek)
     .sort((a, b) => {
       if (a.week !== b.week) return a.week - b.week;
+      if (a.session.status !== b.session.status) {
+        return a.session.status === "in_progress" ? -1 : 1;
+      }
       if (a.day !== b.day) return a.day - b.day;
 
       return String(a.session.created_at ?? "").localeCompare(
@@ -207,13 +205,10 @@ export async function savePerformedSet(input: {
   rpe?: number | null;
   completed: boolean;
 }) {
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from("performed_sets")
-    .upsert(input, { onConflict: "workout_session_id,workout_exercise_id,set_number" })
-    .select()
-    .single();
+    .upsert(input, { onConflict: "workout_session_id,workout_exercise_id,set_number" });
   if (error) throw error;
-  return data;
 }
 
 export async function getTodayCheckin() {
@@ -221,7 +216,7 @@ export async function getTodayCheckin() {
   const today = localDateString();
   const { data, error } = await supabase
     .from("daily_checkins")
-    .select("*")
+    .select("id, athlete_id, checkin_date, sleep_minutes, sleep_quality, fatigue, stress, soreness, motivation, pain, notes")
     .eq("athlete_id", id)
     .eq("checkin_date", today)
     .maybeSingle();
@@ -261,6 +256,22 @@ export async function getRecentCheckins(days = 7) {
     .eq("athlete_id", id)
     .gte("checkin_date", localDateString(since))
     .order("checkin_date", { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function getRecentCheckinDates(days = 60) {
+  const id = await currentUserId();
+  const since = new Date();
+  since.setDate(since.getDate() - (days - 1));
+
+  const { data, error } = await supabase
+    .from("daily_checkins")
+    .select("checkin_date")
+    .eq("athlete_id", id)
+    .gte("checkin_date", localDateString(since))
+    .order("checkin_date", { ascending: true });
+
   if (error) throw error;
   return data ?? [];
 }
@@ -453,7 +464,8 @@ export async function getWorkoutTemplateDetail(workoutId: string) {
         name,
         category,
         instructions,
-        video_url
+        image_url,
+        difficulty
       ),
       prescribed_sets (
         id,
@@ -606,23 +618,17 @@ export async function getExercisePerformanceHistory() {
   const { data, error } = await supabase
     .from("performed_sets")
     .select(`
-      id,
       reps,
       load_kg,
       rpe,
-      completed,
       created_at,
       workout_exercises (
-        id,
         exercises (
           id,
           name
         )
       ),
       workout_sessions!inner (
-        id,
-        athlete_id,
-        status,
         completed_at
       )
     `)

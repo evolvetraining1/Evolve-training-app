@@ -1,11 +1,24 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, SafeAreaView, StyleSheet, Text, View } from "react-native";
 import { colors } from "@/src/theme";
-import { PedometerProbe, probePedometer } from "@/src/lib/pedometer";
+import { PedometerProbe, probePedometer, watchTodaySteps } from "@/src/lib/pedometer";
 
 export default function PedometerTestScreen() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<PedometerProbe | null>(null);
+
+  useEffect(() => {
+    const subscription = watchTodaySteps(
+      (steps) => {
+        setResult((prev) =>
+          prev ? { ...prev, available: true, todaySteps: steps } : prev
+        );
+      },
+      () => {}
+    );
+
+    return () => subscription.remove();
+  }, []);
 
   const runProbe = async () => {
     setLoading(true);
@@ -21,17 +34,26 @@ export default function PedometerTestScreen() {
       <View style={styles.container}>
         <Text style={styles.eyebrow}>TEST TECHNIQUE</Text>
         <Text style={styles.title}>Podomètre</Text>
-        <Text style={styles.subtitle}>Écran temporaire pour vérifier la lecture réelle des pas du téléphone.</Text>
+        <Text style={styles.subtitle}>
+          Vérification de la collecte native et de l’actualisation des pas.
+        </Text>
 
         <View style={styles.card}>
           <Row label="Disponible" value={result ? (result.available ? "OUI" : "NON") : "—"} />
           <Row label="Permission" value={result ? result.permission.toUpperCase() : "—"} />
-          <Row label="Pas aujourd'hui" value={result?.todaySteps != null ? result.todaySteps.toLocaleString("fr-FR") : "—"} />
+          <Row
+            label="Pas aujourd'hui"
+            value={result?.todaySteps != null ? result.todaySteps.toLocaleString("fr-FR") : "—"}
+          />
           {result?.error ? <Text style={styles.error}>{result.error}</Text> : null}
         </View>
 
         <Pressable style={styles.button} onPress={runProbe} disabled={loading}>
-          {loading ? <ActivityIndicator color={colors.black} /> : <Text style={styles.buttonText}>TESTER LE PODOMÈTRE</Text>}
+          {loading ? (
+            <ActivityIndicator color={colors.black} />
+          ) : (
+            <Text style={styles.buttonText}>TESTER LE PODOMÈTRE</Text>
+          )}
         </Pressable>
       </View>
     </SafeAreaView>

@@ -15,7 +15,6 @@ import {
 } from "react-native";
 
 import {
-  router,
   useLocalSearchParams,
 } from "expo-router";
 
@@ -25,8 +24,7 @@ import Svg, {
   Polyline,
   Text as SvgText,
 } from "react-native-svg";
-
-import * as ScreenOrientation from "expo-screen-orientation";
+import { goBackOrReplace } from "@/src/components/ui";
 
 import { colors } from "@/src/theme";
 import { getExercisePerformanceHistory } from "@/src/lib/api";
@@ -47,10 +45,6 @@ export default function PerformanceChartScreen() {
 
     async function load() {
       try {
-        await ScreenOrientation.lockAsync(
-          ScreenOrientation.OrientationLock.LANDSCAPE
-        );
-
         const data =
           await getExercisePerformanceHistory();
 
@@ -74,10 +68,6 @@ export default function PerformanceChartScreen() {
 
     return () => {
       mounted = false;
-
-      ScreenOrientation.lockAsync(
-        ScreenOrientation.OrientationLock.PORTRAIT_UP
-      ).catch(() => {});
     };
   }, [exerciseId]);
 
@@ -131,7 +121,7 @@ export default function PerformanceChartScreen() {
           Mouvement introuvable
         </Text>
 
-        <Pressable onPress={() => router.back()}>
+        <Pressable onPress={() => goBackOrReplace()}>
           <Text style={styles.back}>
             ← RETOUR
           </Text>
@@ -224,7 +214,7 @@ export default function PerformanceChartScreen() {
 
         <Pressable
           style={styles.close}
-          onPress={() => router.back()}
+          onPress={() => goBackOrReplace()}
         >
           <Text style={styles.closeText}>
             FERMER ✕

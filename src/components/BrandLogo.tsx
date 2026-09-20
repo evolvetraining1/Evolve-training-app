@@ -1,4 +1,4 @@
-import { Image, StyleSheet, Text, View } from "react-native";
+import { Image, StyleSheet, View } from "react-native";
 
 export default function BrandLogo({ compact = false }: { compact?: boolean }) {
   if (compact) {
@@ -9,11 +9,6 @@ export default function BrandLogo({ compact = false }: { compact?: boolean }) {
           resizeMode="contain"
           style={styles.logoCompact}
         />
-
-        <View style={styles.textBlock}>
-          <Text style={styles.brandMain}>EVOLVE</Text>
-          <Text style={styles.brandSub}>TRAINING</Text>
-        </View>
       </View>
     );
   }
@@ -25,11 +20,6 @@ export default function BrandLogo({ compact = false }: { compact?: boolean }) {
         resizeMode="contain"
         style={styles.logo}
       />
-
-      <View style={styles.textBlock}>
-        <Text style={styles.brandMain}>EVOLVE</Text>
-        <Text style={styles.brandSub}>TRAINING</Text>
-      </View>
     </View>
   );
 }
@@ -43,41 +33,19 @@ const styles = StyleSheet.create({
   },
 
   compact: {
-    width: 260,
-    height: 210,
+    width: 142,
+    height: 132,
     alignItems: "center",
-    justifyContent: "flex-start",
-    marginTop: 18,
+    justifyContent: "center",
   },
 
   logo: {
-    width: 135,
-    height: 120,
+    width: 190,
+    height: 178,
   },
 
   logoCompact: {
-    width: 145,
-    height: 120,
-  },
-
-  textBlock: {
-    alignItems: "center",
-    marginTop: -4,
-  },
-
-  brandMain: {
-    color: "#FFFFFF",
-    fontSize: 23,
-    fontWeight: "800",
-    letterSpacing: 6,
-    lineHeight: 27,
-  },
-
-  brandSub: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "700",
-    letterSpacing: 5,
-    lineHeight: 18,
+    width: 130,
+    height: 122,
   },
 });

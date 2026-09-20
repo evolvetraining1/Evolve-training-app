@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { router, useLocalSearchParams } from "expo-router";
 import {
   ActivityIndicator,
+  Image,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,6 +13,8 @@ import {
 
 import { colors } from "@/src/theme";
 import { getWorkoutTemplateDetail } from "@/src/lib/api";
+import { getExerciseIllustration } from "@/src/data/exerciseIllustrations";
+import { goBackOrReplace } from "@/src/components/ui";
 
 function displaySet(set: any) {
   const parts: string[] = [];
@@ -189,7 +193,7 @@ export default function ProgramWorkoutScreen() {
 
         <Text
           style={styles.back}
-          onPress={() => router.back()}
+          onPress={() => goBackOrReplace()}
         >
           ← RETOUR
         </Text>
@@ -202,7 +206,7 @@ export default function ProgramWorkoutScreen() {
       style={styles.screen}
       contentContainerStyle={styles.page}
     >
-      <Text style={styles.back} onPress={() => router.back()}>
+      <Text style={styles.back} onPress={() => goBackOrReplace()}>
         ← RETOUR
       </Text>
 
@@ -290,26 +294,48 @@ export default function ProgramWorkoutScreen() {
 
                   const prescription =
                     cleanPrescription(item.prescription_notes);
+                  const illustration = exercise
+                    ? getExerciseIllustration(exercise.name, exercise.image_url)
+                    : null;
 
                   return (
-                    <View
+                    <Pressable
                       key={item.id}
-                      style={[
+                      disabled={!exercise?.id}
+                      onPress={() =>
+                        exercise?.id
+                          ? router.push(`/exercise/${exercise.id}` as never)
+                          : undefined
+                      }
+                      style={({ pressed }) => [
                         styles.phaseExercise,
-                        index !== exercises.length - 1 &&
-                          styles.phaseExerciseBorder,
+                        pressed && styles.phaseExercisePressed,
                       ]}
                     >
                       <View style={styles.phaseExerciseHeader}>
-                        <View style={styles.phaseNumberBox}>
-                          <Text style={styles.phaseExerciseNumber}>
-                            {index + 1}
-                          </Text>
+                        <View style={styles.phaseThumbnail}>
+                          {illustration ? (
+                            <Image
+                              source={illustration}
+                              resizeMode="contain"
+                              style={styles.phaseThumbnailImage}
+                              accessibilityLabel={`Illustration du mouvement ${exercise?.name ?? ""}`}
+                            />
+                          ) : (
+                            <Text style={styles.phaseThumbnailGlyph}>＋</Text>
+                          )}
+                          <View style={styles.phaseNumberBadge}>
+                            <Text style={styles.phaseExerciseNumber}>{index + 1}</Text>
+                          </View>
                         </View>
 
-                        <Text style={styles.phaseExerciseName}>
-                          {exercise?.name ?? "Exercice"}
-                        </Text>
+                        <View style={styles.phaseExerciseTitleBlock}>
+                          <Text style={styles.phaseExerciseName}>{exercise?.name ?? "Exercice"}</Text>
+                          <Text style={styles.phaseExerciseMeta}>
+                            {[exercise?.category, exercise?.difficulty].filter(Boolean).join(" • ")}
+                          </Text>
+                        </View>
+                        <Text style={styles.phaseExerciseChevron}>›</Text>
                       </View>
 
                       {prescription ? (
@@ -319,7 +345,7 @@ export default function ProgramWorkoutScreen() {
                       ) : null}
 
                       {exercise?.instructions ? (
-                        <Text style={styles.phaseExerciseInstructions}>
+                        <Text style={styles.phaseExerciseInstructions} numberOfLines={3}>
                           {exercise.instructions}
                         </Text>
                       ) : null}
@@ -338,7 +364,8 @@ export default function ProgramWorkoutScreen() {
                           </Text>
                         </View>
                       ))}
-                    </View>
+                      <Text style={styles.openExercise}>OUVRIR LA FICHE</Text>
+                    </Pressable>
                   );
                 })}
               </View>
@@ -496,13 +523,15 @@ const styles = StyleSheet.create({
   },
 
   phaseExercise: {
-    paddingVertical: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 18,
+    backgroundColor: "rgba(7,7,8,0.76)",
+    padding: 13,
+    marginBottom: 12,
   },
 
-  phaseExerciseBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
+  phaseExercisePressed: { opacity: 0.72 },
 
   phaseExerciseHeader: {
     flexDirection: "row",
@@ -510,37 +539,34 @@ const styles = StyleSheet.create({
     gap: 12,
   },
 
-  phaseNumberBox: {
-    width: 34,
-    height: 34,
-    borderRadius: 9,
-    borderWidth: 1,
-    borderColor: colors.yellow,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
-  },
+  phaseThumbnail: { width: 68, height: 68, borderRadius: 13, overflow: "hidden", borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface3, alignItems: "center", justifyContent: "center" },
+  phaseThumbnailImage: { width: "100%", height: "100%" },
+  phaseThumbnailGlyph: { color: colors.yellow, fontSize: 22, fontWeight: "900" },
+  phaseNumberBadge: { position: "absolute", left: 5, top: 5, minWidth: 22, height: 22, borderRadius: 7, paddingHorizontal: 5, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(5,5,5,0.9)", borderWidth: 1, borderColor: colors.yellow },
 
   phaseExerciseNumber: {
     color: colors.yellow,
-    fontSize: 18,
+    fontSize: 11,
     fontWeight: "900",
-    width: 28,
   },
+
+  phaseExerciseTitleBlock: { flex: 1, gap: 4 },
 
   phaseExerciseName: {
     color: colors.text,
-    fontSize: 22,
+    fontSize: 17,
+    lineHeight: 21,
     fontWeight: "900",
-    flex: 1,
   },
 
+  phaseExerciseMeta: { color: colors.yellow, fontSize: 10, fontWeight: "900", textTransform: "uppercase" },
+  phaseExerciseChevron: { color: colors.muted, fontSize: 28, paddingLeft: 2 },
+
   phaseExercisePrescription: {
-    color: colors.muted,
-    fontSize: 16,
+    color: colors.text,
+    fontSize: 15,
     lineHeight: 22,
-    marginTop: 8,
-    marginLeft: 40,
+    marginTop: 12,
   },
 
   phaseExerciseInstructions: {
@@ -548,7 +574,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     marginTop: 6,
-    marginLeft: 40,
   },
 
   phaseSetRow: {
@@ -556,7 +581,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginTop: 10,
-    marginLeft: 40,
     paddingVertical: 8,
   },
 
@@ -571,6 +595,8 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
   },
+
+  openExercise: { color: colors.yellow, fontSize: 10, fontWeight: "900", letterSpacing: 1.1, marginTop: 10 },
 
   exerciseCard: {
     borderWidth: 1,
