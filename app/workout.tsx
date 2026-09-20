@@ -21,7 +21,7 @@ import {
   startWorkoutSession,
 } from "@/src/lib/api";
 
-type WorkoutBlock = "WARM UP" | "STRENGTH WORK" | "RENFO" | "WOD" | "AUTRE";
+type WorkoutBlock = "WARM UP" | "STRENGTH WORK" | "RENFO" | "WORKOUT" | "WOD" | "AUTRE";
 
 type LocalSet = {
   prescribedId?: string | null;
@@ -44,6 +44,7 @@ function workoutBlock(item: any): WorkoutBlock {
   if (value.startsWith("WARM UP") || value.startsWith("WARM-UP")) return "WARM UP";
   if (value.startsWith("STRENGTH WORK") || value.startsWith("STRENGTH")) return "STRENGTH WORK";
   if (value.startsWith("RENFO")) return "RENFO";
+  if (value.startsWith("WORKOUT")) return "WORKOUT";
   if (value.startsWith("WOD")) return "WOD";
   return "AUTRE";
 }
@@ -57,7 +58,7 @@ function cleanExercisePrescription(notes?: string | null, block?: WorkoutBlock) 
   if (!value) return "";
 
   value = value.replace(
-    /^(WARM\s*[- ]?UP|STRENGTH\s*WORK|STRENGTH|RENFO|WOD)\s*[—–:-]?\s*/i,
+    /^(WARM\s*[- ]?UP|STRENGTH\s*WORK|STRENGTH|RENFO|WORKOUT|WOD)\s*[—–:-]?\s*/i,
     ""
   );
 
@@ -276,6 +277,7 @@ export default function WorkoutScreen() {
       "WARM UP": [],
       "STRENGTH WORK": [],
       RENFO: [],
+      WORKOUT: [],
       WOD: [],
       AUTRE: [],
     };
@@ -397,6 +399,7 @@ export default function WorkoutScreen() {
     "WARM UP",
     "STRENGTH WORK",
     "RENFO",
+    "WORKOUT",
     "WOD",
     "AUTRE",
   ];

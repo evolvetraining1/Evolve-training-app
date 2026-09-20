@@ -16,6 +16,7 @@ const sections = [
     { icon: "☷", label: "Journal & routine", route: "/(tabs)/journal" },
   ]},
   { title: "OUTILS", items: [
+    { icon: "✓", label: "Test prog", route: "/test-prog" },
     { icon: "⌘", label: "Bibliothèque de mouvements", route: "/(tabs)/library" },
     { icon: "1", label: "Calculateur 1RM", route: "/rm-calculator" },
     { icon: "◎", label: "Suivi nutrition", route: "/nutrition" },

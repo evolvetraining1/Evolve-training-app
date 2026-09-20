@@ -49,6 +49,7 @@ function getPhase(notes?: string) {
   if (value.startsWith("WARM UP")) return "WARM UP";
   if (value.startsWith("STRENGTH WORK")) return "STRENGTH WORK";
   if (value.startsWith("RENFO")) return "RENFO";
+  if (value.startsWith("WORKOUT")) return "WORKOUT";
   if (value.startsWith("WOD")) return "WOD";
 
   return "AUTRE";
@@ -70,6 +71,7 @@ function cleanPrescription(notes?: string) {
     .replace(/^WARM\s*UP\s*[—–-]?\s*/i, "")
     .replace(/^STRENGTH\s*WORK\s*[—–-]?\s*/i, "")
     .replace(/^RENFO\s*[—–-]?\s*/i, "")
+    .replace(/^WORKOUT\s*[—–-]?\s*/i, "")
     .replace(/^WOD\s*[—–-]?\s*/i, "");
 
   // Retire le "3 rounds —" répété devant chaque exercice
@@ -237,6 +239,7 @@ export default function ProgramWorkoutScreen() {
           "WARM UP",
           "STRENGTH WORK",
           "RENFO",
+          "WORKOUT",
           "WOD",
           "AUTRE",
         ];

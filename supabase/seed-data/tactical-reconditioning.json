@@ -1,0 +1,553 @@
+{
+  "programName": "TACTICAL RECONDITIONING",
+  "description": "Programme Florian — Tactical Reconditioning complet, structuré sur 11 semaines.",
+  "durationWeeks": 11,
+  "workouts": [
+    {
+      "week": 1,
+      "day": 1,
+      "name": "SQUAT",
+      "notes": "WARM UP 3 ROUNDS | STRENGTH WORK | RENFO | WOD 4 ROUNDS",
+      "estimatedMinutes": 75,
+      "preserveExisting": true,
+      "items": [
+        ["WARM UP", "Star plank", "3 rounds — 20 sec"],
+        ["WARM UP", "Single leg glute bridge", "3 rounds — 10 reps + 5 sec iso + 5 reps"],
+        ["WARM UP", "Single leg deadlift", "3 rounds — 5 reps — tempo 3111"],
+        ["STRENGTH WORK", "Back squat", "5x5 @70% — tempo 33X1 — repos 3 min"],
+        ["STRENGTH WORK", "Back squat", "3x2 @90% — explosif — repos 3 min"],
+        ["RENFO", "Single leg extension", "4x12 — enchaîné avec single leg ischio flexion — repos 2 min"],
+        ["RENFO", "Single leg ischio flexion", "12 reps — enchaîné avec single leg extension — repos 2 min"],
+        ["WOD", "Rameur", "4 rounds — 300 m"],
+        ["WOD", "Burpees over the box", "4 rounds — 10 reps"],
+        ["WOD", "Forward lunge", "4 rounds — 10 reps @14 kg/bras"],
+        ["WOD", "Deadlift", "4 rounds — 5 reps @55 kg"]
+      ]
+    },
+    {
+      "week": 1,
+      "day": 2,
+      "name": "BENCH",
+      "notes": "WARM UP 3 ROUNDS | STRENGTH WORK | RENFO",
+      "estimatedMinutes": 60,
+      "preserveExisting": true,
+      "items": [
+        ["WARM UP", "Half kneeling KB bottom-up press", "3 rounds — 8 reps @6 kg"],
+        ["WARM UP", "Push-up", "3 rounds — 10 reps — tempo 3131"],
+        ["WARM UP", "Single arm band rowing", "3 rounds — 15 reps"],
+        ["STRENGTH WORK", "Bench press", "1x5 @85% — repos 3 min"],
+        ["STRENGTH WORK", "Bench press", "4x5 @80% — tempo 3131 — repos 3 min"],
+        ["RENFO", "Alternating single arm DB bench press", "3x8–12 @12 kg"],
+        ["RENFO", "Pull-up + Dips", "4x5 Pull-up + Dips"],
+        ["RENFO", "Bent over row", "3x15 — tempo 3131 — barre à vide"]
+      ]
+    },
+    {
+      "week": 1,
+      "day": 3,
+      "name": "DEADLIFT",
+      "notes": "WARM UP 3 ROUNDS | STRENGTH WORK | RENFO | WOD 4 ROUNDS",
+      "estimatedMinutes": 75,
+      "items": [
+        ["WARM UP", "Single arm band rowing", "3 rounds — 20 reps"],
+        ["WARM UP", "Single leg glute bridge", "3 rounds — 10 reps + 5 sec iso + 5 reps"],
+        ["WARM UP", "Single leg deadlift", "3 rounds — 8 reps"],
+        ["WARM UP", "Sit-up", "3 rounds — 20 reps"],
+        ["WARM UP", "Plank hold", "3 rounds — 1 min"],
+        ["STRENGTH WORK", "Deadlift", "5x5 @60% — tempo 5151 — repos 3 min"],
+        ["RENFO", "Single leg GHD hip extension", "4x12 + 5 sec iso + 12 reps — repos 2 min"],
+        ["RENFO", "Dead hang", "3x max time — repos 2 min 30"],
+        ["WOD", "Run", "4 rounds — 500 m"],
+        ["WOD", "Single unders", "4 rounds — 50 reps"],
+        ["WOD", "Pull-up", "4 rounds — 5 reps"],
+        ["WOD", "Kettlebell swing", "4 rounds — 20 reps — lourd, focus hinge"],
+        ["WOD", "Goblet squat", "4 rounds — 15 reps — lourd"],
+        ["WOD", "Devil press", "4 rounds — 5 reps"]
+      ]
+    },
+    {
+      "week": 2,
+      "day": 1,
+      "name": "FULL BODY",
+      "notes": "WARM UP 3 ROUNDS | WORKOUT",
+      "estimatedMinutes": 70,
+      "items": [
+        ["WARM UP", "Goblet squat", "3 rounds — 10 reps"],
+        ["WARM UP", "Push-up", "3 rounds — 10 reps"],
+        ["WARM UP", "Band pull-apart", "3 rounds — 15 reps"],
+        ["WARM UP", "Plank hold", "3 rounds — 30 sec"],
+        ["WORKOUT", "DB front squat", "4x12 — RPE 7"],
+        ["WORKOUT", "DB deadlift", "4x12 — RPE 7 — repos 1 min 30 après le superset"],
+        ["WORKOUT", "Incline DB bench press", "4x12 — RPE 8"],
+        ["WORKOUT", "Barbell row", "4x12 — pause en haut — RPE 8 — repos 2 min après le superset"],
+        ["WORKOUT", "Strict press", "3x8 — RPE 7 — finir en push press si nécessaire"],
+        ["WORKOUT", "Pull-up", "3x max — repos 1 min 30 après le superset"],
+        ["WORKOUT", "Toes-to-bar", "4x8"],
+        ["WORKOUT", "Farmer carry", "4 allers-retours — lourd"]
+      ]
+    },
+    {
+      "week": 2,
+      "day": 2,
+      "name": "AMRAP 40",
+      "notes": "WORKOUT — AMRAP 40 MIN",
+      "estimatedMinutes": 40,
+      "items": [
+        ["WORKOUT", "Alternating DB hang snatch", "AMRAP 40 min — 5 reps — lourd"],
+        ["WORKOUT", "Pull-up", "AMRAP 40 min — 5 reps"],
+        ["WORKOUT", "Push-up", "AMRAP 40 min — 10 reps"],
+        ["WORKOUT", "Burpee", "AMRAP 40 min — 10 reps"],
+        ["WORKOUT", "Air squat", "AMRAP 40 min — 15 reps"],
+        ["WORKOUT", "Box jump", "AMRAP 40 min — 15 reps"]
+      ]
+    },
+    {
+      "week": 2,
+      "day": 3,
+      "name": "POSTERIOR / ACCESSOIRES",
+      "notes": "WARM UP 3 ROUNDS | WORKOUT",
+      "estimatedMinutes": 65,
+      "items": [
+        ["WARM UP", "Kettlebell deadlift", "3 rounds — 10 reps"],
+        ["WARM UP", "Push-up", "3 rounds — 10 reps"],
+        ["WARM UP", "Face pull", "3 rounds — 15 reps"],
+        ["WARM UP", "Hollow hold", "3 rounds — 30 sec"],
+        ["WORKOUT", "Deadlift", "4x8 — RPE 7"],
+        ["WORKOUT", "Bulgarian split squat", "4x12 — RPE 8 — repos 1 min 30 après le superset"],
+        ["WORKOUT", "Rear delt DB raise", "4x12"],
+        ["WORKOUT", "DB lateral raise", "4x12 — repos 1 min 30 après le superset"],
+        ["WORKOUT", "Incline curl", "4x12"],
+        ["WORKOUT", "DB skull crusher", "4x12 — repos 1 min 30 après le superset"],
+        ["WORKOUT", "Oblique flexion", "3x20"],
+        ["WORKOUT", "Pallof press", "3x12"],
+        ["WORKOUT", "Wrist roller", "3x4"]
+      ]
+    },
+    {
+      "week": 3,
+      "day": 1,
+      "name": "SQUAT",
+      "notes": "WARM UP 3 ROUNDS | STRENGTH WORK | RENFO | WOD 4 ROUNDS",
+      "estimatedMinutes": 75,
+      "items": [
+        ["WARM UP", "Star plank", "3 rounds — 20 sec"],
+        ["WARM UP", "Single leg glute bridge", "3 rounds — 10 reps + 5 sec iso + 5 reps"],
+        ["WARM UP", "Single leg deadlift", "3 rounds — 5 reps — tempo 3111"],
+        ["STRENGTH WORK", "Back squat", "5x5 @70% +2 à 3 kg — tempo 33X1 — repos 3 min"],
+        ["STRENGTH WORK", "Back squat", "3x2 @90% +2 à 3 kg — explosif — repos 3 min"],
+        ["RENFO", "Single leg extension", "4x12"],
+        ["RENFO", "Single leg hamstring curl", "4x12 — repos 2 min après le superset"],
+        ["WOD", "Rameur", "4 rounds — 200 m"],
+        ["WOD", "Box step-over", "4 rounds — 20 reps @2x12 kg"],
+        ["WOD", "Jumping lunge", "4 rounds — 10 reps"],
+        ["WOD", "DB clean and jerk", "4 rounds — 10 reps @2x14 kg — charge à confirmer"],
+        ["WOD", "Incline run", "4 rounds — 200 m"]
+      ]
+    },
+    {
+      "week": 3,
+      "day": 2,
+      "name": "BENCH",
+      "notes": "WARM UP 3 ROUNDS | STRENGTH WORK | RENFO",
+      "estimatedMinutes": 60,
+      "items": [
+        ["WARM UP", "Half kneeling KB bottom-up press", "3 rounds — 8 reps @6 kg"],
+        ["WARM UP", "Push-up", "3 rounds — 10 reps — tempo 3131"],
+        ["WARM UP", "Single arm band rowing", "3 rounds — 15 reps"],
+        ["STRENGTH WORK", "Bench press", "2x5 @85% — repos 3 min"],
+        ["STRENGTH WORK", "Bench press", "3x5 @80% — tempo 3131 — repos 3 min"],
+        ["RENFO", "Alternating single arm DB bench press", "3x8-12 @12 kg"],
+        ["RENFO", "Pull-up + Dips", "4x5"],
+        ["RENFO", "Bent over row", "3x15 — tempo 3131 — barre à vide"]
+      ]
+    },
+    {
+      "week": 3,
+      "day": 3,
+      "name": "DEADLIFT",
+      "notes": "WARM UP 3 ROUNDS | STRENGTH WORK | RENFO | WOD 4 ROUNDS",
+      "estimatedMinutes": 75,
+      "items": [
+        ["WARM UP", "Single arm band rowing", "3 rounds — 20 reps"],
+        ["WARM UP", "Single leg glute bridge", "3 rounds — 10 reps + 5 sec iso + 5 reps"],
+        ["WARM UP", "Single leg deadlift", "3 rounds — 8 reps"],
+        ["WARM UP", "Sit-up", "3 rounds — 20 reps"],
+        ["WARM UP", "Plank hold", "3 rounds — 1 min"],
+        ["STRENGTH WORK", "Deadlift", "5x5 @60% +2 à 3 kg — tempo 5151 — repos 3 min"],
+        ["RENFO", "Single leg GHD hip extension", "4x12 + 5 sec iso + 12 reps — repos 2 min"],
+        ["RENFO", "Dead hang", "3x max time — repos 2 min 30"],
+        ["WOD", "Bike", "4 rounds — 500 m"],
+        ["WOD", "Pull-up", "4 rounds — 5 reps"],
+        ["WOD", "Toes-to-bar", "4 rounds — 10 reps"],
+        ["WOD", "DB thruster", "4 rounds — 10 reps"]
+      ]
+    },
+    {
+      "week": 4,
+      "day": 1,
+      "name": "FULL BODY",
+      "notes": "WARM UP 3 ROUNDS | WORKOUT",
+      "estimatedMinutes": 70,
+      "items": [
+        ["WARM UP", "Goblet squat", "3 rounds — 10 reps"],
+        ["WARM UP", "Push-up", "3 rounds — 10 reps"],
+        ["WARM UP", "Band pull-apart", "3 rounds — 15 reps"],
+        ["WARM UP", "Plank hold", "3 rounds — 30 sec"],
+        ["WORKOUT", "DB front squat", "4x12 — RPE 7"],
+        ["WORKOUT", "DB deadlift", "4x12 — RPE 7 — repos 1 min 30 après le superset"],
+        ["WORKOUT", "Incline DB bench press", "4x12 — RPE 8"],
+        ["WORKOUT", "Barbell row", "4x12 — pause en haut — RPE 8 — repos 2 min après le superset"],
+        ["WORKOUT", "Strict press", "3x8 — RPE 7 — finir en push press si nécessaire"],
+        ["WORKOUT", "Pull-up", "3x max — repos 1 min 30 après le superset"],
+        ["WORKOUT", "Toes-to-bar", "4x8"],
+        ["WORKOUT", "Farmer carry", "4 allers-retours — lourd"]
+      ]
+    },
+    {
+      "week": 4,
+      "day": 2,
+      "name": "CINDY HARD VERSION",
+      "notes": "WORKOUT — AMRAP 40 MIN — NOTER LE NOMBRE DE TOURS",
+      "estimatedMinutes": 40,
+      "items": [
+        ["WORKOUT", "Pull-up", "AMRAP 40 min — 10 reps"],
+        ["WORKOUT", "Push-up", "AMRAP 40 min — 15 reps"],
+        ["WORKOUT", "Air squat", "AMRAP 40 min — 20 reps"]
+      ]
+    },
+    {
+      "week": 4,
+      "day": 3,
+      "name": "POSTERIOR / ACCESSOIRES",
+      "notes": "WARM UP 3 ROUNDS | WORKOUT",
+      "estimatedMinutes": 65,
+      "items": [
+        ["WARM UP", "Kettlebell deadlift", "3 rounds — 10 reps"],
+        ["WARM UP", "Push-up", "3 rounds — 10 reps"],
+        ["WARM UP", "Face pull", "3 rounds — 15 reps"],
+        ["WARM UP", "Hollow hold", "3 rounds — 30 sec"],
+        ["WORKOUT", "Deadlift", "4x8 — RPE 7"],
+        ["WORKOUT", "Bulgarian split squat", "4x12 — RPE 8 — repos 1 min 30 après le superset"],
+        ["WORKOUT", "Rear delt DB raise", "4x12"],
+        ["WORKOUT", "DB lateral raise", "4x12 — repos 1 min 30 après le superset"],
+        ["WORKOUT", "Incline curl", "4x12"],
+        ["WORKOUT", "DB skull crusher", "4x12 — repos 1 min 30 après le superset"],
+        ["WORKOUT", "Oblique flexion", "3x20 @2.5 kg plate"],
+        ["WORKOUT", "Pallof press", "3x12"],
+        ["WORKOUT", "Wrist roller", "3x4"]
+      ]
+    },
+    {
+      "week": 5,
+      "day": 1,
+      "name": "SQUAT",
+      "notes": "WARM UP 3 ROUNDS | STRENGTH WORK | RENFO | WOD 4 ROUNDS",
+      "estimatedMinutes": 75,
+      "items": [
+        ["WARM UP", "Star plank", "3 rounds — 20 sec"],
+        ["WARM UP", "Single leg glute bridge", "3 rounds — 10 reps + 5 sec iso + 5 reps"],
+        ["WARM UP", "Single leg deadlift", "3 rounds — 5 reps — tempo 3111"],
+        ["STRENGTH WORK", "Back squat", "5x5 @70% +5 à 7 kg — tempo 33X1 — repos 3 min"],
+        ["STRENGTH WORK", "Back squat", "3x2 @90% +5 à 7 kg — explosif — repos 3 min"],
+        ["RENFO", "Single leg extension", "4x12"],
+        ["RENFO", "Single leg hamstring curl", "4x12 — repos 2 min après le superset"],
+        ["WOD", "Rameur", "4 rounds — 200 m"],
+        ["WOD", "Box step-over", "4 rounds — 20 reps @2x12 kg"],
+        ["WOD", "Jumping lunge", "4 rounds — 10 reps"],
+        ["WOD", "DB clean and jerk", "4 rounds — 10 reps @2x14 kg — charge à confirmer"],
+        ["WOD", "Incline run", "4 rounds — 200 m"]
+      ]
+    },
+    {
+      "week": 5,
+      "day": 2,
+      "name": "BENCH",
+      "notes": "WARM UP 3 ROUNDS | STRENGTH WORK | RENFO",
+      "estimatedMinutes": 60,
+      "items": [
+        ["WARM UP", "Half kneeling KB bottom-up press", "3 rounds — 8 reps @6 kg"],
+        ["WARM UP", "Push-up", "3 rounds — 10 reps — tempo 3131"],
+        ["WARM UP", "Single arm band rowing", "3 rounds — 15 reps"],
+        ["STRENGTH WORK", "Bench press", "4x5 @85% — repos 3 min"],
+        ["STRENGTH WORK", "Bench press", "1x5 @80% — tempo 3131 — repos 3 min"],
+        ["RENFO", "Alternating single arm DB bench press", "3x8-12 @12 kg"],
+        ["RENFO", "Pull-up + Dips", "4x5"],
+        ["RENFO", "Bent over row", "3x15 — tempo 3131 — barre à vide"]
+      ]
+    },
+    {
+      "week": 5,
+      "day": 3,
+      "name": "DEADLIFT",
+      "notes": "WARM UP 3 ROUNDS | STRENGTH WORK | RENFO | WOD NON RENSEIGNÉ",
+      "estimatedMinutes": 60,
+      "items": [
+        ["WARM UP", "Single arm band rowing", "3 rounds — 20 reps"],
+        ["WARM UP", "Single leg glute bridge", "3 rounds — 10 reps + 7 sec iso + 10 reps"],
+        ["WARM UP", "Single leg deadlift", "3 rounds — 10 reps"],
+        ["WARM UP", "Sit-up", "3 rounds — 25 reps"],
+        ["WARM UP", "Plank hold", "3 rounds — 1 min 30"],
+        ["STRENGTH WORK", "Deadlift", "5x5 @60% +4 à 6 kg — tempo 5151 — repos 3 min"],
+        ["RENFO", "Single leg GHD hip extension", "4x12 + 5 sec iso + 12 reps — repos 2 min"],
+        ["RENFO", "Dead hang", "3x max time — repos 2 min 30"]
+      ]
+    },
+    {
+      "week": 6,
+      "day": 1,
+      "name": "REPOS",
+      "notes": "Récupération complète.",
+      "estimatedMinutes": null,
+      "items": []
+    },
+    {
+      "week": 7,
+      "day": 1,
+      "name": "SQUAT — TEST 5-3",
+      "notes": "WARM UP 3 ROUNDS | STRENGTH WORK",
+      "estimatedMinutes": 40,
+      "items": [
+        ["WARM UP", "Star plank", "3 rounds — 20 sec"],
+        ["WARM UP", "Single leg glute bridge", "3 rounds — 10 reps + 5 sec iso + 5 reps"],
+        ["WARM UP", "Single leg deadlift", "3 rounds — 5 reps — tempo 3111"],
+        ["STRENGTH WORK", "Back squat", "5-3 — le plus lourd possible avec une bonne amplitude"]
+      ]
+    },
+    {
+      "week": 7,
+      "day": 2,
+      "name": "BENCH — TEST 5-3",
+      "notes": "WARM UP 3 ROUNDS | STRENGTH WORK",
+      "estimatedMinutes": 40,
+      "items": [
+        ["WARM UP", "Half kneeling KB bottom-up press", "3 rounds — 8 reps @8 kg"],
+        ["WARM UP", "Push-up", "3 rounds — 12 reps — tempo 3131"],
+        ["WARM UP", "Single arm band rowing", "3 rounds — 15 reps"],
+        ["STRENGTH WORK", "Bench press", "5-3 — le plus lourd possible"]
+      ]
+    },
+    {
+      "week": 7,
+      "day": 3,
+      "name": "DEADLIFT — TEST 5-3",
+      "notes": "WARM UP 3 ROUNDS | STRENGTH WORK",
+      "estimatedMinutes": 40,
+      "items": [
+        ["WARM UP", "Single arm band rowing", "3 rounds — 20 reps"],
+        ["WARM UP", "Single leg glute bridge", "3 rounds — 10 reps + 7 sec iso + 10 reps"],
+        ["WARM UP", "Single leg deadlift", "3 rounds — 10 reps"],
+        ["WARM UP", "Sit-up", "3 rounds — 25 reps"],
+        ["WARM UP", "Plank hold", "3 rounds — 1 min 30"],
+        ["STRENGTH WORK", "Deadlift", "5-3 — le plus lourd possible"]
+      ]
+    },
+    {
+      "week": 8,
+      "day": 1,
+      "name": "FULL BODY",
+      "notes": "WARM UP 3 ROUNDS | WORKOUT",
+      "estimatedMinutes": 70,
+      "items": [
+        ["WARM UP", "Goblet squat", "3 rounds — 10 reps"],
+        ["WARM UP", "Scapular push-up", "3 rounds — 10 reps"],
+        ["WARM UP", "Bear crawl", "3 rounds — 20 m"],
+        ["WARM UP", "Dead bug", "3 rounds — 30 sec"],
+        ["WORKOUT", "DB Bulgarian split squat", "4x8-12"],
+        ["WORKOUT", "DB Romanian deadlift", "4x10-12 — tempo 3111 — repos 1 min 30 après le superset"],
+        ["WORKOUT", "DB bench press", "4x8-12"],
+        ["WORKOUT", "Weighted pull-up", "4x5-8 @5-10 kg — repos 1 min 30 après le superset"],
+        ["WORKOUT", "Landmine press", "3x8-10 — charge à définir"],
+        ["WORKOUT", "Chest-supported DB row", "3x12 — charge à définir — repos 1 min 30 après le superset"],
+        ["WORKOUT", "Farmer carry", "4x2 allers-retours — lourd"],
+        ["WORKOUT", "Dead hang", "4x max time"],
+        ["WORKOUT", "Hanging knee raise", "3x15"],
+        ["WORKOUT", "Copenhagen plank", "3x30 sec"]
+      ]
+    },
+    {
+      "week": 8,
+      "day": 2,
+      "name": "EMOM 30",
+      "notes": "WORKOUT — EMOM 30 MIN | FINISHER 100 BOX JUMP OVER",
+      "estimatedMinutes": 40,
+      "items": [
+        ["WORKOUT", "Run", "EMOM 30 min — minute 1 — 200 m"],
+        ["WORKOUT", "Burpee", "EMOM 30 min — minute 2 — 12 reps"],
+        ["WORKOUT", "Pull-up", "EMOM 30 min — minute 3 — 7 reps"],
+        ["WORKOUT", "Thruster", "EMOM 30 min — minute 4 — 14 reps @15 kg"],
+        ["WORKOUT", "Rameur", "EMOM 30 min — minute 5 — 250 m"],
+        ["WORKOUT", "Box jump over", "Finisher — 100 reps"]
+      ]
+    },
+    {
+      "week": 8,
+      "day": 3,
+      "name": "POSTERIOR / ACCESSOIRES",
+      "notes": "WARM UP 3 ROUNDS | WORKOUT",
+      "estimatedMinutes": 70,
+      "items": [
+        ["WARM UP", "Kettlebell swing", "3 rounds — 10 reps"],
+        ["WARM UP", "Push-up", "3 rounds — 12 reps"],
+        ["WARM UP", "Forward lunge", "3 rounds — 20 reps"],
+        ["WARM UP", "Side plank", "3 rounds — 30 sec"],
+        ["WORKOUT", "Deadlift", "4x8"],
+        ["WORKOUT", "Weighted box jump", "4x8 — gilet lesté — repos 1 min 10 après le superset"],
+        ["WORKOUT", "Rear delt DB raise", "4x12"],
+        ["WORKOUT", "Barbell row", "4x12"],
+        ["WORKOUT", "DB lateral raise", "4x12 — repos 1 min 30 après le triset"],
+        ["WORKOUT", "Standing curl", "4x12"],
+        ["WORKOUT", "Behind-the-neck DB press", "4x12 — repos 1 min 30 après le superset"],
+        ["WORKOUT", "Wrist roller", "3x8 allers-retours"],
+        ["WORKOUT", "Plate pinch hold", "3x30 sec"],
+        ["WORKOUT", "Ab wheel", "3x8"],
+        ["WORKOUT", "KB Russian twist", "3x20"]
+      ]
+    },
+    {
+      "week": 9,
+      "day": 1,
+      "name": "SQUAT",
+      "notes": "WARM UP 3 ROUNDS | STRENGTH WORK | RENFO | WOD",
+      "estimatedMinutes": 70,
+      "items": [
+        ["WARM UP", "Star plank", "3 rounds — 20 sec"],
+        ["WARM UP", "Single leg glute bridge", "3 rounds — 12 reps + 10 sec iso + 12 reps"],
+        ["WARM UP", "Kettlebell swing", "3 rounds — 12 reps"],
+        ["STRENGTH WORK", "Back squat", "5x5 @85% — repos 3 min"],
+        ["STRENGTH WORK", "Back squat", "1x25-30 @45% — technique mais explosif — repos 2 min"],
+        ["RENFO", "Single leg extension", "4x12"],
+        ["RENFO", "Single leg hamstring curl", "4x12 — repos 2 min après le superset"],
+        ["RENFO", "Forward lunge", "4x20"],
+        ["WOD", "Death by burpees", "EMOM — ajouter 1 burpee chaque minute"]
+      ]
+    },
+    {
+      "week": 9,
+      "day": 2,
+      "name": "BENCH",
+      "notes": "WARM UP 3 ROUNDS | STRENGTH WORK | RENFO",
+      "estimatedMinutes": 65,
+      "items": [
+        ["WARM UP", "Half kneeling KB bottom-up press", "3 rounds — 8 reps @12 kg"],
+        ["WARM UP", "Push-up", "3 rounds — 10 reps — tempo 5131"],
+        ["WARM UP", "Alternating gorilla row", "3 rounds — 15 reps"],
+        ["STRENGTH WORK", "Bench press", "5x5 @85% — repos 3 min"],
+        ["STRENGTH WORK", "Bench press", "1x25-30 @45% — technique mais explosif — repos 2 min"],
+        ["RENFO", "Alternating single arm incline DB bench press", "3x8-12 @12 kg"],
+        ["RENFO", "Pull-up + Dips", "4x10"]
+      ]
+    },
+    {
+      "week": 9,
+      "day": 3,
+      "name": "DEADLIFT",
+      "notes": "WARM UP 3 ROUNDS | STRENGTH WORK | RENFO",
+      "estimatedMinutes": 65,
+      "items": [
+        ["WARM UP", "Band pull-apart", "3 rounds — 20 reps"],
+        ["WARM UP", "Single leg glute bridge", "3 rounds — 10 reps + 7 sec iso + 10 reps"],
+        ["WARM UP", "Single leg deadlift", "3 rounds — 10 reps"],
+        ["STRENGTH WORK", "Deadlift", "5x5 @80% — repos 3 min"],
+        ["STRENGTH WORK", "Deadlift", "1x25-30 @45% — technique mais explosif — repos 2 min"],
+        ["RENFO", "Band bust rotation", "4x12 + 10 sec iso + 10 reps"],
+        ["RENFO", "Superman plank hold", "3x max time"]
+      ]
+    },
+    {
+      "week": 10,
+      "day": 1,
+      "name": "FULL BODY",
+      "notes": "WARM UP 3 ROUNDS | WORKOUT",
+      "estimatedMinutes": 70,
+      "items": [
+        ["WARM UP", "Goblet squat", "3 rounds — 10 reps"],
+        ["WARM UP", "Scapular push-up", "3 rounds — 10 reps"],
+        ["WARM UP", "Bear crawl", "3 rounds — 20 m"],
+        ["WARM UP", "Dead bug", "3 rounds — 30 sec"],
+        ["WORKOUT", "DB Bulgarian split squat", "4x8-12"],
+        ["WORKOUT", "DB Romanian deadlift", "4x10-12 — tempo 3111 — repos 1 min 30 après le superset"],
+        ["WORKOUT", "DB bench press", "4x8-12"],
+        ["WORKOUT", "Weighted pull-up", "4x5-8 @5-10 kg — repos 1 min 30 après le superset"],
+        ["WORKOUT", "Landmine press", "3x8-10 — charge à définir"],
+        ["WORKOUT", "Chest-supported DB row", "3x12 — charge à définir — repos 1 min 30 après le superset"],
+        ["WORKOUT", "Farmer carry", "4x2 allers-retours — lourd"],
+        ["WORKOUT", "Dead hang", "4x max time"],
+        ["WORKOUT", "Hanging knee raise", "3x15"],
+        ["WORKOUT", "Copenhagen plank", "3x30 sec"]
+      ]
+    },
+    {
+      "week": 10,
+      "day": 2,
+      "name": "MURPH",
+      "notes": "WORKOUT — WOD HERO MURPH, SCALED OU NON — LE VRAI SE FAIT AVEC UN GILET DE 9 À 11 KG",
+      "estimatedMinutes": 60,
+      "items": [
+        ["WORKOUT", "Run", "1 mile"],
+        ["WORKOUT", "Pull-up", "100 reps"],
+        ["WORKOUT", "Push-up", "200 reps"],
+        ["WORKOUT", "Air squat", "300 reps"],
+        ["WORKOUT", "Run", "1 mile"]
+      ]
+    },
+    {
+      "week": 10,
+      "day": 3,
+      "name": "POSTERIOR / ACCESSOIRES",
+      "notes": "WARM UP 3 ROUNDS | WORKOUT",
+      "estimatedMinutes": 70,
+      "items": [
+        ["WARM UP", "Kettlebell swing", "3 rounds — 10 reps"],
+        ["WARM UP", "Push-up", "3 rounds — 12 reps"],
+        ["WARM UP", "Forward lunge", "3 rounds — 20 reps"],
+        ["WARM UP", "Side plank", "3 rounds — 30 sec"],
+        ["WORKOUT", "Deadlift", "4x8"],
+        ["WORKOUT", "Weighted box jump", "4x8 — gilet lesté — repos 1 min 10 après le superset"],
+        ["WORKOUT", "Rear delt DB raise", "4x12"],
+        ["WORKOUT", "Barbell row", "4x12"],
+        ["WORKOUT", "DB lateral raise", "4x12 — repos 1 min 30 après le triset"],
+        ["WORKOUT", "Standing curl", "4x12"],
+        ["WORKOUT", "Behind-the-neck DB press", "4x12 — repos 1 min 30 après le superset"],
+        ["WORKOUT", "Wrist roller", "3x8 allers-retours"],
+        ["WORKOUT", "Plate pinch hold", "3x30 sec"],
+        ["WORKOUT", "Ab wheel", "3x8"],
+        ["WORKOUT", "KB Russian twist", "3x20"]
+      ]
+    },
+    {
+      "week": 11,
+      "day": 1,
+      "name": "SQUAT",
+      "notes": "WARM UP 3 ROUNDS | STRENGTH WORK | RENFO | WOD",
+      "estimatedMinutes": 75,
+      "items": [
+        ["WARM UP", "Star plank", "3 rounds — 20 sec"],
+        ["WARM UP", "Single leg glute bridge", "3 rounds — 12 reps + 10 sec iso + 12 reps"],
+        ["WARM UP", "Kettlebell swing", "3 rounds — 12 reps"],
+        ["STRENGTH WORK", "Back squat", "5x5 @85% +2.5 kg — repos 3 min"],
+        ["STRENGTH WORK", "Back squat", "1x25-30 @45% — technique mais explosif — repos 2 min"],
+        ["RENFO", "Single leg extension", "4x12"],
+        ["RENFO", "Single leg hamstring curl", "4x12 — repos 2 min après le superset"],
+        ["RENFO", "Adduction / Abduction", "4x8-12"],
+        ["RENFO", "Forward lunge", "4x20"],
+        ["WOD", "Death by burpees", "EMOM — ajouter 1 burpee chaque minute"]
+      ]
+    },
+    {
+      "week": 11,
+      "day": 2,
+      "name": "BENCH",
+      "notes": "WARM UP 3 ROUNDS | STRENGTH WORK | RENFO",
+      "estimatedMinutes": 65,
+      "items": [
+        ["WARM UP", "Half kneeling KB bottom-up press", "3 rounds — 8 reps @12 kg"],
+        ["WARM UP", "Push-up", "3 rounds — 10 reps — tempo 5131"],
+        ["WARM UP", "Alternating gorilla row", "3 rounds — 15 reps"],
+        ["STRENGTH WORK", "Bench press", "5x5 @85% +2.5 kg — repos 3 min"],
+        ["STRENGTH WORK", "Bench press", "1x25-30 @45% — technique mais explosif — repos 2 min"],
+        ["RENFO", "Alternating single arm incline DB bench press", "3x8-12 @14 kg"],
+        ["RENFO", "Pull-up + Dips", "4x12"]
+      ]
+    }
+  ]
+}
