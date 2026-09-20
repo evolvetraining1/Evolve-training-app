@@ -9,7 +9,7 @@ import {
 } from "react-native";
 
 import { colors } from "@/src/theme";
-import { TAB_HEADER_TOP } from "@/src/components/ui";
+import { BackScreenHeader, TAB_HEADER_TOP } from "@/src/components/ui";
 
 const PROGRAMS = [
   {
@@ -55,17 +55,10 @@ export default function ProgramScreen() {
       contentContainerStyle={styles.page}
       showsVerticalScrollIndicator={false}
     >
-      <Text style={styles.kicker}>
-        EVOLVE TRAINING
-      </Text>
-
-      <Text style={styles.title}>
-        Programmes
-      </Text>
-
-      <Text style={styles.subtitle}>
-        Choisis ta programmation.
-      </Text>
+      <BackScreenHeader
+        title="Programmes"
+        subtitle="Choisis ta programmation."
+      />
 
       <View style={styles.programList}>
         {PROGRAMS.map((program) => (

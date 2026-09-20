@@ -19,7 +19,7 @@ import Svg, {
 
 
 import { router } from "expo-router";
-import { Card, Label, Metric, ScreenHeader } from "@/src/components/ui";
+import { BackScreenHeader, Card, Label, Metric } from "@/src/components/ui";
 import { colors } from "@/src/theme";
 import { getAthleteStatsDashboard, getExercisePerformanceHistory } from "@/src/lib/api";
 
@@ -254,7 +254,7 @@ export default function StatsScreen() {
         />
       }
     >
-      <ScreenHeader
+      <BackScreenHeader
         title="Stats"
         subtitle="Tes performances réelles, issues de tes séances."
       />

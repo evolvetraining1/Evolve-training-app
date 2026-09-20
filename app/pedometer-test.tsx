@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, SafeAreaView, StyleSheet, Text, View } from "react-native";
 import { colors } from "@/src/theme";
 import { PedometerProbe, probePedometer, watchTodaySteps } from "@/src/lib/pedometer";
+import { BackButton } from "@/src/components/ui";
 
 export default function PedometerTestScreen() {
   const [loading, setLoading] = useState(false);
@@ -31,6 +32,9 @@ export default function PedometerTestScreen() {
 
   return (
     <SafeAreaView style={styles.root}>
+      <View style={styles.backButton}>
+        <BackButton />
+      </View>
       <View style={styles.container}>
         <Text style={styles.eyebrow}>TEST TECHNIQUE</Text>
         <Text style={styles.title}>Podomètre</Text>
@@ -71,6 +75,7 @@ function Row({ label, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
+  backButton: { position: "absolute", top: 18, left: 24, zIndex: 10 },
   container: { flex: 1, padding: 24, justifyContent: "center" },
   eyebrow: { color: colors.yellow, fontSize: 11, fontWeight: "900", letterSpacing: 2 },
   title: { color: colors.text, fontSize: 34, fontWeight: "900", marginTop: 8 },

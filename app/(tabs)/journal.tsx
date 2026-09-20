@@ -12,7 +12,7 @@ import {
   View,
 } from "react-native";
 
-import { PrimaryButton, TAB_HEADER_TOP } from "@/src/components/ui";
+import { BackButton, PrimaryButton, TAB_HEADER_TOP } from "@/src/components/ui";
 import { localDateString } from "@/src/lib/date";
 import {
   archiveCustomRoutine,
@@ -277,9 +277,12 @@ export default function JournalScreen() {
     <>
       <ScrollView contentInsetAdjustmentBehavior="automatic" keyboardShouldPersistTaps="handled" contentContainerStyle={styles.page}>
         <View style={styles.topRow}>
-          <View>
-            <Text style={styles.eyebrow}>EVOLVE TRAINING</Text>
-            <Text style={styles.pageTitle}>JOURNAL</Text>
+          <View style={styles.headerIdentity}>
+            <BackButton />
+            <View>
+              <Text style={styles.eyebrow}>EVOLVE TRAINING</Text>
+              <Text style={styles.pageTitle}>JOURNAL</Text>
+            </View>
           </View>
           <Pressable style={styles.trendsButton} onPress={() => router.push("/journal-trends" as never)}>
             <Text style={styles.trendsButtonText}>TENDANCES  ›</Text>
@@ -535,6 +538,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg, gap: 12 },
   loadingText: { color: colors.muted, fontSize: 13 },
   topRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  headerIdentity: { flex: 1, flexDirection: "row", alignItems: "center", gap: 12 },
   eyebrow: { color: colors.yellow, fontSize: 11, fontWeight: "900", letterSpacing: 2.2 },
   pageTitle: { color: colors.text, fontSize: 34, fontWeight: "900", letterSpacing: -0.8, marginTop: 4 },
   trendsButton: { minHeight: 42, justifyContent: "center", borderWidth: 1, borderColor: colors.border, borderRadius: 999, paddingHorizontal: 14, backgroundColor: "rgba(12,12,13,0.92)" },

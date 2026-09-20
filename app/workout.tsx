@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 
-import { Card, PrimaryButton, ScreenHeader } from "@/src/components/ui";
+import { BackScreenHeader, Card, PrimaryButton } from "@/src/components/ui";
 import { colors } from "@/src/theme";
 import {
   completeWorkoutSession,
@@ -403,7 +403,7 @@ export default function WorkoutScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
-      <ScreenHeader
+      <BackScreenHeader
         eyebrow="SÉANCE EN COURS"
         title={detail?.session?.workout_templates?.name ?? "Séance"}
         subtitle="Valide les éléments au fur et à mesure."

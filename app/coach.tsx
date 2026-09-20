@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { router } from "expo-router";
 import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { Card, Label, PrimaryButton, ScreenHeader } from "@/src/components/ui";
+import { BackScreenHeader, Card, Label, PrimaryButton } from "@/src/components/ui";
 import { colors } from "@/src/theme";
 import {
   createAthleteInvite,
@@ -111,7 +111,7 @@ export default function CoachScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.page}>
-      <ScreenHeader eyebrow="ESPACE COACH" title="Dashboard" subtitle="Premier workflow coach réel relié à Supabase." />
+      <BackScreenHeader eyebrow="ESPACE COACH" title="Dashboard" subtitle="Premier workflow coach réel relié à Supabase." />
 
       <View style={styles.grid}>
         <Card style={styles.gridCard}><Label>Athlètes</Label><Text style={styles.metric}>{athletes.length}</Text></Card>

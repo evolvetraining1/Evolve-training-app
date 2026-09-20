@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { router } from "expo-router";
 
-import { Card, ScreenHeader } from "@/src/components/ui";
+import { BackScreenHeader, Card } from "@/src/components/ui";
 import { ProfileAvatar } from "@/src/components/profile-avatar";
 import { colors } from "@/src/theme";
 import { getCoachAthletes } from "@/src/lib/coachApi";
@@ -51,7 +51,7 @@ export default function CoachAthletesScreen() {
         />
       }
     >
-      <ScreenHeader
+      <BackScreenHeader
         eyebrow="ESPACE COACH"
         title="Mes athlètes"
         subtitle="Suivi individuel, performances et données athlètes."

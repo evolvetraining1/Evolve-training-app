@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { router } from "expo-router";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
-import { Card, Label, PrimaryButton, ScreenHeader, TAB_HEADER_TOP } from "@/src/components/ui";
+import { BackScreenHeader, Card, Label, PrimaryButton, TAB_HEADER_TOP } from "@/src/components/ui";
 import { colors } from "@/src/theme";
 import { useAuth } from "@/src/store/auth";
 import { getMyProfile } from "@/src/lib/api";
@@ -33,7 +33,7 @@ export default function ProfileScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.page}>
-      <ScreenHeader title="Profil" subtitle={session?.user.email ?? "Compte Evolve"} />
+      <BackScreenHeader title="Profil" subtitle={session?.user.email ?? "Compte Evolve"} />
 
       <Card>
         <Label>Type de compte</Label>

@@ -5,7 +5,7 @@ import { supabase } from "@/src/lib/supabase";
 import { colors, radius } from "@/src/theme";
 import { getExerciseIllustration } from "@/src/data/exerciseIllustrations";
 import { MuscleBodyFilter } from "@/src/components/muscle-body-filter";
-import { TAB_HEADER_TOP } from "@/src/components/ui";
+import { BackScreenHeader, TAB_HEADER_TOP } from "@/src/components/ui";
 import {
   BodyGroupKey,
   getBodyGroupLabel,
@@ -119,9 +119,10 @@ export default function ExerciseLibraryScreen() {
           ListHeaderComponent={
             <View style={styles.listHeader}>
               <View style={styles.header}>
-                <Text style={styles.eyebrow}>EVOLVE TRAINING</Text>
-                <Text style={styles.title}>BIBLIOTHÈQUE</Text>
-                <Text style={styles.subtitle}>Retrouve rapidement la technique et les repères de chaque mouvement.</Text>
+                <BackScreenHeader
+                  title="Bibliothèque"
+                  subtitle="Retrouve rapidement la technique et les repères de chaque mouvement."
+                />
               </View>
 
               <TextInput

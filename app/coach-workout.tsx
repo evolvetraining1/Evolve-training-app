@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { router } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { Card, Label, PrimaryButton, ScreenHeader } from "@/src/components/ui";
+import { BackScreenHeader, Card, Label, PrimaryButton } from "@/src/components/ui";
 import { colors } from "@/src/theme";
 import {
   addExerciseToWorkout,
@@ -131,7 +131,7 @@ export default function CoachWorkoutScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.page}>
-      <ScreenHeader
+      <BackScreenHeader
         eyebrow="PROGRAMMATION"
         title="Créer une séance"
         subtitle="Prescription détaillée : séries, reps, charge, RPE/RIR et repos."
