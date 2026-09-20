@@ -3,7 +3,7 @@ import { ActivityIndicator, Image, Pressable, SectionList, StyleSheet, Text, Tex
 import { router } from "expo-router";
 import { supabase } from "@/src/lib/supabase";
 import { colors, radius } from "@/src/theme";
-import { getExerciseIllustration } from "@/src/data/exerciseIllustrations";
+import { exerciseIllustrationPlaceholder, getExerciseIllustration } from "@/src/data/exerciseIllustrations";
 import { MuscleBodyFilter } from "@/src/components/muscle-body-filter";
 import { BackScreenHeader, TAB_HEADER_TOP } from "@/src/components/ui";
 import {
@@ -176,7 +176,12 @@ export default function ExerciseLibraryScreen() {
                       accessibilityLabel={`Illustration du mouvement ${item.name}`}
                     />
                   ) : (
-                    <Text style={styles.mediaGlyph}>{item.video_url ? "▶" : "＋"}</Text>
+                    <Image
+                      source={exerciseIllustrationPlaceholder}
+                      resizeMode="contain"
+                      style={styles.mediaLogo}
+                      accessibilityLabel="Logo Evolve Training, visuel du mouvement à venir"
+                    />
                   )}
                 </View>
                 <View style={styles.cardBody}>
@@ -221,7 +226,7 @@ const styles = StyleSheet.create({
   cardPressed: { opacity: 0.75 },
   mediaPlaceholder: { width: 104, height: 104, flexShrink: 0, marginLeft: 10, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface3, borderWidth: 1, borderColor: colors.borderSoft, borderRadius: radius.sm, overflow: "hidden" },
   mediaImage: { width: "100%", height: "100%" },
-  mediaGlyph: { color: colors.yellow, fontSize: 24, fontWeight: "900" },
+  mediaLogo: { width: 62, height: 62, opacity: 0.58 },
   cardBody: { flex: 1, paddingHorizontal: 14, paddingVertical: 12 },
   cardTitle: { color: colors.text, fontSize: 16, fontWeight: "900", lineHeight: 20 },
   metaRow: { flexDirection: "row", flexWrap: "wrap", gap: 5, marginTop: 6 },

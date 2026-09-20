@@ -3,7 +3,7 @@ import { ActivityIndicator, Image, Linking, Pressable, ScrollView, StyleSheet, T
 import { useLocalSearchParams } from "expo-router";
 import { supabase } from "@/src/lib/supabase";
 import { colors, radius } from "@/src/theme";
-import { getExerciseIllustration } from "@/src/data/exerciseIllustrations";
+import { exerciseIllustrationPlaceholder, getExerciseIllustration } from "@/src/data/exerciseIllustrations";
 import { goBackOrReplace } from "@/src/components/ui";
 
 type ExerciseDetail = {
@@ -106,8 +106,8 @@ export default function ExerciseDetailScreen() {
           />
         ) : (
           <View style={styles.heroPlaceholder}>
-            <Text style={styles.heroGlyph}>▧</Text>
-            <Text style={styles.heroPlaceholderText}>VISUEL DU MOUVEMENT</Text>
+            <Image source={exerciseIllustrationPlaceholder} resizeMode="contain" style={styles.heroLogo} />
+            <Text style={styles.heroPlaceholderText}>VISUEL EXACT À VENIR</Text>
           </View>
         )}
       </View>
@@ -162,7 +162,7 @@ const styles = StyleSheet.create({
   hero: { width: "100%", aspectRatio: 1, borderWidth: 1, borderColor: colors.borderSoft, borderRadius: radius.lg, overflow: "hidden", backgroundColor: colors.surface },
   heroImage: { width: "100%", height: "100%" },
   heroPlaceholder: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(15,15,16,0.95)" },
-  heroGlyph: { color: colors.yellow, fontSize: 44, marginBottom: 10 },
+  heroLogo: { width: 126, height: 126, marginBottom: 12, opacity: 0.62 },
   heroPlaceholderText: { color: colors.muted2, fontSize: 11, fontWeight: "900", letterSpacing: 2 },
   videoButton: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 12, minHeight: 54, borderWidth: 1, borderColor: colors.yellowSoft, borderRadius: radius.md, paddingHorizontal: 16, backgroundColor: "rgba(255,196,0,0.08)" },
   videoIcon: { color: colors.yellow, fontSize: 18 },
