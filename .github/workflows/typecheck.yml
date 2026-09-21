@@ -24,3 +24,6 @@ jobs:
 
       - name: TypeScript check
         run: npx tsc --noEmit
+
+      - name: Session and WOD regression tests
+        run: node scripts/test-session-flow.cjs

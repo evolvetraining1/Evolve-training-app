@@ -1,4 +1,5 @@
 import { supabase } from "@/src/lib/supabase";
+import { buildProgramProgress } from "./session-flow";
 import { localDateString } from "@/src/lib/date";
 
 async function currentUserId() {
@@ -23,28 +24,16 @@ export async function getMyProfile() {
 export async function getMyUpcomingSessions() {
   const id = await currentUserId();
 
-  const { data, error } = await supabase
-    .from("workout_sessions")
-    .select(`
-      id, scheduled_for, status, completed_at,
-      workout_template_id,
-      workout_templates (
-        id,
-        name,
-        notes,
-        estimated_minutes,
-        program_id,
-        week_number,
-        day_number
-      )
-    `)
-    .eq("athlete_id", id)
-    .order("scheduled_for", { ascending: true })
-    .limit(250);
-
-  if (error) throw error;
-
-  return data ?? [];
+  const all: any[] = [];
+  for (let offset = 0; ; offset += 500) {
+    const { data, error } = await supabase.from("workout_sessions")
+      .select(`id, scheduled_for, status, started_at, completed_at, created_at, workout_template_id,
+        workout_templates (id, name, notes, estimated_minutes, program_id, week_number, day_number)`)
+      .eq("athlete_id", id).order("id", { ascending: true }).range(offset, offset + 499);
+    if (error) throw error;
+    all.push(...(data ?? []));
+    if (!data || data.length < 500) return all;
+  }
 }
 
 export async function getSessionDetail(sessionId: string) {
@@ -53,7 +42,7 @@ export async function getSessionDetail(sessionId: string) {
   const { data: session, error: sessionError } = await supabase
     .from("workout_sessions")
     .select(`
-      id, athlete_id, scheduled_for, status, started_at, completed_at, session_rpe,
+      id, athlete_id, scheduled_for, status, started_at, completed_at, session_rpe, wod_results,
       workout_template_id,
       workout_templates ( id, name, notes, estimated_minutes )
     `)
@@ -89,110 +78,47 @@ export async function getSessionDetail(sessionId: string) {
 }
 
 export async function startWorkoutSession(sessionId: string) {
-  const { data, error } = await supabase
-    .from("workout_sessions")
+  const athleteId = await currentUserId();
+  const { data, error } = await supabase.from("workout_sessions")
     .update({ status: "in_progress", started_at: new Date().toISOString() })
-    .eq("id", sessionId)
-    .select()
-    .single();
+    .eq("id", sessionId).eq("athlete_id", athleteId).eq("status", "planned")
+    .select().maybeSingle();
+  if (error) throw error;
+  if (data) return data;
+  // Idempotent resume: never reset the original start time or reopen history.
+  const existing = await supabase.from("workout_sessions").select("*")
+    .eq("id", sessionId).eq("athlete_id", athleteId).single();
+  if (existing.error) throw existing.error;
+  return existing.data;
+}
+
+export type PerformedSetInput = {
+  workout_exercise_id: string;
+  prescribed_set_id?: string | null;
+  set_number: number;
+  reps: number;
+  load_kg: number;
+  rpe?: number | null;
+  completed: boolean;
+};
+
+export async function completeWorkoutSession(sessionId: string, sets: PerformedSetInput[], sessionRpe?: number, wodResults: Record<string, import("./wod").WodResult> = {}) {
+  await currentUserId();
+  const { data, error } = await supabase.rpc("finish_workout_session", {
+    p_session_id: sessionId, p_sets: sets, p_session_rpe: sessionRpe ?? null, p_wod_results: wodResults,
+  });
   if (error) throw error;
   return data;
 }
-
-export async function completeWorkoutSession(sessionId: string, sessionRpe?: number) {
-  const { data, error } = await supabase
-    .from("workout_sessions")
-    .update({
-      status: "completed",
-      completed_at: new Date().toISOString(),
-      session_rpe: sessionRpe ?? null,
-    })
-    .eq("id", sessionId)
-    .select()
-    .single();
-  if (error) throw error;
-  return data;
-}
-
 
 export async function getNextWorkoutSession(sessionId: string) {
-  const { data: current, error: currentError } = await supabase
-    .from("workout_sessions")
-    .select(`
-      id,
-      athlete_id,
-      workout_template_id,
-      workout_templates!inner(
-        program_id,
-        week_number,
-        day_number,
-        name
-      )
-    `)
-    .eq("id", sessionId)
-    .single();
-
-  if (currentError) throw currentError;
-  if (!current) return null;
-
-  const currentTemplate: any = Array.isArray((current as any).workout_templates)
-    ? (current as any).workout_templates[0]
-    : (current as any).workout_templates;
-
-  if (!currentTemplate?.program_id) return null;
-
-  const { data: candidates, error } = await supabase
-    .from("workout_sessions")
-    .select(`
-      id,
-      workout_template_id,
-      scheduled_for,
-      created_at,
-      status,
-      workout_templates!inner(
-        program_id,
-        week_number,
-        day_number,
-        name
-      )
-    `)
-    .eq("athlete_id", (current as any).athlete_id)
-    .in("status", ["planned", "in_progress"])
-    .eq("workout_templates.program_id", currentTemplate.program_id)
-    .neq("id", sessionId);
-
+  const current = await getSessionDetail(sessionId);
+  const { data: template, error } = await supabase.from("workout_templates")
+    .select("program_id").eq("id", current.session.workout_template_id).single();
   if (error) throw error;
-
-  const currentWeek = Number(currentTemplate.week_number ?? 0);
-  const ordered = (candidates ?? [])
-    .map((session: any) => {
-      const template = Array.isArray(session.workout_templates)
-        ? session.workout_templates[0]
-        : session.workout_templates;
-
-      return {
-        session,
-        week: Number(template?.week_number ?? 0),
-        day: Number(template?.day_number ?? 0),
-      };
-    })
-    // Une séance peut être réalisée dans n'importe quel ordre à l'intérieur
-    // de la semaine courante. On termine donc d'abord les séances restantes
-    // de cette semaine avant de proposer la suivante.
-    .filter(({ week }) => week >= currentWeek)
-    .sort((a, b) => {
-      if (a.week !== b.week) return a.week - b.week;
-      if (a.session.status !== b.session.status) {
-        return a.session.status === "in_progress" ? -1 : 1;
-      }
-      if (a.day !== b.day) return a.day - b.day;
-
-      return String(a.session.created_at ?? "").localeCompare(
-        String(b.session.created_at ?? "")
-      );
-    });
-
-  return ordered[0]?.session ?? null;
+  const [program, sessions] = await Promise.all([getProgramDetail(template.program_id), getMyUpcomingSessions()]);
+  const next = buildProgramProgress(program.workouts, sessions, template.program_id).remaining.find((o) => o.session?.id !== sessionId);
+  return next ? getOrCreateWorkoutSession(next.template.id) : null;
 }
 
 export async function savePerformedSet(input: {
@@ -753,54 +679,8 @@ export async function getMyProgramsWithSelection() {
 }
 
 export async function getOrCreateWorkoutSession(workoutTemplateId: string) {
-  const athleteId = await currentUserId();
-
-  // Réutilise une session existante non terminée pour ce template.
-  const { data: existing, error: existingError } = await supabase
-    .from("workout_sessions")
-    .select("id, status, scheduled_for, workout_template_id")
-    .eq("athlete_id", athleteId)
-    .eq("workout_template_id", workoutTemplateId)
-    .in("status", ["planned", "in_progress"])
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-
-  if (existingError) throw existingError;
-  if (existing) return existing;
-
-  // Sinon crée une vraie session exécutable.
-  const { data: created, error: createError } = await supabase
-    .from("workout_sessions")
-    .insert({
-      athlete_id: athleteId,
-      workout_template_id: workoutTemplateId,
-      status: "planned",
-      scheduled_for: new Date().toISOString(),
-    })
-    .select("id, status, scheduled_for, workout_template_id")
-    .single();
-
-  if (createError) {
-    // Deux appels simultanés peuvent tenter de créer la même session.
-    // L'index unique Supabase bloque le doublon (Postgres 23505).
-    // Dans ce cas, on récupère simplement la session créée par l'autre appel.
-    if (createError.code === "23505") {
-      const { data: concurrentSession, error: concurrentError } = await supabase
-        .from("workout_sessions")
-        .select("id, status, scheduled_for, workout_template_id")
-        .eq("athlete_id", athleteId)
-        .eq("workout_template_id", workoutTemplateId)
-        .in("status", ["planned", "in_progress"])
-        .limit(1)
-        .maybeSingle();
-
-      if (concurrentError) throw concurrentError;
-      if (concurrentSession) return concurrentSession;
-    }
-
-    throw createError;
-  }
-
-  return created;
+  await currentUserId();
+  const { data, error } = await supabase.rpc("open_workout_session", { p_template_id: workoutTemplateId });
+  if (error) throw error;
+  return data;
 }
