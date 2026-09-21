@@ -29,6 +29,7 @@ import {
   getOrCreateWorkoutSession
 } from "@/src/lib/api";
 import { displayDuration, recoveryLabel, recoveryScore } from "@/src/lib/dashboard";
+import { buildProgramProgress } from "@/src/lib/session-flow";
 import { localDateString } from "@/src/lib/date";
 import { supabase } from "@/src/lib/supabase";
 import { useAuth } from "@/src/store/auth";
@@ -80,6 +81,11 @@ export default function HomeScreen() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [profile, setProfile] = useState<any>(null);
   const [sessions, setSessions] = useState<any[]>([]);
+  const [templatesReady, setTemplatesReady] = useState(false);
+  const [templatesRetry, setTemplatesRetry] = useState(0);
+  const [sessionsReady, setSessionsReady] = useState(false);
+  const [startingWorkout, setStartingWorkout] = useState(false);
+  const startingWorkoutRef = useRef(false);
   const [checkin, setCheckin] = useState<any>(null);
   const [recentCheckins, setRecentCheckins] = useState<any[]>([]);
   const [workoutPreviewDetail, setWorkoutPreviewDetail] = useState<any>(null);
@@ -313,7 +319,8 @@ export default function HomeScreen() {
           : null;
 
       setProfile(p);
-      setSessions(sessionsData);
+      setSessionsReady(sessionsResult.status === "fulfilled");
+      if (sessionsResult.status === "fulfilled") setSessions(sessionsData);
       setCheckin(c);
       setRecentCheckins(rc);
       setPerformance(perf);
@@ -577,6 +584,7 @@ export default function HomeScreen() {
 
           if (sessionsResult.status === "fulfilled") {
             setSessions(sessionsResult.value);
+            setSessionsReady(true);
           }
         });
       }
@@ -588,38 +596,6 @@ export default function HomeScreen() {
   const score = useMemo(
     () => recoveryScore(checkin),
     [checkin]
-  );
-
-  // Un template est considéré terminé dès qu'au moins une de ses sessions
-  // a été validée ou passée. Cela neutralise les anciennes sessions doublons.
-  const finishedTemplateIds = useMemo(
-    () =>
-      new Set(
-        sessions
-          .filter(
-            (session: any) =>
-              session.status === "completed" ||
-              session.status === "skipped"
-          )
-          .map((session: any) =>
-            String(session.workout_template_id ?? "")
-          )
-          .filter(Boolean)
-      ),
-    [sessions]
-  );
-
-  const availableSessions = useMemo(
-    () =>
-      sessions.filter(
-        (session: any) =>
-          session.status !== "completed" &&
-          session.status !== "skipped" &&
-          !finishedTemplateIds.has(
-            String(session.workout_template_id ?? "")
-          )
-      ),
-    [sessions, finishedTemplateIds]
   );
 
   const selectedProgram = useMemo(
@@ -637,22 +613,27 @@ export default function HomeScreen() {
     let cancelled = false;
 
     async function loadSelectedProgramTemplates() {
+      setTemplatesReady(false);
       if (!selectedProgram?.id) {
         setSelectedProgramTemplates([]);
         return;
       }
 
+      setSelectedProgramTemplates([]);
+      setSelectedWorkoutTemplateId(null);
       try {
         const detail = await getProgramDetail(String(selectedProgram.id));
 
         if (!cancelled) {
           setSelectedProgramTemplates(detail?.workouts ?? []);
+          setTemplatesReady(true);
         }
       } catch (e) {
         console.error("PROGRAM TEMPLATES LOAD ERROR", e);
 
         if (!cancelled) {
           setSelectedProgramTemplates([]);
+          setError("Impossible de charger toutes les séances. Réessaie avant de continuer.");
         }
       }
     }
@@ -662,155 +643,35 @@ export default function HomeScreen() {
     return () => {
       cancelled = true;
     };
-  }, [selectedProgram?.id]);
+  }, [selectedProgram?.id, templatesRetry]);
 
-  const selectedProgramSessions = useMemo(
-    () =>
-      selectedProgram
-        ? availableSessions
-            .filter(
-              (session: any) =>
-                String(session?.workout_templates?.program_id ?? "") ===
-                String(selectedProgram.id)
-            )
-            // Sécurité supplémentaire contre les doublons planned/in_progress :
-            // une seule session par template.
-            .filter(
-              (session: any, index: number, all: any[]) =>
-                index ===
-                all.findIndex(
-                  (candidate: any) =>
-                    String(candidate.workout_template_id) ===
-                    String(session.workout_template_id)
-                )
-            )
-            .sort((a: any, b: any) => {
-              const aWeek = Number(
-                a?.workout_templates?.week_number ?? 999
-              );
-              const bWeek = Number(
-                b?.workout_templates?.week_number ?? 999
-              );
-
-              if (aWeek !== bWeek) return aWeek - bWeek;
-
-              const aDay = Number(
-                a?.workout_templates?.day_number ?? 999
-              );
-              const bDay = Number(
-                b?.workout_templates?.day_number ?? 999
-              );
-
-              if (aDay !== bDay) return aDay - bDay;
-
-              return String(
-                a?.scheduled_for ?? ""
-              ).localeCompare(
-                String(b?.scheduled_for ?? "")
-              );
-            })
-        : availableSessions,
-    [availableSessions, selectedProgram]
+  const progress = useMemo(
+    () => buildProgramProgress(selectedProgramTemplates, sessions, selectedProgram?.id),
+    [selectedProgramTemplates, sessions, selectedProgram?.id]
   );
+  const currentWeekWorkoutOptions = progress.options;
+  const selectedWorkoutOption = progress.remaining.find((o) => String(o.template.id) === selectedWorkoutTemplateId) ?? null;
+  const selectedOption = selectedWorkoutOption ?? progress.recommended;
+  const displayedSession = selectedOption?.session ?? null;
+  const displayedTemplate = selectedOption?.template ?? null;
+  const nextOption = progress.remaining.find((o) => o !== selectedOption);
+  const afterNext = nextOption ? { ...nextOption.session, workout_templates: nextOption.template } : null;
 
-  // Templates du programme dans l'ordre Semaine -> Jour.
-  const orderedProgramTemplates = useMemo(
-    () =>
-      [...selectedProgramTemplates].sort(
-        (a: any, b: any) => {
-          const aWeek = Number(a?.week_number ?? 999);
-          const bWeek = Number(b?.week_number ?? 999);
-
-          if (aWeek !== bWeek) return aWeek - bWeek;
-
-          return (
-            Number(a?.day_number ?? 999) -
-            Number(b?.day_number ?? 999)
-          );
-        }
-      ),
-    [selectedProgramTemplates]
-  );
-
-  // Premier template pas encore validé.
-  const firstUnfinishedTemplate = useMemo(
-    () =>
-      orderedProgramTemplates.find(
-        (item: any) =>
-          !finishedTemplateIds.has(String(item.id))
-      ) ?? null,
-    [orderedProgramTemplates, finishedTemplateIds]
-  );
-
-  const next = selectedProgramSessions[0] ?? null;
-  const afterNext = selectedProgramSessions[1] ?? null;
-
-  const defaultTemplate: any =
-    next?.workout_templates ??
-    firstUnfinishedTemplate ??
-    null;
-
-  const currentProgramWeek = Number(defaultTemplate?.week_number ?? 0);
-
-  const currentWeekWorkoutOptions = useMemo(() => {
-    if (!currentProgramWeek) return [];
-
-    const activeSessionByTemplateId = new Map<string, any>();
-
-    for (const session of selectedProgramSessions) {
-      const templateId = String(session?.workout_template_id ?? "");
-      if (!templateId) continue;
-
-      const previous = activeSessionByTemplateId.get(templateId);
-      if (!previous || session.status === "in_progress") {
-        activeSessionByTemplateId.set(templateId, session);
-      }
+  async function openWorkout() {
+    if (startingWorkoutRef.current || !sessionsReady || !templatesReady || !displayedTemplate?.id) return;
+    startingWorkoutRef.current = true;
+    setStartingWorkout(true);
+    try {
+      // Recheck the database even when a stale dashboard still shows a session.
+      const session = await getOrCreateWorkoutSession(String(displayedTemplate.id));
+      router.push({ pathname: "/workout", params: { sessionId: session.id } });
+    } catch (e: any) {
+      setError(e?.message ?? "Impossible de démarrer cette séance.");
+    } finally {
+      startingWorkoutRef.current = false;
+      setStartingWorkout(false);
     }
-
-    return orderedProgramTemplates
-      .filter(
-        (item: any) =>
-          Number(item?.week_number ?? 0) === currentProgramWeek &&
-          !finishedTemplateIds.has(String(item?.id ?? ""))
-      )
-      .map((item: any) => ({
-        template: item,
-        session: activeSessionByTemplateId.get(String(item.id)) ?? null,
-      }));
-  }, [
-    currentProgramWeek,
-    finishedTemplateIds,
-    orderedProgramTemplates,
-    selectedProgramSessions,
-  ]);
-
-  const selectedWorkoutOption = useMemo(
-    () =>
-      currentWeekWorkoutOptions.find(
-        (option: any) =>
-          String(option.template?.id) === selectedWorkoutTemplateId
-      ) ?? null,
-    [currentWeekWorkoutOptions, selectedWorkoutTemplateId]
-  );
-
-  const displayedSession = selectedWorkoutOption
-    ? selectedWorkoutOption.session
-    : next;
-  const displayedTemplate = selectedWorkoutOption
-    ? selectedWorkoutOption.template
-    : defaultTemplate;
-
-  useEffect(() => {
-    setSelectedWorkoutTemplateId((current) => {
-      if (!current) return null;
-
-      return currentWeekWorkoutOptions.some(
-        (option: any) => String(option.template?.id) === current
-      )
-        ? current
-        : null;
-    });
-  }, [currentWeekWorkoutOptions]);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -1181,7 +1042,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
               <View style={{ flex: 1 }}>
                 <Text style={styles.workoutTitle}>{displayedTemplate?.name || "Aucune séance"}</Text>
                 <Text style={styles.workoutMeta}>
-                  {currentProgramWeek ? `S${currentProgramWeek} · ` : ""}
+                  {displayedTemplate?.week_number ? `S${displayedTemplate.week_number} · ` : ""}
                   {displayedTemplate?.day_number ? `J${displayedTemplate.day_number} · ` : ""}
                   ◷ {displayDuration(displayedTemplate?.estimated_minutes)}
                 </Text>
@@ -1240,56 +1101,32 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
           )
         ) : (
           <Text style={styles.emptyWorkout}>
-            Aucune séance programmée pour aujourd'hui.
+            {templatesReady && progress.complete ? "Programme terminé. Tu peux consulter tes séances et leurs résultats ci-dessous." : "Aucune séance disponible. Vérifie le programme sélectionné."}
           </Text>
         )}
 
                 </ScrollView>
 
         <Pressable
-          disabled={!displayedSession && !displayedTemplate?.id}
-          onPress={() => {
-            if (displayedSession?.id) {
-              router.push({
-                pathname: "/workout",
-                params: { sessionId: displayedSession.id },
-              });
-              return;
-            }
-
-            if (displayedTemplate?.id) {
-              getOrCreateWorkoutSession(String(displayedTemplate.id))
-                .then((session) => {
-                  router.push({
-                    pathname: "/workout",
-                    params: { sessionId: session.id },
-                  });
-                })
-                .catch((e) => {
-                  console.error("CREATE WORKOUT SESSION ERROR", e);
-                  setError(
-                    e?.message ??
-                      "Impossible de démarrer cette séance."
-                  );
-                });
-            }
-          }}
+          disabled={startingWorkout || !sessionsReady || !templatesReady || !displayedTemplate?.id}
+          onPress={() => void openWorkout()}
           style={[
             styles.startButton,
             !displayedSession && !displayedTemplate?.id && { opacity: .45 }
           ]}
         >
-              <Text style={styles.play}>▶</Text><Text style={styles.startText}>{displayedSession?.status === "in_progress" ? "REPRENDRE LA SÉANCE" : "COMMENCER LA SÉANCE"}</Text>
+              <Text style={styles.play}>▶</Text><Text style={styles.startText}>{startingWorkout ? "OUVERTURE…" : templatesReady && progress.complete ? "PROGRAMME TERMINÉ" : displayedSession?.status === "in_progress" ? "REPRENDRE LA SÉANCE" : "COMMENCER LA SÉANCE"}</Text>
             </Pressable>
 
-            {currentWeekWorkoutOptions.length > 1 ? (
+            {(!templatesReady || !sessionsReady) && !loading ? <Pressable onPress={() => { setTemplatesRetry((value) => value + 1); void load(); }} style={styles.chooseWorkoutButton}><Text style={styles.chooseWorkoutButtonText}>RECHARGER LES SÉANCES</Text></Pressable> : null}
+            {currentWeekWorkoutOptions.length > 0 ? (
               <Pressable
-                disabled={dashboardEditMode}
+                disabled={dashboardEditMode || !sessionsReady || !templatesReady}
                 onPress={() => setWorkoutPickerOpen(true)}
                 style={styles.chooseWorkoutButton}
               >
                 <Text style={styles.chooseWorkoutButtonText}>
-                  CHOISIR UNE AUTRE SÉANCE
+                  CHOISIR / CONSULTER UNE SÉANCE
                 </Text>
                 <Text style={styles.chooseWorkoutChevron}>⌄</Text>
               </Pressable>
@@ -1328,7 +1165,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
           <View style={{ flex: 1 }}>
             <Text style={styles.smallCap}>PROCHAINE SÉANCE</Text>
             <Text style={styles.nextTitle}>{afterNext?.workout_templates?.name || "À programmer"}</Text>
-            <Text style={styles.muted}>{afterNext?.scheduled_for ? `${afterNext.scheduled_for} • ${displayDuration(afterNext.workout_templates?.estimated_minutes)}` : "Aucune autre séance planifiée"}</Text>
+            <Text style={styles.muted}>{afterNext?.scheduled_for ? `${afterNext.scheduled_for} • ${displayDuration(afterNext.workout_templates?.estimated_minutes)}` : afterNext ? `S${afterNext.workout_templates.week_number} · J${afterNext.workout_templates.day_number} • ${displayDuration(afterNext.workout_templates.estimated_minutes)}` : "Aucune autre séance à faire"}</Text>
           </View>
           <Text style={styles.chevron}>›</Text>
         </Pressable>
@@ -1891,13 +1728,13 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
             <View style={styles.workoutPickerHeader}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.workoutPickerEyebrow}>
-                  SEMAINE {currentProgramWeek || "—"}
+                  TOUTES LES SEMAINES
                 </Text>
                 <Text style={styles.workoutPickerTitle}>
                   Choisis ta séance
                 </Text>
                 <Text style={styles.workoutPickerSubtitle}>
-                  Tu peux les réaliser dans l’ordre que tu veux cette semaine.
+                  Choisis une séance à faire, ou consulte une séance terminée.
                 </Text>
               </View>
 
@@ -1924,8 +1761,12 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
                   <Pressable
                     key={optionId}
                     onPress={() => {
-                      setSelectedWorkoutTemplateId(optionId);
                       setWorkoutPickerOpen(false);
+                      if (option.finished && option.session?.id) {
+                        router.push({ pathname: "/workout", params: { sessionId: option.session.id } });
+                      } else {
+                        setSelectedWorkoutTemplateId(optionId);
+                      }
                     }}
                     style={[
                       styles.workoutPickerItem,
@@ -1946,7 +1787,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
 
                     <View style={{ flex: 1 }}>
                       <Text style={styles.workoutPickerItemName}>
-                        {option.template?.name ?? "Séance"}
+                        S{option.template?.week_number ?? "—"} · {option.template?.name ?? "Séance"}
                       </Text>
                       <Text
                         style={[
@@ -1954,7 +1795,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
                           inProgress && styles.workoutPickerItemStatusActive,
                         ]}
                       >
-                        {inProgress ? "EN COURS" : "À FAIRE"}
+                        {option.finished ? option.session?.status === "skipped" ? "PASSÉE · CONSULTER" : "TERMINÉE · CONSULTER" : inProgress ? "EN COURS" : "À FAIRE"}
                         {option.template?.estimated_minutes
                           ? ` · ${displayDuration(option.template.estimated_minutes)}`
                           : ""}
