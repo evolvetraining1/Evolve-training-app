@@ -418,6 +418,17 @@ export default function WorkoutScreen() {
         </View>
       ) : null}
 
+      {!loading && detail?.session?.workout_templates?.notes ? (
+        <Card style={styles.simpleBlock}>
+          <Text style={styles.simpleLine}>
+            {detail.session.workout_templates.notes}
+          </Text>
+          {detail.workoutExercises.length === 0 ? (
+            <Text style={styles.simpleLine}>Aucun exercice prévu pour cette journée de récupération.</Text>
+          ) : null}
+        </Card>
+      ) : null}
+
       {!loading && detail
         ? blockOrder
             .filter((block) => groupedExercises[block].length > 0)
