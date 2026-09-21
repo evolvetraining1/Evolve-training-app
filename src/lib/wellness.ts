@@ -38,6 +38,7 @@ export type WellnessRoutine = {
 export type RoutineValue = {
   value?: string;
   bool?: boolean;
+  details?: Record<string, string>;
 };
 
 export type WellnessBaseline = Record<
@@ -257,7 +258,7 @@ export function calculateWellnessScores(
     const input = values[routine.id];
     return routine.input_type === "boolean"
       ? input?.bool != null
-      : Boolean(input?.value?.trim());
+      : input?.bool != null || Boolean(input?.value?.trim());
   }).length;
   const expected = routines.length;
   const completion = expected ? Math.round((answered / expected) * 100) : 0;

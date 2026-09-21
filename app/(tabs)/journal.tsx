@@ -1,9 +1,11 @@
 import { router, useFocusEffect } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useRef } from "react";
 import {
   ActivityIndicator,
   Alert,
   Modal,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -17,7 +19,8 @@ import { localDateString } from "@/src/lib/date";
 import {
   archiveCustomRoutine,
   loadJournalDay,
-  loadWellnessTrends,
+  loadJournalHistory,
+  JournalHistoryRow,
   RoutinePreference,
   routineIsEnabled,
   routinesForDate,
@@ -33,6 +36,9 @@ import {
   WellnessRoutine,
   wellnessLabel,
 } from "@/src/lib/wellness";
+import { JournalBehaviorCard } from "@/src/components/JournalBehaviorCard";
+import { behaviorAnswer, behaviorQuestion, hasYesNo, searchText } from "@/src/lib/journal-behaviors";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, radius } from "@/src/theme";
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -96,6 +102,7 @@ function ScoreTile({
 }
 
 export default function JournalScreen() {
+  const insets = useSafeAreaInsets();
   const [selectedDate, setSelectedDate] = useState(localDateString());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -112,19 +119,31 @@ export default function JournalScreen() {
   const [scheduleById, setScheduleById] = useState<Record<string, number[]>>({});
   const [category, setCategory] = useState("all");
   const [search, setSearch] = useState("");
+  const [showSummary, setShowSummary] = useState(false);
+  const [expandedSchedule, setExpandedSchedule] = useState<string | null>(null);
+  const [history, setHistory] = useState<JournalHistoryRow[]>([]);
+  const [dirty, setDirty] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const drafts = useRef<Record<string, { values: Record<string, RoutineValue>; notes: string }>>({});
+  const loadId = useRef(0);
 
   const load = useCallback(async () => {
+    const request = ++loadId.current;
     try {
       setLoading(true);
+      setLoadError(false);
       setMessage("");
       const [day, trends] = await Promise.all([
         loadJournalDay(selectedDate),
-        loadWellnessTrends(21),
+        loadJournalHistory(selectedDate),
       ]);
+      if (request !== loadId.current) return;
       setCatalog(day.catalog);
       setPreferences(day.preferences);
-      setValues(day.values);
-      setNotes(day.notes);
+      const draft = drafts.current[selectedDate];
+      setValues(draft?.values ?? day.values);
+      setNotes(draft?.notes ?? day.notes);
+      setDirty(Boolean(draft));
       setBaseline(day.baseline);
       setSelectedIds(
         day.catalog
@@ -135,16 +154,20 @@ export default function JournalScreen() {
         const preference = day.preferences.find((row) => row.routine_id === routine.id);
         return [routine.id, preference?.scheduled_days?.length ? preference.scheduled_days : [0, 1, 2, 3, 4, 5, 6]];
       })));
-      setCompletedDates(new Set(trends.filter((row) => row.completion_score > 0).map((row) => row.score_date)));
+      setHistory(trends.logs);
+      setCompletedDates(new Set(trends.scores.filter((row) => row.completion_score === 100).map((row) => row.score_date)));
     } catch (error: any) {
+      if (request !== loadId.current) return;
+      setLoadError(true);
       setMessage(error?.message ?? "Impossible de charger le journal.");
     } finally {
-      setLoading(false);
+      if (request === loadId.current) setLoading(false);
     }
   }, [selectedDate]);
 
   useFocusEffect(useCallback(() => {
     void load();
+    return () => { loadId.current += 1; };
   }, [load]));
 
   const activeRoutines = useMemo(
@@ -186,25 +209,55 @@ export default function JournalScreen() {
   }, [selectedDate]);
 
   const filteredCatalog = useMemo(() => {
-    const query = search.trim().toLocaleLowerCase("fr");
+    const query = searchText(search.trim());
     return catalog.filter((routine) => {
-      const categoryMatch = category === "all" || routine.category === category;
-      const searchMatch = !query || `${routine.name} ${routine.description ?? ""}`.toLocaleLowerCase("fr").includes(query);
+      const categoryMatch = category === "all" || (category === "custom" && Boolean(routine.created_by)) || (category === "selected" && selectedIds.includes(routine.id)) || routine.category === category;
+      const searchMatch = !query || searchText(`${routine.name} ${behaviorQuestion(routine)}`).includes(query);
       return categoryMatch && searchMatch;
-    });
-  }, [catalog, category, search]);
+    }).sort((a, b) => a.name.localeCompare(b.name, "fr"));
+  }, [catalog, category, search, selectedIds]);
 
   function changeDate(direction: number) {
     const next = shiftDate(selectedDate, direction);
     if (next <= localDateString()) setSelectedDate(next);
   }
 
-  function setNumeric(id: string, value: string) {
-    setValues((current) => ({ ...current, [id]: { ...current[id], value } }));
+  function updateValue(id: string, value: RoutineValue) {
+    setValues((current) => {
+      const next = { ...current, [id]: value };
+      drafts.current[selectedDate] = { values: next, notes };
+      return next;
+    });
+    setDirty(true);
+    setMessage("");
   }
 
-  function setBoolean(id: string, value: boolean) {
-    setValues((current) => ({ ...current, [id]: { ...current[id], bool: value } }));
+  function updateNotes(text: string) {
+    setNotes(text);
+    drafts.current[selectedDate] = { values, notes: text };
+    setDirty(true);
+  }
+
+  function openCatalog() {
+    setSelectedIds(catalog.filter((r) => routineIsEnabled(r, preferences)).map((r) => r.id));
+    setScheduleById(Object.fromEntries(catalog.map((r) => [r.id, preferences.find((p) => p.routine_id === r.id)?.scheduled_days ?? [0,1,2,3,4,5,6]])));
+    setExpandedSchedule(null);
+    setMessage("");
+    setSearch("");
+    setCategory("all");
+    setCatalogOpen(true);
+  }
+
+  function weeklyProgress(routine: WellnessRoutine) {
+    const start = parseDate(selectedDate);
+    start.setDate(start.getDate() - (start.getDay() + 6) % 7);
+    const first = localDateString(start);
+    const last = shiftDate(first, 6);
+    const days = preferences.find((p) => p.routine_id === routine.id)?.scheduled_days ?? [0,1,2,3,4,5,6];
+    const completed = new Set(history.filter((row) => row.routine_id === routine.id && row.log_date >= first && row.log_date <= last && row.log_date !== selectedDate && days.includes(parseDate(row.log_date).getDay()) && (row.bool_value != null || row.value != null || Boolean(row.text_value))).map((row) => row.log_date));
+    const current = effectiveValues[routine.id];
+    if (hasYesNo(routine) ? behaviorAnswer(routine, current) != null : Boolean(current?.value?.trim())) completed.add(selectedDate);
+    return { done: completed.size, total: days.length };
   }
 
   async function save() {
@@ -212,7 +265,17 @@ export default function JournalScreen() {
       setSaving(true);
       setMessage("");
       await saveJournalDay({ date: selectedDate, routines: activeRoutines, values: effectiveValues, notes, scores });
-      setCompletedDates((current) => new Set(current).add(selectedDate));
+      delete drafts.current[selectedDate];
+      setDirty(false);
+      setHistory((current) => [
+        ...current.filter((row) => row.log_date !== selectedDate || !activeRoutines.some((r) => r.id === row.routine_id)),
+        ...activeRoutines.filter((r) => { const v = effectiveValues[r.id]; return v?.bool != null || Boolean(v?.value?.trim()); }).map((r) => ({ routine_id: r.id, log_date: selectedDate, value: r.input_type !== "time" && effectiveValues[r.id]?.value ? Number(effectiveValues[r.id].value?.replace(",", ".")) : null, bool_value: effectiveValues[r.id]?.bool ?? null, text_value: r.input_type === "time" ? effectiveValues[r.id]?.value ?? null : null })),
+      ]);
+      setCompletedDates((current) => {
+        const next = new Set(current);
+        if (scores.completion === 100) next.add(selectedDate); else next.delete(selectedDate);
+        return next;
+      });
       setMessage("Journal enregistré. Les tendances ont été mises à jour.");
     } catch (error: any) {
       setMessage(error?.message ?? "Erreur lors de l’enregistrement.");
@@ -224,9 +287,10 @@ export default function JournalScreen() {
   async function saveCatalog() {
     try {
       setCatalogSaving(true);
-      await saveRoutinePreferences(catalog, selectedIds, preferences, scheduleById);
+      setMessage("");
+      const next = await saveRoutinePreferences(catalog, selectedIds, preferences, scheduleById);
+      setPreferences(next);
       setCatalogOpen(false);
-      await load();
     } catch (error: any) {
       setMessage(error?.message ?? "Impossible d’enregistrer les routines.");
     } finally {
@@ -257,7 +321,7 @@ export default function JournalScreen() {
           text: "Retirer",
           style: "destructive",
           onPress: () => void archiveCustomRoutine(routine.id)
-            .then(load)
+            .then(() => { setCatalog((current) => current.filter((r) => r.id !== routine.id)); setSelectedIds((current) => current.filter((id) => id !== routine.id)); })
             .catch((error: any) => setMessage(error?.message ?? "Impossible de retirer cette habitude.")),
         },
       ]
@@ -273,9 +337,18 @@ export default function JournalScreen() {
     );
   }
 
+  if (loadError) {
+    return <View style={[styles.center, { padding: 24 }]}>
+      <BackButton />
+      <Text style={styles.message}>{message}</Text>
+      <PrimaryButton label="RÉESSAYER" onPress={() => void load()} />
+    </View>;
+  }
+
   return (
-    <>
-      <ScrollView contentInsetAdjustmentBehavior="automatic" keyboardShouldPersistTaps="handled" contentContainerStyle={styles.page}>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <View style={{ flex: 1 }} pointerEvents={saving ? "none" : "auto"}>
+      <ScrollView scrollEnabled={!saving} contentInsetAdjustmentBehavior="automatic" keyboardShouldPersistTaps="handled" contentContainerStyle={styles.page}>
         <View style={styles.topRow}>
           <View style={styles.headerIdentity}>
             <BackButton />
@@ -290,9 +363,9 @@ export default function JournalScreen() {
         </View>
 
         <View style={styles.dateNav}>
-          <Pressable style={styles.arrowButton} onPress={() => changeDate(-1)}><Text style={styles.arrow}>‹</Text></Pressable>
+          <Pressable style={styles.arrowButton} disabled={saving} onPress={() => changeDate(-1)}><Text style={styles.arrow}>‹</Text></Pressable>
           <Text style={styles.dateNavTitle}>{selectedDate === localDateString() ? "AUJOURD’HUI" : dayTitle(selectedDate).toUpperCase()}</Text>
-          <Pressable style={styles.arrowButton} disabled={selectedDate >= localDateString()} onPress={() => changeDate(1)}>
+          <Pressable style={styles.arrowButton} disabled={saving || selectedDate >= localDateString()} onPress={() => changeDate(1)}>
             <Text style={[styles.arrow, selectedDate >= localDateString() && styles.arrowDisabled]}>›</Text>
           </Pressable>
         </View>
@@ -303,7 +376,7 @@ export default function JournalScreen() {
             const future = item.date > localDateString();
             const complete = completedDates.has(item.date);
             return (
-              <Pressable key={item.date} disabled={future} onPress={() => setSelectedDate(item.date)} style={[styles.datePill, selected && styles.datePillSelected, future && styles.datePillDisabled]}>
+              <Pressable key={item.date} disabled={future || saving} onPress={() => setSelectedDate(item.date)} style={[styles.datePill, selected && styles.datePillSelected, future && styles.datePillDisabled]}>
                 <Text style={[styles.dateDay, selected && styles.dateTextSelected]}>{item.day}</Text>
                 <Text style={[styles.dateNumber, selected && styles.dateTextSelected]}>{item.number}</Text>
                 <View style={[styles.dateDot, complete && styles.dateDotDone]}>{complete ? <Text style={styles.dateCheck}>✓</Text> : null}</View>
@@ -314,6 +387,47 @@ export default function JournalScreen() {
 
         <Text style={styles.prompt}>Qu’est-ce qui se passe {selectedDate === localDateString() ? "aujourd’hui" : `le ${dayTitle(selectedDate)}`} ?</Text>
 
+        <View style={styles.sectionHeader}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.sectionTitle}>ROUTINES DU JOUR</Text>
+            <Text style={styles.sectionSubtitle}>Oui ou non, puis les précisions si tu le souhaites.</Text>
+          </View>
+          <Pressable style={styles.editButton} onPress={openCatalog}><Text style={styles.editButtonText}>MODIFIER</Text></Pressable>
+        </View>
+
+        <View style={styles.completionRow}>
+          <Text style={styles.completionText}>{scores.answered}/{scores.expected} RÉPONSES</Text>
+          <View style={styles.completionTrack}>
+            <View style={[styles.completionFill, { width: `${scores.completion}%` }]} />
+          </View>
+          <Text style={styles.completionPercent}>{scores.completion}%</Text>
+        </View>
+
+        {activeRoutines.map((routine) => (
+          <JournalBehaviorCard
+            key={routine.id}
+            routine={routine}
+            input={effectiveValues[routine.id]}
+            derived={routine.slug === "sleep_duration" && effectiveValues[routine.id] !== values[routine.id]}
+            weekly={weeklyProgress(routine)}
+            onChange={(value) => updateValue(routine.id, value)}
+          />
+        ))}
+
+        {!activeRoutines.length ? (
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyTitle}>Aucune routine prévue aujourd’hui</Text>
+            <Text style={styles.emptyText}>Ajoute des comportements à suivre pour alimenter tes tendances.</Text>
+          </View>
+        ) : null}
+
+        <View style={styles.notesBlock}>
+          <Text style={styles.blockEyebrow}>NOTES</Text>
+          <TextInput multiline value={notes} onChangeText={updateNotes} placeholder="Sensations, contexte, événement particulier…" placeholderTextColor={colors.muted2} style={styles.notesInput} />
+        </View>
+
+        <Pressable accessibilityRole="button" accessibilityState={{ expanded: showSummary }} onPress={() => setShowSummary(!showSummary)} style={styles.summaryButton}><Text style={styles.editButtonText}>{showSummary ? "MASQUER" : "VOIR"} MES INDICATEURS DU JOUR {showSummary ? "−" : "+"}</Text></Pressable>
+        {showSummary ? <View style={{ gap: 14 }}>
         <View style={styles.primaryScores}>
           <ScoreTile label="RÉCUPÉRATION" value={scores.recovery} type="recovery" />
           <ScoreTile label="STRESS" value={scores.stress} type="stress" />
@@ -325,11 +439,11 @@ export default function JournalScreen() {
 
         <View style={styles.confidenceCard}>
           <View style={styles.confidenceHeader}>
-            <Text style={styles.confidenceTitle}>FIABILITÉ DU SCORE</Text>
+            <Text style={styles.confidenceTitle}>DONNÉES DISPONIBLES</Text>
             <Text style={styles.confidenceValue}>{scores.confidence}%</Text>
           </View>
           <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${scores.confidence}%` }]} /></View>
-          <Text style={styles.confidenceText}>{scores.answered}/{scores.expected} réponses · complète les données principales pour améliorer la précision.</Text>
+          <Text style={styles.confidenceText}>{scores.answered}/{scores.expected} réponses · complète les données principales pour enrichir le suivi.</Text>
         </View>
 
         <View style={styles.coachCard}>
@@ -353,57 +467,22 @@ export default function JournalScreen() {
           </View>
         ) : null}
 
-        <View style={styles.sectionHeader}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.sectionTitle}>ROUTINES DU JOUR</Text>
-            <Text style={styles.sectionSubtitle}>Réponds rapidement, puis termine ton journal.</Text>
-          </View>
-          <Pressable style={styles.editButton} onPress={() => setCatalogOpen(true)}><Text style={styles.editButtonText}>MODIFIER</Text></Pressable>
-        </View>
-
-        <View style={styles.completionRow}>
-          <Text style={styles.completionText}>{scores.answered}/{scores.expected} RÉPONSES</Text>
-          <View style={styles.completionTrack}>
-            <View style={[styles.completionFill, { width: `${scores.completion}%` }]} />
-          </View>
-          <Text style={styles.completionPercent}>{scores.completion}%</Text>
-        </View>
-
-        {activeRoutines.map((routine) => (
-          <RoutineQuestion
-            key={routine.id}
-            routine={routine}
-            input={effectiveValues[routine.id]}
-            derived={routine.slug === "sleep_duration" && Boolean(effectiveValues[routine.id]?.value)}
-            onBoolean={(value) => setBoolean(routine.id, value)}
-            onNumeric={(value) => setNumeric(routine.id, value)}
-          />
-        ))}
-
-        {!activeRoutines.length ? (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>Aucune routine prévue aujourd’hui</Text>
-            <Text style={styles.emptyText}>Ajoute des comportements à suivre pour alimenter tes tendances.</Text>
-          </View>
-        ) : null}
-
-        <View style={styles.notesBlock}>
-          <Text style={styles.blockEyebrow}>NOTES</Text>
-          <TextInput multiline value={notes} onChangeText={setNotes} placeholder="Sensations, contexte, événement particulier…" placeholderTextColor={colors.muted2} style={styles.notesInput} />
-        </View>
-
-        <PrimaryButton label={saving ? "ENREGISTREMENT…" : "J’AI TERMINÉ"} disabled={saving} onPress={() => void save()} />
-        {message ? <Text selectable style={styles.message}>{message}</Text> : null}
+        </View> : null}
         <Text style={styles.disclaimer}>Indicateurs de coaching basés sur tes réponses et ta tendance personnelle. Ils ne constituent pas un diagnostic médical.</Text>
       </ScrollView>
+      </View>
+      <View style={styles.footer}>
+        {message ? <Text accessibilityLiveRegion="polite" selectable style={styles.message}>{message}</Text> : <Text style={styles.footerHint}>{dirty ? "Modifications non enregistrées · " : ""}{scores.answered}/{scores.expected} réponses</Text>}
+        <PrimaryButton label={saving ? "ENREGISTREMENT…" : "J’AI TERMINÉ"} disabled={saving || loadError || !catalog.length} onPress={() => void save()} />
+      </View>
 
-      <Modal visible={catalogOpen} transparent animationType="slide" onRequestClose={() => setCatalogOpen(false)}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalSheet}>
+      <Modal visible={catalogOpen} transparent animationType="slide" onRequestClose={() => { if (!catalogSaving) setCatalogOpen(false); }}>
+        <KeyboardAvoidingView style={styles.modalBackdrop} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+          <View style={[styles.modalSheet, { paddingBottom: Math.max(insets.bottom, 20) }]} pointerEvents={catalogSaving ? "none" : "auto"}>
             <View style={styles.modalGrabber} />
             <View style={styles.modalHeader}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.modalTitle}>SÉLECTIONNER DES ROUTINES</Text>
+                <Text style={styles.modalTitle}>CHOISIR MES COMPORTEMENTS</Text>
                 <Text style={styles.modalSubtitle}>{selectedIds.length} comportements sélectionnés</Text>
               </View>
               <Pressable style={styles.closeButton} onPress={() => setCatalogOpen(false)}><Text style={styles.closeText}>×</Text></Pressable>
@@ -426,18 +505,19 @@ export default function JournalScreen() {
 
             <TextInput value={search} onChangeText={setSearch} placeholder="Rechercher un comportement…" placeholderTextColor={colors.muted2} style={styles.searchInput} />
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categories}>
-              {["all", ...CATEGORY_ORDER].map((key) => {
+            <ScrollView horizontal style={{ flexGrow: 0, flexShrink: 0 }} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categories}>
+              {["all", "selected", "custom", ...CATEGORY_ORDER].map((key) => {
                 const active = category === key;
                 return (
                   <Pressable key={key} onPress={() => setCategory(key)} style={[styles.categoryChip, active && styles.categoryChipActive]}>
-                    <Text style={[styles.categoryChipText, active && styles.categoryChipTextActive]}>{key === "all" ? "TOUT" : CATEGORY_LABELS[key].toUpperCase()}</Text>
+                    <Text style={[styles.categoryChipText, active && styles.categoryChipTextActive]}>{key === "all" ? "TOUT" : key === "selected" ? "SÉLECTIONNÉS" : key === "custom" ? "PERSONNALISÉS" : CATEGORY_LABELS[key].toUpperCase()}</Text>
                   </Pressable>
                 );
               })}
             </ScrollView>
 
             <ScrollView contentContainerStyle={styles.catalogList} keyboardShouldPersistTaps="handled">
+              {!filteredCatalog.length ? <Text style={styles.emptyText}>Aucun comportement trouvé. Essaie un autre mot ou crée le tien.</Text> : null}
               {filteredCatalog.map((routine) => {
                 const selected = selectedIds.includes(routine.id);
                 const days = scheduleById[routine.id] ?? [0, 1, 2, 3, 4, 5, 6];
@@ -449,12 +529,13 @@ export default function JournalScreen() {
                           <Text style={styles.catalogName}>{routine.name}</Text>
                           {routine.created_by ? <Text style={styles.personalBadge}>PERSONNELLE</Text> : null}
                         </View>
-                        <Text style={styles.catalogDescription}>{routine.description ?? CATEGORY_LABELS[routine.category]}</Text>
+                        <Text style={styles.catalogDescription}>{behaviorQuestion(routine)}</Text>
                       </View>
                       <View style={[styles.checkbox, selected && styles.checkboxSelected]}>{selected ? <Text style={styles.checkboxMark}>✓</Text> : null}</View>
                     </Pressable>
 
-                    {selected ? (
+                    {selected ? <Pressable onPress={() => setExpandedSchedule(expandedSchedule === routine.id ? null : routine.id)}><Text style={styles.scheduleSummary}>{days.length === 7 ? "Tous les jours" : `${days.length} jours par semaine`} · Modifier les jours {expandedSchedule === routine.id ? "−" : "+"}</Text></Pressable> : null}
+                    {selected && expandedSchedule === routine.id ? (
                       <View style={styles.scheduleBlock}>
                         <Text style={styles.scheduleLabel}>JOURS DE SUIVI</Text>
                         <View style={styles.scheduleDays}>
@@ -480,61 +561,21 @@ export default function JournalScreen() {
               })}
             </ScrollView>
 
-            <PrimaryButton label={catalogSaving ? "ENREGISTREMENT…" : "ENREGISTRER LES ROUTINES"} disabled={catalogSaving} onPress={() => void saveCatalog()} />
+            {message ? <Text accessibilityLiveRegion="polite" style={styles.message}>{message}</Text> : null}
+            <PrimaryButton label={catalogSaving ? "ENREGISTREMENT…" : "ENREGISTRER LES COMPORTEMENTS"} disabled={catalogSaving} onPress={() => void saveCatalog()} />
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
-    </>
-  );
-}
-
-function RoutineQuestion({ routine, input, derived, onBoolean, onNumeric }: {
-  routine: WellnessRoutine;
-  input?: RoutineValue;
-  derived?: boolean;
-  onBoolean: (value: boolean) => void;
-  onNumeric: (value: string) => void;
-}) {
-  const question = routine.description || routine.name;
-  return (
-    <View style={styles.questionCard}>
-      <View style={styles.questionHeader}>
-        <View style={styles.categoryBadge}><Text style={styles.categoryBadgeText}>{CATEGORY_LABELS[routine.category] ?? routine.category}</Text></View>
-        {derived ? <Text style={styles.derivedBadge}>CALCULÉ</Text> : null}
-      </View>
-      <Text style={styles.questionTitle}>{routine.name}</Text>
-      <Text style={styles.questionText}>{question}</Text>
-
-      {routine.input_type === "boolean" ? (
-        <View style={styles.booleanRow}>
-          <Pressable onPress={() => onBoolean(false)} style={[styles.answerButton, input?.bool === false && styles.answerButtonActive]}>
-            <Text style={[styles.answerSymbol, input?.bool === false && styles.answerSymbolActive]}>×</Text>
-            <Text style={[styles.answerLabel, input?.bool === false && styles.answerLabelActive]}>NON</Text>
-          </Pressable>
-          <Pressable onPress={() => onBoolean(true)} style={[styles.answerButton, input?.bool === true && styles.answerButtonActive]}>
-            <Text style={[styles.answerSymbol, input?.bool === true && styles.answerSymbolActive]}>✓</Text>
-            <Text style={[styles.answerLabel, input?.bool === true && styles.answerLabelActive]}>OUI</Text>
-          </Pressable>
-        </View>
-      ) : routine.input_type === "scale_5" || routine.input_type === "scale_10" ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scaleRow}>
-          {Array.from({ length: routine.input_type === "scale_5" ? 5 : 10 }, (_, index) => String(index + 1)).map((number) => {
-            const selected = input?.value === number;
-            return <Pressable key={number} onPress={() => onNumeric(number)} style={[styles.scaleButton, selected && styles.scaleButtonActive]}><Text style={[styles.scaleText, selected && styles.scaleTextActive]}>{number}</Text></Pressable>;
-          })}
-        </ScrollView>
-      ) : (
-        <View style={styles.valueRow}>
-          <TextInput editable={!derived} value={input?.value ?? ""} onChangeText={onNumeric} keyboardType={routine.input_type === "time" ? "numbers-and-punctuation" : "decimal-pad"} placeholder={routine.input_type === "time" ? "23:30" : "Valeur"} placeholderTextColor={colors.muted2} maxLength={routine.input_type === "time" ? 5 : undefined} style={[styles.valueInput, derived && styles.valueInputDerived]} />
-          <Text style={styles.unitText}>{routine.input_type === "time" ? "HH:MM" : routine.unit}</Text>
-        </View>
-      )}
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  page: { padding: 20, paddingTop: TAB_HEADER_TOP, paddingBottom: 140, gap: 14 },
+  footer: { paddingHorizontal: 20, paddingVertical: 12, gap: 8, backgroundColor: "#0A0B0C", borderTopWidth: 1, borderTopColor: colors.border },
+  footerHint: { color: colors.muted, fontSize: 11, textAlign: "center" },
+  summaryButton: { padding: 18, borderRadius: 16, borderWidth: 1, borderColor: colors.border, alignItems: "center" },
+  scheduleSummary: { color: colors.yellow, fontSize: 11, paddingVertical: 8 },
+  page: { padding: 20, paddingTop: TAB_HEADER_TOP, paddingBottom: 24, gap: 14 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg, gap: 12 },
   loadingText: { color: colors.muted, fontSize: 13 },
   topRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
@@ -594,29 +635,6 @@ const styles = StyleSheet.create({
   completionTrack: { flex: 1, height: 5, borderRadius: 3, backgroundColor: colors.surface3, overflow: "hidden" },
   completionFill: { height: "100%", borderRadius: 3, backgroundColor: colors.yellow },
   completionPercent: { minWidth: 31, color: colors.yellow, fontSize: 10, textAlign: "right", fontWeight: "900", fontVariant: ["tabular-nums"] },
-  questionCard: { borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: "rgba(13,13,14,0.95)", padding: 16, gap: 9 },
-  questionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  categoryBadge: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 5, backgroundColor: "rgba(255,196,0,0.1)" },
-  categoryBadgeText: { color: colors.yellow, fontSize: 9, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.7 },
-  derivedBadge: { color: colors.muted2, fontSize: 9, fontWeight: "900", letterSpacing: 0.8 },
-  questionTitle: { color: colors.text, fontSize: 18, fontWeight: "900" },
-  questionText: { color: colors.muted, fontSize: 13, lineHeight: 18 },
-  booleanRow: { flexDirection: "row", gap: 10, paddingTop: 3 },
-  answerButton: { flex: 1, minHeight: 52, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
-  answerButtonActive: { borderColor: colors.yellow, backgroundColor: "rgba(255,196,0,0.12)" },
-  answerSymbol: { color: colors.muted, fontSize: 20, fontWeight: "900" },
-  answerSymbolActive: { color: colors.yellow },
-  answerLabel: { color: colors.muted, fontSize: 11, fontWeight: "900" },
-  answerLabelActive: { color: colors.yellow },
-  scaleRow: { gap: 7, paddingTop: 3 },
-  scaleButton: { width: 42, height: 42, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2, alignItems: "center", justifyContent: "center" },
-  scaleButtonActive: { borderColor: colors.yellow, backgroundColor: "rgba(255,196,0,0.15)" },
-  scaleText: { color: colors.muted, fontSize: 14, fontWeight: "900" },
-  scaleTextActive: { color: colors.yellow },
-  valueRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingTop: 3 },
-  valueInput: { flex: 1, minHeight: 52, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, backgroundColor: colors.surface2, color: colors.text, paddingHorizontal: 14, fontSize: 17, fontWeight: "800" },
-  valueInputDerived: { color: colors.green, borderColor: "rgba(100,217,75,0.35)" },
-  unitText: { minWidth: 48, color: colors.muted, fontSize: 13, fontWeight: "800" },
   emptyCard: { padding: 20, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, gap: 6 },
   emptyTitle: { color: colors.text, fontSize: 17, fontWeight: "900" },
   emptyText: { color: colors.muted, fontSize: 13, lineHeight: 18 },

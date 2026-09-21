@@ -1,3 +1,4 @@
+import { behaviorAnswer, validateRoutineValue } from "./journal-behaviors";
 import { localDateString } from "@/src/lib/date";
 import { supabase } from "@/src/lib/supabase";
 import {
@@ -94,7 +95,7 @@ export async function loadJournalDay(date: string) {
         .eq("athlete_id", user.id),
       supabase
         .from("routine_logs")
-        .select("routine_id, value, bool_value, text_value")
+        .select("routine_id, value, bool_value, text_value, details")
         .eq("athlete_id", user.id)
         .eq("log_date", date),
       supabase
@@ -123,6 +124,7 @@ export async function loadJournalDay(date: string) {
     values[row.routine_id] = {
       value: row.text_value ?? (row.value == null ? undefined : String(row.value)),
       bool: row.bool_value == null ? undefined : Boolean(row.bool_value),
+      details: row.details ?? {},
     };
   }
 
@@ -171,6 +173,7 @@ export async function saveRoutinePreferences(
     .from("user_routines")
     .upsert(rows, { onConflict: "athlete_id,routine_id" });
   if (error) throw error;
+  return rows as RoutinePreference[];
 }
 
 export async function createCustomRoutine(input: CustomRoutineDraft) {
@@ -262,57 +265,24 @@ export async function saveJournalDay(input: {
   const answeredRows: any[] = [];
   const unansweredIds: string[] = [];
 
+  // Validate every field before any write or deletion.
+  for (const routine of input.routines) validateRoutineValue(routine, input.values[routine.id]);
   for (const routine of input.routines) {
     const value = input.values[routine.id];
-    if (routine.input_type === "boolean") {
-      if (value?.bool == null) {
-        unansweredIds.push(routine.id);
-      } else {
-        answeredRows.push({
-          athlete_id: user.id,
-          routine_id: routine.id,
-          log_date: input.date,
-          value: null,
-          bool_value: value.bool,
-          text_value: null,
-          updated_at: new Date().toISOString(),
-        });
-      }
-      continue;
-    }
-
-    const raw = value?.value?.trim();
-    if (!raw) {
+    const answer = behaviorAnswer(routine, value);
+    const raw = answer === false && routine.input_type !== "boolean" ? "0" : value?.value?.trim();
+    if (routine.input_type === "boolean" ? answer == null : !raw && answer == null) {
       unansweredIds.push(routine.id);
       continue;
     }
-
-    if (routine.input_type === "time") {
-      answeredRows.push({
-        athlete_id: user.id,
-        routine_id: routine.id,
-        log_date: input.date,
-        value: null,
-        bool_value: null,
-        text_value: raw,
-        updated_at: new Date().toISOString(),
-      });
-      continue;
-    }
-
-    const numericValue = Number(raw.replace(",", "."));
-    if (!Number.isFinite(numericValue)) {
-      unansweredIds.push(routine.id);
-      continue;
-    }
-
     answeredRows.push({
       athlete_id: user.id,
       routine_id: routine.id,
       log_date: input.date,
-      value: numericValue,
-      bool_value: null,
-      text_value: null,
+      value: routine.input_type === "boolean" || routine.input_type === "time" || !raw ? null : Number(raw.replace(",", ".")),
+      bool_value: answer ?? null,
+      text_value: routine.input_type === "time" ? raw : null,
+      details: answer === true ? value?.details ?? {} : {},
       updated_at: new Date().toISOString(),
     });
   }
@@ -391,4 +361,24 @@ export async function loadWellnessTrends(days = 183) {
     .order("score_date", { ascending: true });
   if (error) throw error;
   return (data ?? []) as WellnessTrendRow[];
+}
+
+export type JournalHistoryRow = { routine_id: string; log_date: string; value: number | null; bool_value: boolean | null; text_value: string | null };
+
+/** Calendar and weekly tracking follow the selected date, including older journals. */
+export async function loadJournalHistory(date: string) {
+  const user = await currentUser();
+  const start = new Date(`${date}T12:00:00`);
+  start.setDate(start.getDate() - 7);
+  const end = new Date(`${date}T12:00:00`);
+  end.setDate(end.getDate() + 7);
+  const [logs, scores] = await Promise.all([
+    supabase.from("routine_logs").select("routine_id, log_date, value, bool_value, text_value")
+      .eq("athlete_id", user.id).gte("log_date", localDateString(start)).lte("log_date", localDateString(end)),
+    supabase.from("daily_wellness_scores").select("score_date, completion_score")
+      .eq("athlete_id", user.id).gte("score_date", localDateString(start)).lte("score_date", localDateString(end)),
+  ]);
+  if (logs.error) throw logs.error;
+  if (scores.error) throw scores.error;
+  return { logs: (logs.data ?? []) as JournalHistoryRow[], scores: scores.data ?? [] };
 }
