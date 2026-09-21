@@ -41,7 +41,6 @@ export default function RootLayout() {
               <Stack.Screen name="(tabs)" />
               <Stack.Screen name="workout" />
               <Stack.Screen name="program" />
-              <Stack.Screen name="test-prog" />
               <Stack.Screen name="program-workout" />
               <Stack.Screen name="nutrition" />
               <Stack.Screen name="nutrition-photo" />
