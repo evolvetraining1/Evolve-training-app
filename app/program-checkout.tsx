@@ -1,3 +1,4 @@
+import { ScreenScrollView } from "@/src/components/screen-scroll-view";
 import { router, useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
 import {
@@ -5,7 +6,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -142,7 +142,7 @@ export default function ProgramCheckoutScreen() {
         Platform.OS === "ios" ? "padding" : undefined
       }
     >
-      <ScrollView
+      <ScreenScrollView automaticallyAdjustKeyboardInsets={false}
         contentContainerStyle={styles.page}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -333,7 +333,7 @@ export default function ProgramCheckoutScreen() {
             </Text>
           )}
         </View>
-      </ScrollView>
+      </ScreenScrollView>
     </KeyboardAvoidingView>
   );
 }

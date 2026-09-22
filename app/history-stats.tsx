@@ -1,3 +1,4 @@
+import { ScreenScrollView } from "@/src/components/screen-scroll-view";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -775,7 +776,7 @@ export default function HistoryStatsScreen() {
   }
 
   return (
-    <ScrollView
+    <ScreenScrollView
       style={styles.screen}
       contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={[
@@ -1170,7 +1171,7 @@ export default function HistoryStatsScreen() {
           </View>
         </View>
       )}
-    </ScrollView>
+    </ScreenScrollView>
   );
 }
 

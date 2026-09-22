@@ -1,8 +1,8 @@
+import { ScreenScrollView } from "@/src/components/screen-scroll-view";
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -114,8 +114,7 @@ export default function NewJournalRoutineScreen() {
   }
 
   return (
-    <ScrollView
-      contentInsetAdjustmentBehavior="automatic"
+    <ScreenScrollView
       keyboardShouldPersistTaps="handled"
       contentContainerStyle={styles.page}
     >
@@ -200,7 +199,7 @@ export default function NewJournalRoutineScreen() {
       {error ? <Text selectable style={styles.error}>{error}</Text> : null}
       <PrimaryButton label={saving ? "CRÉATION…" : "AJOUTER AU JOURNAL"} disabled={saving} onPress={() => void save()} />
       <Text style={styles.disclaimer}>Les habitudes personnalisées sont privées et visibles uniquement par leur créateur.</Text>
-    </ScrollView>
+    </ScreenScrollView>
   );
 }
 

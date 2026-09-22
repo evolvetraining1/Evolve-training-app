@@ -1,9 +1,9 @@
+import { ScreenScrollView } from "@/src/components/screen-scroll-view";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Image,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -1052,7 +1052,7 @@ export default function NutritionScreen() {
   }
 
   return (
-    <ScrollView
+    <ScreenScrollView
       contentContainerStyle={styles.page}
       keyboardShouldPersistTaps="handled"
     >
@@ -1875,7 +1875,7 @@ export default function NutritionScreen() {
           </Text>
         </Card>
       ) : null}
-    </ScrollView>
+    </ScreenScrollView>
   );
 }
 

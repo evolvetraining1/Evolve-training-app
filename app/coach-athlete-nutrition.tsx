@@ -1,8 +1,8 @@
+import { ScreenScrollView } from "@/src/components/screen-scroll-view";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -53,7 +53,7 @@ export default function CoachAthleteNutritionScreen() {
   }, [nutrition]);
 
   return (
-    <ScrollView contentContainerStyle={styles.page}>
+    <ScreenScrollView contentContainerStyle={styles.page}>
       <Pressable onPress={() => goBackOrReplace()} style={styles.backButton}>
         <Text style={styles.backText}>‹ RETOUR ATHLÈTE</Text>
       </Pressable>
@@ -171,7 +171,7 @@ export default function CoachAthleteNutritionScreen() {
           )}
         </>
       ) : null}
-    </ScrollView>
+    </ScreenScrollView>
   );
 }
 

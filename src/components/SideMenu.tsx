@@ -1,3 +1,4 @@
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import { colors } from "@/src/theme";
@@ -28,6 +29,7 @@ export default function SideMenu({
   role,
   unreadMessages = 0,
 }: Props) {
+  const insets = useSafeAreaInsets();
   const open = (route?: string) => {
     if (!route) return;
 
@@ -41,7 +43,7 @@ export default function SideMenu({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.root}>
         <Pressable style={styles.backdrop} onPress={onClose} />
-        <View style={styles.drawer}>
+        <View style={[styles.drawer, { paddingTop: Math.max(24, insets.top + 18), paddingBottom: insets.bottom }]}>
           <View style={styles.head}>
             <View>
               <Text style={styles.brand}>EVOLVE</Text>
@@ -50,7 +52,7 @@ export default function SideMenu({
             <Pressable onPress={onClose} style={styles.close}><Text style={styles.closeText}>×</Text></Pressable>
           </View>
           <Text style={styles.access}>{role === "coach" ? "ACCÈS COACH" : "MON ESPACE"}</Text>
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 30 }}>
+          <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 30 }}>
             {sections.map(section => (
               <View key={section.title} style={styles.section}>
                 <Text style={styles.sectionTitle}>{section.title}</Text>

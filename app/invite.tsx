@@ -1,6 +1,7 @@
+import { ScreenScrollView } from "@/src/components/screen-scroll-view";
 import { useState } from "react";
 import { router } from "expo-router";
-import { ScrollView, StyleSheet, Text, TextInput } from "react-native";
+import { StyleSheet, Text, TextInput } from "react-native";
 import { BackScreenHeader, Card, PrimaryButton } from "@/src/components/ui";
 import { colors } from "@/src/theme";
 import { acceptInvite } from "@/src/lib/coachApi";
@@ -20,7 +21,7 @@ export default function InviteScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.page}>
+    <ScreenScrollView contentContainerStyle={styles.page}>
       <BackScreenHeader title="Rejoindre un coach" subtitle="Saisis le code reçu de ton coach Evolve." />
       <Card style={{ gap: 14 }}>
         <TextInput
@@ -34,7 +35,7 @@ export default function InviteScreen() {
         <PrimaryButton label="VALIDER LE CODE" onPress={accept} />
         {message ? <Text style={styles.message}>{message}</Text> : null}
       </Card>
-    </ScrollView>
+    </ScreenScrollView>
   );
 }
 

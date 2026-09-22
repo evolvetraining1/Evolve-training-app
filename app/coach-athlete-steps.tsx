@@ -1,9 +1,8 @@
+import { ScreenScrollView } from "@/src/components/screen-scroll-view";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Dimensions,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -95,7 +94,7 @@ export default function CoachAthleteStepsScreen() {
   }, [history]);
 
   return (
-    <ScrollView contentContainerStyle={styles.page}>
+    <ScreenScrollView contentContainerStyle={styles.page}>
       <Pressable onPress={() => goBackOrReplace()} style={styles.backButton}>
         <Text style={styles.backText}>‹ RETOUR ATHLÈTE</Text>
       </Pressable>
@@ -169,7 +168,7 @@ export default function CoachAthleteStepsScreen() {
 
       </>
     ) : null}
-        </ScrollView>
+        </ScreenScrollView>
   );
 }
 
@@ -181,7 +180,8 @@ function StepsChart({
   data: any[];
   range: 1 | 7 | 30 | 180 | 365;
 }) {
-  const width = Math.min(Dimensions.get("window").width - 40, 520);
+  const [measuredWidth, setMeasuredWidth] = useState(0);
+  const width = Math.max(1, Math.min(measuredWidth, 520));
   const height = 270;
 
   const left = 54;
@@ -291,7 +291,7 @@ function StepsChart({
   };
 
   return (
-    <View style={styles.chartShell}>
+    <View style={styles.chartShell} onLayout={(event) => setMeasuredWidth(event.nativeEvent.layout.width)}>
       <Svg width={width} height={height}>
         {yTicks.map((value) => (
           <Line

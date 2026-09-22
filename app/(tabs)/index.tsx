@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { router, useFocusEffect } from "expo-router";
 import {
   ActivityIndicator, Image, Modal, Platform, Pressable, RefreshControl, ScrollView,
-  StyleSheet, Text, TextInput, View
+  StyleSheet, Text, TextInput, View, useWindowDimensions
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -74,6 +74,8 @@ const DEFAULT_DASHBOARD_WIDGETS: DashboardWidget[] = [
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
+  const { width: windowWidth, fontScale } = useWindowDimensions();
+  const compact = windowWidth < 380 || fontScale > 1.15;
   const { session } = useAuth();
   const sessionUserId = session?.user?.id ?? null;
   const [loading, setLoading] = useState(true);
@@ -975,15 +977,15 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
           </View>
         ) : null}
 
-        <View style={styles.greetingRecovery}>
-          <View style={styles.greetingBlock}>
+        <View style={[styles.greetingRecovery, compact && { flexDirection: "column" }]}>
+          <View style={[styles.greetingBlock, compact && { flex: 0 }]}>
             <Text style={styles.hello}>Bonjour</Text>
             <Text style={styles.name}>{profile?.first_name || "Athlète"} <Text style={styles.fist}>👊</Text></Text>
           </View>
           <Pressable
             onLongPress={() => setDashboardEditMode(true)}
             delayLongPress={450}
-            style={styles.recoveryCard}
+            style={[styles.recoveryCard, compact && { flex: 0 }]}
           >
             <View style={{ flex: 1 }}>
               <Text style={styles.recoveryLabel}>RÉCUPÉRATION</Text>
@@ -1722,7 +1724,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
             onPress={() => setWorkoutPickerOpen(false)}
           />
 
-          <View style={styles.workoutPickerSheet}>
+          <View style={[styles.workoutPickerSheet, { paddingBottom: Math.max(24, insets.bottom + 12) }]}>
             <View style={styles.workoutPickerHandle} />
 
             <View style={styles.workoutPickerHeader}>
@@ -1827,7 +1829,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
         onRequestClose={() => setWidgetPickerOpen(false)}
       >
         <View style={styles.widgetPickerBackdrop}>
-          <View style={styles.widgetPickerSheet}>
+          <View style={[styles.widgetPickerSheet, { paddingBottom: Math.max(24, insets.bottom + 12) }]}>
 
             <View style={styles.widgetPickerHeader}>
               <View style={{ flex: 1 }}>
@@ -1848,6 +1850,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
               </Pressable>
             </View>
 
+            <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ paddingBottom: 12 }} showsVerticalScrollIndicator>
             {dashboardWidgets.map((widget) => (
               <Pressable
                 key={widget.id}
@@ -1878,6 +1881,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
                 </View>
               </Pressable>
             ))}
+            </ScrollView>
 
           </View>
         </View>
@@ -2257,10 +2261,11 @@ const styles = StyleSheet.create({
 
   greetingRecovery:{flexDirection:"row",gap:10,alignItems:"stretch",marginBottom:18}, greetingBlock:{flex:1,justifyContent:"center",paddingLeft:4}, hello:{color:colors.muted,fontSize:15,marginBottom:3}, name:{color:colors.text,fontSize:33,fontWeight:"900",letterSpacing:-1}, fist:{fontSize:22}, recoveryCard:{flex:1.12,minHeight:108,borderWidth:1,borderColor:colors.border,borderRadius:17,backgroundColor:"#0A0A0B",padding:13,flexDirection:"row",alignItems:"center",gap:8}, recoveryLabel:{color:colors.muted,fontSize:10}, recoveryValue:{fontSize:27,fontWeight:"900",marginTop:3}, recoveryText:{color:colors.muted,fontSize:10,marginTop:2}, ring:{width:64,height:64,borderRadius:32,borderWidth:7,alignItems:"center",justifyContent:"center",backgroundColor:"#0B1009"}, ringBolt:{fontSize:24},
   errorCard:{borderColor:"#632E2E",borderWidth:1,borderRadius:14,padding:12,marginBottom:12},error:{color:colors.red}, sectionHeader:{flexDirection:"row",justifyContent:"space-between",alignItems:"center",marginTop:11,marginBottom:10},sectionLeft:{flexDirection:"row",alignItems:"center"},yellowBar:{width:3,height:20,borderRadius:2,backgroundColor:colors.yellow,marginRight:10},sectionTitle:{color:colors.text,fontWeight:"800",fontSize:17},sectionAction:{color:colors.yellow,fontSize:13},
-  workoutCard:{height:500,borderWidth:1,borderColor:colors.border,borderRadius:20,overflow:"hidden",backgroundColor:"#080809",position:"relative"},workoutImage:{position:"absolute",right:0,top:0,width:"49%",height:"83%"},imageShade:{position:"absolute",right:0,top:0,width:"58%",height:"84%",backgroundColor:"rgba(0,0,0,.28)"},workoutContent:{padding:15,paddingTop:17},workoutHead:{flexDirection:"row",alignItems:"center",gap:13,marginBottom:9,maxWidth:"73%"},hexIcon:{width:54,height:54,borderWidth:1,borderColor:colors.yellow,borderRadius:17,alignItems:"center",justifyContent:"center",backgroundColor:"rgba(0,0,0,.55)"},hexSmall:{width:48,height:48,borderRadius:15},hexGlyph:{color:colors.yellow,fontWeight:"900",fontSize:18},workoutTitle:{color:colors.text,fontWeight:"900",fontSize:23},workoutMeta:{color:colors.muted,fontSize:11,marginTop:7},exerciseRow:{minHeight:76,maxWidth:"64%",flexDirection:"row",alignItems:"center",gap:11,borderBottomWidth:1,borderBottomColor:colors.borderSoft},exerciseIndex:{width:38,height:38,borderRadius:19,backgroundColor:"rgba(255,196,0,.08)",alignItems:"center",justifyContent:"center"},exerciseIndexText:{color:colors.yellow,fontWeight:"900",fontSize:21},exerciseName:{color:colors.text,fontWeight:"800",fontSize:14},exerciseDetail:{color:colors.muted,fontSize:12,marginTop:5},arrowCircle:{width:32,height:32,borderRadius:16,backgroundColor:"rgba(20,20,21,.85)",alignItems:"center",justifyContent:"center"},arrowText:{color:colors.text,fontSize:28,lineHeight:29},emptyWorkout:{color:colors.muted,maxWidth:"55%",paddingVertical:54},
+  workoutCard:{minHeight:500,borderWidth:1,borderColor:colors.border,borderRadius:20,overflow:"hidden",backgroundColor:"#080809",position:"relative"},workoutImage:{position:"absolute",right:0,top:0,width:"49%",height:"83%"},imageShade:{position:"absolute",right:0,top:0,width:"58%",height:"84%",backgroundColor:"rgba(0,0,0,.28)"},workoutContent:{padding:15,paddingTop:17},workoutHead:{flexDirection:"row",alignItems:"center",gap:13,marginBottom:9,maxWidth:"73%"},hexIcon:{width:54,height:54,borderWidth:1,borderColor:colors.yellow,borderRadius:17,alignItems:"center",justifyContent:"center",backgroundColor:"rgba(0,0,0,.55)"},hexSmall:{width:48,height:48,borderRadius:15},hexGlyph:{color:colors.yellow,fontWeight:"900",fontSize:18},workoutTitle:{color:colors.text,fontWeight:"900",fontSize:23},workoutMeta:{color:colors.muted,fontSize:11,marginTop:7},exerciseRow:{minHeight:76,maxWidth:"64%",flexDirection:"row",alignItems:"center",gap:11,borderBottomWidth:1,borderBottomColor:colors.borderSoft},exerciseIndex:{width:38,height:38,borderRadius:19,backgroundColor:"rgba(255,196,0,.08)",alignItems:"center",justifyContent:"center"},exerciseIndexText:{color:colors.yellow,fontWeight:"900",fontSize:21},exerciseName:{color:colors.text,fontWeight:"800",fontSize:14},exerciseDetail:{color:colors.muted,fontSize:12,marginTop:5},arrowCircle:{width:32,height:32,borderRadius:16,backgroundColor:"rgba(20,20,21,.85)",alignItems:"center",justifyContent:"center"},arrowText:{color:colors.text,fontSize:28,lineHeight:29},emptyWorkout:{color:colors.muted,maxWidth:"55%",paddingVertical:54},
   chooseWorkoutButton:{
     alignSelf:"stretch",
-    height:40,
+    minHeight:40,
+    paddingVertical:10,
     borderWidth:1,
     borderColor:colors.yellow,
     borderRadius:10,
@@ -2273,6 +2278,8 @@ const styles = StyleSheet.create({
     marginTop:8
   },
   chooseWorkoutButtonText:{
+    flexShrink:1,
+    textAlign:"center",
     color:colors.yellow,
     fontSize:9,
     fontWeight:"900",
@@ -2341,7 +2348,7 @@ homeSessionText:{
   lineHeight:17
 },
 
-startButton:{height:57,borderRadius:10,backgroundColor:colors.yellow,alignItems:"center",justifyContent:"center",flexDirection:"row",gap:12,marginTop:15},play:{color:"#060606",fontSize:16},startText:{color:"#060606",fontWeight:"900",fontSize:13},
+startButton:{minHeight:57,paddingVertical:16,paddingHorizontal:12,borderRadius:10,backgroundColor:colors.yellow,alignItems:"center",justifyContent:"center",flexDirection:"row",gap:12,marginTop:15},play:{color:"#060606",fontSize:16},startText:{flexShrink:1,textAlign:"center",color:"#060606",fontWeight:"900",fontSize:13},
   workoutPickerBackdrop:{
     flex:1,
     backgroundColor:"rgba(0,0,0,.76)",

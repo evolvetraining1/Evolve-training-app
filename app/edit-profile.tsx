@@ -1,3 +1,4 @@
+import { ScreenScrollView } from "@/src/components/screen-scroll-view";
 import { useEffect, useMemo, useState } from "react";
 import * as ImagePicker from "expo-image-picker";
 import {
@@ -5,7 +6,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -176,7 +176,7 @@ export default function EditProfileScreen() {
       style={styles.root}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <ScrollView
+      <ScreenScrollView automaticallyAdjustKeyboardInsets={false}
         contentInsetAdjustmentBehavior="automatic"
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.page}
@@ -276,7 +276,7 @@ export default function EditProfileScreen() {
           onPress={save}
           disabled={saving}
         />
-      </ScrollView>
+      </ScreenScrollView>
     </KeyboardAvoidingView>
   );
 }

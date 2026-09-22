@@ -1,5 +1,6 @@
+import { ScreenScrollView } from "@/src/components/screen-scroll-view";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Image, Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { supabase } from "@/src/lib/supabase";
 import { colors, radius } from "@/src/theme";
@@ -78,7 +79,7 @@ export default function ExerciseDetailScreen() {
     : null;
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <ScreenScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.topBar}>
         <Pressable onPress={() => goBackOrReplace()} hitSlop={12}><Text style={styles.back}>‹</Text></Pressable>
         <Text style={styles.brand}>EVOLVE TRAINING</Text>
@@ -142,7 +143,7 @@ export default function ExerciseDetailScreen() {
       )}
       </>
       ) : null}
-    </ScrollView>
+    </ScreenScrollView>
   );
 }
 

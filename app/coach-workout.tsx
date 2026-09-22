@@ -1,6 +1,7 @@
+import { ScreenScrollView } from "@/src/components/screen-scroll-view";
 import { useEffect, useMemo, useState } from "react";
 import { router } from "expo-router";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { BackScreenHeader, Card, Label, PrimaryButton } from "@/src/components/ui";
 import { colors } from "@/src/theme";
 import {
@@ -130,7 +131,7 @@ export default function CoachWorkoutScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.page}>
+    <ScreenScrollView contentContainerStyle={styles.page}>
       <BackScreenHeader
         eyebrow="PROGRAMMATION"
         title="Créer une séance"
@@ -208,7 +209,7 @@ export default function CoachWorkoutScreen() {
 
       <PrimaryButton label={busy ? "ENREGISTREMENT..." : "CRÉER ET ENVOYER LA SÉANCE"} onPress={saveAndAssign} />
       {message ? <Text style={styles.message}>{message}</Text> : null}
-    </ScrollView>
+    </ScreenScrollView>
   );
 }
 

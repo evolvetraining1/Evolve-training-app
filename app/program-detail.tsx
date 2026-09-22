@@ -1,8 +1,8 @@
+import { ScreenScrollView } from "@/src/components/screen-scroll-view";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -100,7 +100,7 @@ export default function ProgramDetailScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.page}>
+    <ScreenScrollView contentContainerStyle={styles.page}>
       <Pressable onPress={() => goBackOrReplace()}>
         <Text style={styles.back}>← RETOUR</Text>
       </Pressable>
@@ -177,7 +177,7 @@ export default function ProgramDetailScreen() {
           ))}
         </View>
       ))}
-    </ScrollView>
+    </ScreenScrollView>
   );
 }
 
