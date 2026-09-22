@@ -1,3 +1,4 @@
+import { ScreenScrollView } from "@/src/components/screen-scroll-view";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useMemo, useState, useRef } from "react";
 import {
@@ -348,7 +349,7 @@ export default function JournalScreen() {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <View style={{ flex: 1 }} pointerEvents={saving ? "none" : "auto"}>
-      <ScrollView scrollEnabled={!saving} contentInsetAdjustmentBehavior="automatic" keyboardShouldPersistTaps="handled" contentContainerStyle={styles.page}>
+      <ScreenScrollView automaticallyAdjustKeyboardInsets={false} scrollEnabled={!saving} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.page}>
         <View style={styles.topRow}>
           <View style={styles.headerIdentity}>
             <BackButton />
@@ -469,7 +470,7 @@ export default function JournalScreen() {
 
         </View> : null}
         <Text style={styles.disclaimer}>Indicateurs de coaching basés sur tes réponses et ta tendance personnelle. Ils ne constituent pas un diagnostic médical.</Text>
-      </ScrollView>
+      </ScreenScrollView>
       </View>
       <View style={styles.footer}>
         {message ? <Text accessibilityLiveRegion="polite" selectable style={styles.message}>{message}</Text> : <Text style={styles.footerHint}>{dirty ? "Modifications non enregistrées · " : ""}{scores.answered}/{scores.expected} réponses</Text>}
@@ -488,6 +489,20 @@ export default function JournalScreen() {
               <Pressable style={styles.closeButton} onPress={() => setCatalogOpen(false)}><Text style={styles.closeText}>×</Text></Pressable>
             </View>
 
+            <TextInput value={search} onChangeText={setSearch} placeholder="Rechercher un comportement…" placeholderTextColor={colors.muted2} style={styles.searchInput} />
+
+            <ScrollView horizontal style={{ flexGrow: 0, flexShrink: 0 }} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categories}>
+              {["all", "selected", "custom", ...CATEGORY_ORDER].map((key) => {
+                const active = category === key;
+                return (
+                  <Pressable key={key} onPress={() => setCategory(key)} style={[styles.categoryChip, active && styles.categoryChipActive]}>
+                    <Text style={[styles.categoryChipText, active && styles.categoryChipTextActive]}>{key === "all" ? "TOUT" : key === "selected" ? "SÉLECTIONNÉS" : key === "custom" ? "PERSONNALISÉS" : CATEGORY_LABELS[key].toUpperCase()}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.catalogList} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
             <Pressable
               style={styles.createButton}
               onPress={() => {
@@ -503,20 +518,7 @@ export default function JournalScreen() {
               <Text style={styles.createButtonArrow}>›</Text>
             </Pressable>
 
-            <TextInput value={search} onChangeText={setSearch} placeholder="Rechercher un comportement…" placeholderTextColor={colors.muted2} style={styles.searchInput} />
 
-            <ScrollView horizontal style={{ flexGrow: 0, flexShrink: 0 }} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categories}>
-              {["all", "selected", "custom", ...CATEGORY_ORDER].map((key) => {
-                const active = category === key;
-                return (
-                  <Pressable key={key} onPress={() => setCategory(key)} style={[styles.categoryChip, active && styles.categoryChipActive]}>
-                    <Text style={[styles.categoryChipText, active && styles.categoryChipTextActive]}>{key === "all" ? "TOUT" : key === "selected" ? "SÉLECTIONNÉS" : key === "custom" ? "PERSONNALISÉS" : CATEGORY_LABELS[key].toUpperCase()}</Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-
-            <ScrollView contentContainerStyle={styles.catalogList} keyboardShouldPersistTaps="handled">
               {!filteredCatalog.length ? <Text style={styles.emptyText}>Aucun comportement trouvé. Essaie un autre mot ou crée le tien.</Text> : null}
               {filteredCatalog.map((routine) => {
                 const selected = selectedIds.includes(routine.id);

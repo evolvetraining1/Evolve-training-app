@@ -1,9 +1,9 @@
+import { ScreenScrollView } from "@/src/components/screen-scroll-view";
 import { useEffect, useState } from "react";
 import { useLocalSearchParams, router } from "expo-router";
 import {
   ActivityIndicator,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -83,7 +83,7 @@ export default function CoachAthleteProgramScreen() {
   );
 
   return (
-    <ScrollView contentContainerStyle={styles.page}>
+    <ScreenScrollView contentContainerStyle={styles.page}>
       <Pressable onPress={() => goBackOrReplace()} style={styles.backButton}>
         <Text style={styles.backText}>‹ RETOUR ATHLÈTE</Text>
       </Pressable>
@@ -191,7 +191,7 @@ export default function CoachAthleteProgramScreen() {
       <Text style={styles.debug}>
         programId: {programId ?? "—"}
       </Text>
-    </ScrollView>
+    </ScreenScrollView>
   );
 }
 

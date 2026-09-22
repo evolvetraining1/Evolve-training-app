@@ -1,3 +1,4 @@
+import { ScreenScrollView } from "@/src/components/screen-scroll-view";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -92,7 +93,7 @@ export default function JournalTrendsScreen() {
   }
 
   return (
-    <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={styles.page}>
+    <ScreenScrollView contentContainerStyle={styles.page}>
       <View style={styles.header}>
         <Pressable style={styles.backButton} onPress={() => goBackOrReplace()}><Text style={styles.backText}>‹</Text></Pressable>
         <View style={{ flex: 1 }}>
@@ -156,7 +157,7 @@ export default function JournalTrendsScreen() {
 
       {error ? <Text selectable style={styles.error}>{error}</Text> : null}
       <Text style={styles.disclaimer}>Outil de suivi et de coaching, non destiné au diagnostic médical.</Text>
-    </ScrollView>
+    </ScreenScrollView>
   );
 }
 

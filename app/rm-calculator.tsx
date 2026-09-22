@@ -1,6 +1,6 @@
+import { ScreenScrollView } from "@/src/components/screen-scroll-view";
 import { useMemo, useState } from "react";
 import {
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -49,7 +49,7 @@ export default function RmCalculatorScreen() {
   const targets = [2, 3, 5, 8, 10, 12];
 
   return (
-    <ScrollView contentContainerStyle={styles.page}>
+    <ScreenScrollView contentContainerStyle={styles.page}>
       <BackScreenHeader
         eyebrow="OUTILS"
         title="Calculateur RM"
@@ -136,7 +136,7 @@ export default function RmCalculatorScreen() {
           Plus de 15 reps : forte variabilité individuelle
         </Text>
       </Card>
-    </ScrollView>
+    </ScreenScrollView>
   );
 }
 

@@ -1,3 +1,5 @@
+import { ScreenScrollView } from "@/src/components/screen-scroll-view";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   Fragment,
   useEffect,
@@ -7,7 +9,7 @@ import {
 
 import {
   ActivityIndicator,
-  Dimensions,
+  useWindowDimensions,
   Pressable,
   StyleSheet,
   Text,
@@ -32,6 +34,8 @@ import { getExercisePerformanceHistory } from "@/src/lib/api";
 type Period = "week" | "month" | "year";
 
 export default function PerformanceChartScreen() {
+  const viewport = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const { exerciseId } =
     useLocalSearchParams<{ exerciseId?: string }>();
 
@@ -131,10 +135,10 @@ export default function PerformanceChartScreen() {
   }
 
   const width =
-    Dimensions.get("window").width - 60;
+    Math.max(1, viewport.width - Math.max(28, insets.left + 12) - Math.max(28, insets.right + 12));
 
   const height =
-    Math.max(Dimensions.get("window").height - 175, 240);
+    Math.max(Math.min(viewport.height * 0.55, 480), 240);
 
   const left = 58;
   const right = 24;
@@ -180,7 +184,7 @@ export default function PerformanceChartScreen() {
     .join(" ");
 
   return (
-    <View style={styles.screen}>
+    <ScreenScrollView contentContainerStyle={styles.screen}>
       <View style={styles.header}>
         <View>
           <Text style={styles.kicker}>
@@ -343,13 +347,13 @@ export default function PerformanceChartScreen() {
           )}
         </Svg>
       )}
-    </View>
+    </ScreenScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   screen: {
-    flex: 1,
+    flexGrow: 1,
     backgroundColor: "#080808",
     paddingHorizontal: 28,
     paddingTop: 14,
@@ -364,9 +368,8 @@ const styles = StyleSheet.create({
   },
 
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    gap: 18,
+    alignItems: "stretch",
   },
 
   kicker: {
@@ -385,7 +388,8 @@ const styles = StyleSheet.create({
 
   metrics: {
     flexDirection: "row",
-    gap: 45,
+    gap: 20,
+    flexWrap: "wrap",
   },
 
   metricLabel: {
@@ -403,6 +407,7 @@ const styles = StyleSheet.create({
   },
 
   close: {
+    alignSelf: "flex-start",
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 10,
@@ -418,7 +423,7 @@ const styles = StyleSheet.create({
 
   periodSelector: {
     flexDirection: "row",
-    alignSelf: "center",
+    alignSelf: "stretch",
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 11,
@@ -427,7 +432,9 @@ const styles = StyleSheet.create({
   },
 
   periodButton: {
-    paddingHorizontal: 24,
+    flex: 1,
+    alignItems: "center",
+    paddingHorizontal: 6,
     paddingVertical: 8,
   },
 

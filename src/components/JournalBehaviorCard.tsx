@@ -1,4 +1,5 @@
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { compactFields } from "@/src/lib/screen-layout";
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import Svg, { Circle } from "react-native-svg";
 import { BEHAVIORS, behaviorAnswer, behaviorQuestion, hasYesNo, setBehaviorAnswer } from "@/src/lib/journal-behaviors";
 import { numeric, RoutineValue, WellnessRoutine } from "@/src/lib/wellness";
@@ -11,6 +12,8 @@ export function JournalBehaviorCard({ routine, input, derived, weekly, onChange 
   weekly?: { done: number; total: number };
   onChange: (value: RoutineValue) => void;
 }) {
+  const { width, fontScale } = useWindowDimensions();
+  const compact = compactFields(width, fontScale);
   const config = BEHAVIORS[routine.slug];
   const yesNo = hasYesNo(routine);
   const answer = behaviorAnswer(routine, input);
@@ -19,12 +22,12 @@ export function JournalBehaviorCard({ routine, input, derived, weekly, onChange 
   const setValue = (value: string) => onChange({ ...input, value });
   return (
     <View style={[s.card, answered && s.answered]}>
-      <View style={s.heading}>
-        <View style={{ flex: 1, gap: 5 }}>
+      <View style={[s.heading, compact && { flexDirection: "column", alignItems: "stretch" }]}>
+        <View style={{ flex: compact ? 0 : 1, gap: 5 }}>
           <Text style={s.name}>{routine.name}</Text>
           <Text style={s.question}>{behaviorQuestion(routine)}</Text>
         </View>
-        {yesNo ? <View style={s.answers}>{[false, true].map((choice) => (
+        {yesNo ? <View style={[s.answers, compact && { alignSelf: "flex-end" }]}>{[false, true].map((choice) => (
           <Pressable key={String(choice)} accessibilityRole="button" accessibilityLabel={`${choice ? "Oui" : "Non"} : ${routine.name}`} accessibilityState={{ selected: answer === choice }} onPress={() => onChange(setBehaviorAnswer(routine, input, choice))} style={[s.answer, answer === choice && s.selected]}>
             <Text style={[s.symbol, answer === choice && s.selectedText]}>{choice ? "✓" : "×"}</Text>
           </Pressable>
@@ -47,7 +50,7 @@ export function JournalBehaviorCard({ routine, input, derived, weekly, onChange 
       <View style={s.bottom}>
         {weekly ? <View style={s.weekly} accessibilityLabel={`${weekly.done} jours renseignés sur ${weekly.total} prévus cette semaine`}>
           <Svg width={26} height={26} viewBox="0 0 26 26"><Circle cx={13} cy={13} r={10} stroke={colors.border} strokeWidth={3} fill="none" /><Circle cx={13} cy={13} r={10} stroke={colors.green} strokeWidth={3} fill="none" strokeDasharray={`${Math.min(1, weekly.done / Math.max(1, weekly.total)) * 62.83} 62.83`} rotation={-90} origin="13, 13" strokeLinecap="round" /></Svg>
-          <Text style={s.hint}>{weekly.done}/{weekly.total} jours renseignés cette semaine</Text>
+          <Text style={[s.hint, { flex: 1, minWidth: 0 }]}>{weekly.done}/{weekly.total} jours renseignés cette semaine</Text>
         </View> : <View />}
         {answered && !derived ? <Pressable accessibilityRole="button" accessibilityLabel={`Effacer la réponse : ${routine.name}`} onPress={() => onChange({})} hitSlop={8}><Text style={s.clear}>Effacer</Text></Pressable> : null}
       </View>
@@ -75,7 +78,7 @@ const s = StyleSheet.create({
   selected: { backgroundColor: colors.yellow }, symbol: { color: colors.text, fontSize: 20, fontWeight: "800" }, selectedText: { color: colors.black },
   details: { borderTopWidth: 1, borderTopColor: "#434446", paddingTop: 16, gap: 16 },
   field: { gap: 9 }, label: { color: colors.text, fontSize: 14, lineHeight: 20, fontWeight: "600" },
-  valueRow: { flexDirection: "row", alignItems: "center", gap: 8 }, input: { flex: 1, minHeight: 46, minWidth: 60, borderRadius: 12, paddingHorizontal: 14, backgroundColor: "#37393B", color: colors.text, fontSize: 17, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  valueRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8 }, input: { flex: 1, minHeight: 46, minWidth: 60, borderRadius: 12, paddingHorizontal: 14, backgroundColor: "#37393B", color: colors.text, fontSize: 17, fontWeight: "700", fontVariant: ["tabular-nums"] },
   step: { width: 44, minHeight: 46, borderRadius: 12, backgroundColor: "#37393B", alignItems: "center", justifyContent: "center" },
   unit: { color: colors.muted, fontSize: 12, maxWidth: 64 }, scale: { gap: 7 },
   hint: { color: colors.muted, fontSize: 10, lineHeight: 15 }, bottom: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },

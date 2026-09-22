@@ -1,13 +1,15 @@
+import { WorkoutSetRow } from "@/src/components/workout-set-row";
+import { compactFields } from "@/src/lib/screen-layout";
+import { ScreenScrollView } from "@/src/components/screen-scroll-view";
 import { useEffect, useMemo, useState, useRef } from "react";
 import { router, useLocalSearchParams } from "expo-router";
 import {
+  useWindowDimensions,
   ActivityIndicator,
   Alert,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 
@@ -162,6 +164,8 @@ function parsePerformedValues(item: LocalSet) {
 }
 
 export default function WorkoutScreen() {
+  const { width, fontScale } = useWindowDimensions();
+  const compact = compactFields(width, fontScale);
   const { sessionId } = useLocalSearchParams<{ sessionId?: string }>();
   const [loading, setLoading] = useState(true);
   const [detail, setDetail] = useState<any>(null);
@@ -445,7 +449,7 @@ export default function WorkoutScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+    <ScreenScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
       <BackScreenHeader
         eyebrow={readOnly ? "HISTORIQUE DE SÉANCE" : "SÉANCE EN COURS"}
         title={detail?.session?.workout_templates?.name ?? "Séance"}
@@ -527,7 +531,7 @@ export default function WorkoutScreen() {
                         {exerciseDisplayLine(item, block)}
                       </Text>
 
-                      {(sets[item.id] ?? []).length ? (
+                      {!compact && (sets[item.id] ?? []).length ? (
                         <View style={styles.tableHeader}>
                           <Text style={[styles.tableHeaderText, styles.seriesHeader]}>SÉRIE</Text>
                           <Text style={[styles.tableHeaderText, styles.dataHeader]}>REPS</Text>
@@ -540,37 +544,10 @@ export default function WorkoutScreen() {
                       ) : null}
 
                       {(sets[item.id] ?? []).map((set) => (
-                        <View key={set.setNumber} style={styles.row}>
-                          <Text style={styles.number}>{set.setNumber}</Text>
-                          <TextInput
-                            editable={!readOnly && !saving && pendingCount === 0}
-                            style={styles.input}
-                            keyboardType="number-pad"
-                            value={set.reps}
-                            onChangeText={(value) => patch(item.id, set.setNumber, { reps: value })}
-                          />
-                          <TextInput
-                            editable={!readOnly && !saving && pendingCount === 0}
-                            style={styles.input}
-                            keyboardType="decimal-pad"
-                            value={set.load}
-                            onChangeText={(value) => patch(item.id, set.setNumber, { load: value })}
-                          />
-                          <TextInput
-                            editable={!readOnly && !saving && pendingCount === 0}
-                            style={styles.input}
-                            keyboardType="decimal-pad"
-                            value={set.rpe}
-                            onChangeText={(value) => patch(item.id, set.setNumber, { rpe: value })}
-                          />
-                          <Pressable
-                            disabled={readOnly || saving || pendingCount > 0}
-                            onPress={() => toggleDone(item.id, set)}
-                            style={[styles.check, set.done && styles.done]}
-                          >
-                            <Text style={styles.checkText}>{set.done ? "✓" : ""}</Text>
-                          </Pressable>
-                        </View>
+                        <WorkoutSetRow key={set.setNumber} number={set.setNumber} values={set}
+                          done={set.done} disabled={readOnly || saving || pendingCount > 0}
+                          onChange={(value) => patch(item.id, set.setNumber, value)}
+                          onToggle={() => toggleDone(item.id, set)} />
                       ))}
                     </Card>
                   ))}
@@ -585,7 +562,7 @@ export default function WorkoutScreen() {
       ) : null}
 
       {message ? <Text style={styles.message}>{message}</Text> : null}
-    </ScrollView>
+    </ScreenScrollView>
   );
 }
 

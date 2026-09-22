@@ -1,12 +1,11 @@
+import { ScreenScrollView } from "@/src/components/screen-scroll-view";
 import { Fragment, useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   View,
-  Dimensions,
   Pressable
 } from "react-native";
 
@@ -29,6 +28,7 @@ function MiniPerformanceChart({
 }: {
   history: any[];
 }) {
+  const [measuredWidth, setMeasuredWidth] = useState(0);
   const points = (history ?? [])
     .slice(-20)
     .map((item: any) => ({
@@ -47,10 +47,7 @@ function MiniPerformanceChart({
         new Date(b.date).getTime()
     );
 
-  const width = Math.max(
-    Dimensions.get("window").width - 92,
-    250
-  );
+  const width = Math.max(1, Math.min(measuredWidth, 520));
 
   const height = 165;
 
@@ -105,7 +102,7 @@ function MiniPerformanceChart({
     .join(" ");
 
   return (
-    <View style={styles.chartShell}>
+    <View style={styles.chartShell} onLayout={(event) => setMeasuredWidth(event.nativeEvent.layout.width)}>
       <Svg width={width} height={height}>
         {[max, (max + min) / 2, min].map(
           (value, index) => {
@@ -242,7 +239,7 @@ export default function StatsScreen() {
   }, [load]);
 
   return (
-    <ScrollView
+    <ScreenScrollView
       contentContainerStyle={styles.page}
       refreshControl={
         <RefreshControl
@@ -445,7 +442,7 @@ export default function StatsScreen() {
         )}
       </Card>
 
-</ScrollView>
+</ScreenScrollView>
   );
 }
 
@@ -460,12 +457,15 @@ const styles = StyleSheet.create({
 
   chartHeader: {
     flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 5,
   },
 
   chartTitle: {
+    flexShrink: 1,
     color: colors.text,
     fontSize: 13,
     fontWeight: "900",

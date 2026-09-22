@@ -1,9 +1,9 @@
+import { ScreenScrollView } from "@/src/components/screen-scroll-view";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -39,7 +39,7 @@ export default function CoachAthletesScreen() {
   }, [load]);
 
   return (
-    <ScrollView
+    <ScreenScrollView
       contentContainerStyle={styles.page}
       refreshControl={
         <RefreshControl
@@ -112,7 +112,7 @@ export default function CoachAthletesScreen() {
           </Pressable>
         );
       })}
-    </ScrollView>
+    </ScreenScrollView>
   );
 }
 

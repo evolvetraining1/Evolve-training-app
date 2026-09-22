@@ -1,8 +1,8 @@
+import { ScreenScrollView } from "@/src/components/screen-scroll-view";
 import { router } from "expo-router";
 import {
   Image,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -50,7 +50,7 @@ const PROGRAMS = [
 
 export default function ProgramScreen() {
   return (
-    <ScrollView
+    <ScreenScrollView
       style={styles.screen}
       contentContainerStyle={styles.page}
       showsVerticalScrollIndicator={false}
@@ -117,7 +117,7 @@ export default function ProgramScreen() {
           </Pressable>
         ))}
       </View>
-    </ScrollView>
+    </ScreenScrollView>
   );
 }
 

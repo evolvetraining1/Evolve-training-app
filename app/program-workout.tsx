@@ -1,3 +1,4 @@
+import { ScreenScrollView } from "@/src/components/screen-scroll-view";
 
 import { useEffect, useState } from "react";
 import { router, useLocalSearchParams } from "expo-router";
@@ -5,7 +6,6 @@ import {
   ActivityIndicator,
   Image,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -204,7 +204,7 @@ export default function ProgramWorkoutScreen() {
   }
 
   return (
-    <ScrollView
+    <ScreenScrollView
       style={styles.screen}
       contentContainerStyle={styles.page}
     >
@@ -381,7 +381,7 @@ export default function ProgramWorkoutScreen() {
           Aucun exercice renseigné pour cette séance.
         </Text>
       ) : null}
-    </ScrollView>
+    </ScreenScrollView>
   );
 }
 

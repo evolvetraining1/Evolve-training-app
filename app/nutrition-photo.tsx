@@ -1,3 +1,4 @@
+import { ScreenScrollView } from "@/src/components/screen-scroll-view";
 import { useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -5,7 +6,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -330,7 +330,7 @@ export default function NutritionPhotoScreen() {
       style={styles.root}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <ScrollView
+      <ScreenScrollView automaticallyAdjustKeyboardInsets={false}
         contentContainerStyle={styles.page}
         keyboardShouldPersistTaps="handled"
       >
@@ -569,7 +569,7 @@ export default function NutritionPhotoScreen() {
             />
           </>
         ) : null}
-      </ScrollView>
+      </ScreenScrollView>
     </KeyboardAvoidingView>
   );
 }

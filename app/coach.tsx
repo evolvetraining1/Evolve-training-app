@@ -1,6 +1,7 @@
+import { ScreenScrollView } from "@/src/components/screen-scroll-view";
 import { useEffect, useState } from "react";
 import { router } from "expo-router";
-import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { StyleSheet, Text, TextInput, View } from "react-native";
 import { BackScreenHeader, Card, Label, PrimaryButton } from "@/src/components/ui";
 import { colors } from "@/src/theme";
 import {
@@ -110,7 +111,7 @@ export default function CoachScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.page}>
+    <ScreenScrollView contentContainerStyle={styles.page}>
       <BackScreenHeader eyebrow="ESPACE COACH" title="Dashboard" subtitle="Premier workflow coach réel relié à Supabase." />
 
       <View style={styles.grid}>
@@ -238,7 +239,7 @@ export default function CoachScreen() {
       </Card>
 
       {message ? <Text style={styles.message}>{message}</Text> : null}
-    </ScrollView>
+    </ScreenScrollView>
   );
 }
 

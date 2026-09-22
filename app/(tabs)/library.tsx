@@ -1,3 +1,4 @@
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Image, Pressable, SectionList, StyleSheet, Text, TextInput, View } from "react-native";
 import { router } from "expo-router";
@@ -25,6 +26,7 @@ type ExerciseRow = {
 };
 
 export default function ExerciseLibraryScreen() {
+  const insets = useSafeAreaInsets();
   const [items, setItems] = useState<ExerciseRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -99,7 +101,7 @@ export default function ExerciseLibraryScreen() {
   }
 
   return (
-    <View style={styles.screen}>
+    <View style={[styles.screen, { paddingTop: Math.max(TAB_HEADER_TOP, insets.top + 18), paddingLeft: insets.left, paddingRight: insets.right }]}>
       {loading ? (
         <View style={styles.centerState}><ActivityIndicator color={colors.yellow} /></View>
       ) : error ? (
@@ -109,7 +111,9 @@ export default function ExerciseLibraryScreen() {
           sections={sections}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
-          contentInsetAdjustmentBehavior="automatic"
+          contentInsetAdjustmentBehavior="never"
+          automaticallyAdjustKeyboardInsets
+          keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           initialNumToRender={10}
