@@ -925,6 +925,16 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
 
   return (
     <View style={styles.root}>
+      {Platform.OS === "ios" && (
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          <Image
+            source={require("@/assets/evolve-gold-dark.jpg")}
+            style={{ width: "100%", height: "100%" }}
+            resizeMode="cover"
+            accessible={false}
+          />
+        </View>
+      )}
       <SideMenu
         visible={menuOpen}
         onClose={() => setMenuOpen(false)}
@@ -1934,13 +1944,13 @@ const styles = StyleSheet.create({
   },
   pageScroll:{
     flex:1,
-    backgroundColor: Platform.OS === "ios" ? colors.bg : "transparent",
+    backgroundColor: "transparent",
   },
   page:{
     paddingHorizontal:15,
     paddingTop:18,
     paddingBottom:105,
-    backgroundColor: Platform.OS === "ios" ? colors.bg : "transparent",
+    backgroundColor: "transparent",
   },
   center:{
     flex:1,

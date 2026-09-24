@@ -1,7 +1,7 @@
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, Image, Pressable, SectionList, StyleSheet, Text, TextInput, View } from "react-native";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { supabase } from "@/src/lib/supabase";
 import { colors, radius } from "@/src/theme";
 import { exerciseIllustrationPlaceholder, getExerciseIllustration } from "@/src/data/exerciseIllustrations";
@@ -33,33 +33,36 @@ export default function ExerciseLibraryScreen() {
   const [query, setQuery] = useState("");
   const [selectedGroups, setSelectedGroups] = useState<BodyGroupKey[]>([]);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     let active = true;
 
     async function load() {
       setLoading(true);
       setError(null);
-      const { data, error: requestError } = await supabase
-        .from("exercises")
-        .select("id, name, category, equipment, difficulty, image_url, video_url, muscles")
-        .eq("is_library_visible", true)
-        .order("name", { ascending: true });
+      try {
+        const { data, error: requestError } = await supabase
+          .from("exercises")
+          .select("id, name, category, equipment, difficulty, image_url, video_url, muscles")
+          .eq("is_library_visible", true)
+          .order("name", { ascending: true });
 
-      if (!active) return;
-      if (requestError) {
+        if (!active) return;
+        if (requestError) throw requestError;
+        setItems((data ?? []) as ExerciseRow[]);
+      } catch {
+        if (!active) return;
         setError("Impossible de charger la bibliothèque pour le moment.");
         setItems([]);
-      } else {
-        setItems((data ?? []) as ExerciseRow[]);
+      } finally {
+        if (active) setLoading(false);
       }
-      setLoading(false);
     }
 
     void load();
     return () => {
       active = false;
     };
-  }, []);
+  }, []));
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase("fr");
@@ -146,13 +149,22 @@ export default function ExerciseLibraryScreen() {
               />
 
               <View style={styles.resultSummary}>
-                <Text style={styles.count}>{filtered.length} mouvement{filtered.length > 1 ? "s" : ""}</Text>
+                <Text style={styles.count}>{filtered.length} / {items.length} mouvements</Text>
                 {!!selectedGroups.length && (
                   <Text style={styles.selectionSummary} numberOfLines={1}>
                     {selectedGroups.map(getBodyGroupLabel).join(" + ")}
                   </Text>
                 )}
               </View>
+              {(query.length > 0 || selectedGroups.length > 0) && (
+                <Pressable
+                  onPress={() => { setQuery(""); setSelectedGroups([]); }}
+                  style={{ paddingHorizontal: 20, paddingVertical: 10 }}
+                  accessibilityRole="button"
+                >
+                  <Text style={{ color: colors.yellow }}>Afficher tous les mouvements</Text>
+                </Pressable>
+              )}
             </View>
           }
           ListEmptyComponent={<Text style={styles.empty}>Aucun mouvement ne correspond à ta recherche.</Text>}
