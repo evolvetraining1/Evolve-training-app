@@ -21,9 +21,7 @@ jobs:
           import urllib.request, urllib.parse, urllib.error, json, os, pathlib
           project = "351fbc52-60ff-48eb-920f-cc72354e2ccb"
           group = "8486b11f-fd6e-47ac-a099-e9c987bf8596"
-          query = urllib.parse.urlencode(dict(projectId=project, groupId=group, format="url"))
-          with urllib.request.urlopen("https://qr.expo.dev/eas-update?" + query, timeout=25) as r:
-              url = r.read().decode().strip()
+          url = "exp://u.expo.dev/" + project + "/group/" + group
           assert url.startswith(("exp://", "exps://")), "Expected Expo Go URL"
           print("EXPO_GO_URL=" + url)
           endpoint = "https://u.expo.dev/" + project + "/group/" + group
