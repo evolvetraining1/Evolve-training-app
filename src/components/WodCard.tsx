@@ -1,10 +1,12 @@
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Card } from './ui';
+import { ExerciseNameLink } from './exercise-name-link';
 import { colors } from '../theme';
 import { wodHelp, wodLabels, type WorkoutSection, type WodDraft } from '../lib/wod';
 
-export function WodCard({ section, value, disabled, onChange, onValidate }: {
+export function WodCard({ section, value, disabled, navigationDisabled = false, onChange, onValidate }: {
   section: WorkoutSection; value: WodDraft; disabled: boolean;
+  navigationDisabled?: boolean;
   onChange: (patch: Partial<WodDraft>) => void; onValidate: () => void;
 }) {
   const format = section.format!;
@@ -28,7 +30,8 @@ export function WodCard({ section, value, disabled, onChange, onValidate }: {
       const fullPrescription = String(item.prescription_notes ?? '').replace(/^(WORKOUT|WOD)\s*[—–:-]?\s*/i, '');
       const prescription = commonHeader ? fullPrescription.slice(commonHeader.length).replace(/^\s*[—–]\s*/, '') : fullPrescription;
       return <View style={styles.movement} key={item.id}>
-        <Text style={styles.name}>{exercise?.name ?? 'Mouvement'}</Text>
+        <ExerciseNameLink exerciseId={item.exercise_id ?? exercise?.id} name={exercise?.name}
+          disabled={navigationDisabled} style={styles.name}>{exercise?.name ?? 'Mouvement'}</ExerciseNameLink>
         <Text style={styles.prescription}>{prescription}</Text>
       </View>;
     })}
