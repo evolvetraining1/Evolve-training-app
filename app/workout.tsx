@@ -1,4 +1,5 @@
 import { WorkoutSetRow } from "@/src/components/workout-set-row";
+import { ExerciseNameLink } from "@/src/components/exercise-name-link";
 import { compactFields } from "@/src/lib/screen-layout";
 import { ScreenScrollView } from "@/src/components/screen-scroll-view";
 import { useEffect, useMemo, useState, useRef } from "react";
@@ -477,7 +478,7 @@ export default function WorkoutScreen() {
         ? sections.map((section) => {
               const { block, items } = section;
               if (section.format && (!readOnly || detail.session.wod_results?.[section.id])) {
-                return <WodCard key={section.id} section={section} value={wods[section.id] ?? {}} disabled={readOnly || saving || pendingCount > 0}
+                return <WodCard key={section.id} section={section} value={wods[section.id] ?? {}} disabled={readOnly || saving || pendingCount > 0} navigationDisabled={saving}
                   onChange={(patch) => patchWod(section.id, patch)} onValidate={() => validateWod(section)} />;
               }
               const simple = isSimpleCompletionBlock(block);
@@ -498,9 +499,14 @@ export default function WorkoutScreen() {
                         const tracker = sets[item.id]?.[0];
                         return (
                           <View key={item.id} style={styles.simpleRow}>
-                            <Text style={styles.simpleLine}>
+                            <ExerciseNameLink
+                              exerciseId={item.exercise_id ?? exerciseData(item)?.id}
+                              name={exerciseData(item)?.name}
+                              disabled={saving}
+                              style={styles.simpleLine}
+                            >
                               {exerciseDisplayLine(item, block)}
-                            </Text>
+                            </ExerciseNameLink>
                             {tracker ? (
                               <Pressable
                                 disabled={readOnly || saving || pendingCount > 0}
@@ -527,9 +533,14 @@ export default function WorkoutScreen() {
 
                   {items.map((item: any) => (
                     <Card key={item.id} style={styles.exerciseCard}>
-                      <Text style={styles.exerciseLine}>
+                      <ExerciseNameLink
+                        exerciseId={item.exercise_id ?? exerciseData(item)?.id}
+                        name={exerciseData(item)?.name}
+                        disabled={saving}
+                        style={styles.exerciseLine}
+                      >
                         {exerciseDisplayLine(item, block)}
-                      </Text>
+                      </ExerciseNameLink>
 
                       {!compact && (sets[item.id] ?? []).length ? (
                         <View style={styles.tableHeader}>
