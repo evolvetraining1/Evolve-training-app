@@ -1,0 +1,70 @@
+name: Publish Expo Go Preview
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "app/**"
+      - "assets/**"
+      - "src/**"
+      - "modules/**"
+      - "app.json"
+      - "package.json"
+      - "package-lock.json"
+      - "metro.config.*"
+      - "babel.config.*"
+      - ".github/workflows/eas-expo-go.yml"
+
+concurrency:
+  group: expo-go-preview-main
+  cancel-in-progress: true
+
+jobs:
+  publish-expo-go:
+    name: Publish Expo Go SDK preview
+    runs-on: ubuntu-latest
+    env:
+      EXPO_PUBLIC_SUPABASE_URL: https://lwkeclsloqjruhorhbjp.supabase.co
+      EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_7HOyCwwt2tBXPN3D0EtGiQ_bALaYOs1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - run: npm ci
+      - name: TypeScript check
+        run: npx tsc --noEmit
+      - name: Set SDK runtime for this Expo Go publication only
+        run: |
+          node <<'JS'
+          const fs = require('node:fs');
+          const { getConfig } = require('@expo/config');
+          const { exp } = getConfig(process.cwd());
+          if (exp.sdkVersion !== '57.0.0') {
+            throw new Error('Review Expo Go compatibility before publishing a new SDK');
+          }
+          const app = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+          if (app.expo.runtimeVersion?.policy !== 'appVersion') {
+            throw new Error('Unexpected native runtime configuration');
+          }
+          // Expo Go SDK 57 Android uses runtimeVersion for its update-list gate.
+          // Use the actual SDK version, without the exposdk: prefix.
+          // This working-copy change is never committed or used for native builds.
+          app.expo.runtimeVersion = exp.sdkVersion;
+          fs.writeFileSync('app.json', JSON.stringify(app, null, 2) + '\n');
+          JS
+      - name: Publish dedicated Expo Go branch
+        run: eas update --branch expo-go-sdk57 --platform all --message "Evolve Training - Expo Go SDK 57" --non-interactive --json > expo-go-update.json
+      - name: Record published update
+        run: cat expo-go-update.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: expo-go-update
+          path: expo-go-update.json
