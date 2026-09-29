@@ -27,3 +27,6 @@ jobs:
 
       - name: Session and WOD regression tests
         run: node scripts/test-session-flow.cjs
+
+      - name: Superset prescription and rendering regression tests
+        run: node scripts/test-exercise-groups.cjs

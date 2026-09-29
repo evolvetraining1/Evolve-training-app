@@ -1,3 +1,6 @@
+import { SupersetCard } from "@/src/components/superset-card";
+import { buildFallbackSets, type LocalSet } from "@/src/lib/workout-sets";
+import { buildExerciseGroups } from "@/src/lib/exercise-groups";
 import { WorkoutSetRow } from "@/src/components/workout-set-row";
 import { ExerciseNameLink } from "@/src/components/exercise-name-link";
 import { compactFields } from "@/src/lib/screen-layout";
@@ -27,16 +30,6 @@ import {
   startWorkoutSession,
 } from "@/src/lib/api";
 
-type LocalSet = {
-  prescribedId?: string | null;
-  workoutExerciseId: string;
-  setNumber: number;
-  reps: string;
-  load: string;
-  rpe: string;
-  done: boolean;
-  simpleCompletion?: boolean;
-};
 
 function exerciseData(item: any) {
   return Array.isArray(item?.exercises) ? item.exercises[0] : item?.exercises;
@@ -78,44 +71,6 @@ function parseRounds(items: any[]) {
   return null;
 }
 
-function buildFallbackSets(item: any): LocalSet[] {
-  const exercise = exerciseData(item);
-  const notes = [item?.prescription_notes, exercise?.instructions]
-    .filter(Boolean)
-    .join(" — ")
-    .trim();
-
-  let setCount = 1;
-  let reps = "";
-  let load = "";
-  let rpe = "";
-
-  const setRepMatch = notes.match(/(\d+)\s*[x×]\s*(\d+(?:\s*[-–]\s*\d+)?)/i);
-  if (setRepMatch) {
-    setCount = Math.max(1, Number(setRepMatch[1]));
-    const prescribedReps = setRepMatch[2].replace(/\s+/g, "");
-    reps = /[-–]/.test(prescribedReps) ? "" : prescribedReps;
-  } else {
-    const simpleReps = notes.match(/(?:^|[—-]\s*)(\d+)\s*reps?/i);
-    if (simpleReps) reps = simpleReps[1];
-  }
-
-  const kgMatch = notes.match(/@\s*(\d+(?:[.,]\d+)?)\s*kg/i);
-  if (kgMatch) load = kgMatch[1].replace(",", ".");
-
-  const rpeMatch = notes.match(/\bRPE\s*[:@]?\s*(\d+(?:[.,]\d+)?)/i);
-  if (rpeMatch) rpe = rpeMatch[1].replace(",", ".");
-
-  return Array.from({ length: setCount }, (_, index) => ({
-    prescribedId: null,
-    workoutExerciseId: item.id,
-    setNumber: index + 1,
-    reps,
-    load,
-    rpe,
-    done: false,
-  }));
-}
 
 function parsePerformedValues(item: LocalSet) {
   if (item.simpleCompletion) {
@@ -531,7 +486,11 @@ export default function WorkoutScreen() {
                     <Text style={styles.blockTitle}>{block}</Text>
                   </View>
 
-                  {items.map((item: any) => (
+                  {buildExerciseGroups(items).map((group) => {
+                    if (group.paired) return <SupersetCard key={group.id} group={group} rows={sets}
+                      disabled={readOnly || saving || pendingCount > 0} onChange={patch} onToggle={toggleDone} />;
+                    const item = group.items[0];
+                    return (
                     <Card key={item.id} style={styles.exerciseCard}>
                       <ExerciseNameLink
                         exerciseId={item.exercise_id ?? exerciseData(item)?.id}
@@ -561,7 +520,8 @@ export default function WorkoutScreen() {
                           onToggle={() => toggleDone(item.id, set)} />
                       ))}
                     </Card>
-                  ))}
+                   );
+                  })}
                 </View>
               );
             })

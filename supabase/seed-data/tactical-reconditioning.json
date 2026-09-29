@@ -16,8 +16,8 @@
         ["WARM UP", "Single leg deadlift", "3 rounds — 5 reps — tempo 3111"],
         ["STRENGTH WORK", "Back squat", "5x5 @70% — tempo 33X1 — repos 3 min"],
         ["STRENGTH WORK", "Back squat", "3x2 @90% — explosif — repos 3 min"],
-        ["RENFO", "Single leg extension", "4x12 — enchaîné avec single leg ischio flexion — repos 2 min"],
-        ["RENFO", "Single leg ischio flexion", "12 reps — enchaîné avec single leg extension — repos 2 min"],
+        ["RENFO", "Single leg extension", "4x12 — SUPERSET A1 — enchaîné avec single leg ischio flexion — sans repos entre les exercices"],
+        ["RENFO", "Single leg ischio flexion", "4x12 — SUPERSET A2 — repos 2 min après le superset"],
         ["WOD", "Rameur", "4 rounds — 300 m"],
         ["WOD", "Burpees over the box", "4 rounds — 10 reps"],
         ["WOD", "Forward lunge", "4 rounds — 10 reps @14 kg/bras"],
@@ -38,7 +38,8 @@
         ["STRENGTH WORK", "Bench press", "1x5 @85% — repos 3 min"],
         ["STRENGTH WORK", "Bench press", "4x5 @80% — tempo 3131 — repos 3 min"],
         ["RENFO", "Alternating single arm DB bench press", "3x8–12 @12 kg"],
-        ["RENFO", "Pull-up + Dips", "4x5 Pull-up + Dips"],
+        ["RENFO", "Pull-up", "4x5 — SUPERSET A1"],
+        ["RENFO", "Dips", "4x5 — SUPERSET A2"],
         ["RENFO", "Bent over row", "3x15 — tempo 3131 — barre à vide"]
       ]
     },
@@ -82,8 +83,8 @@
         ["WORKOUT", "Barbell row", "4x12 — pause en haut — RPE 8 — repos 2 min après le superset"],
         ["WORKOUT", "Strict press", "3x8 — RPE 7 — finir en push press si nécessaire"],
         ["WORKOUT", "Pull-up", "3x max — repos 1 min 30 après le superset"],
-        ["WORKOUT", "Toes-to-bar", "4x8"],
-        ["WORKOUT", "Farmer carry", "4 allers-retours — lourd"]
+        ["WORKOUT", "Toes-to-bar", "4x8 — SUPERSET D1"],
+        ["WORKOUT", "Farmer carry", "4x1 aller-retour — lourd — SUPERSET D2"]
       ]
     },
     {
@@ -157,7 +158,8 @@
         ["STRENGTH WORK", "Bench press", "2x5 @85% — repos 3 min"],
         ["STRENGTH WORK", "Bench press", "3x5 @80% — tempo 3131 — repos 3 min"],
         ["RENFO", "Alternating single arm DB bench press", "3x8-12 @12 kg"],
-        ["RENFO", "Pull-up + Dips", "4x5"],
+        ["RENFO", "Pull-up", "4x5 — SUPERSET A1"],
+        ["RENFO", "Dips", "4x5 — SUPERSET A2"],
         ["RENFO", "Bent over row", "3x15 — tempo 3131 — barre à vide"]
       ]
     },
@@ -199,8 +201,8 @@
         ["WORKOUT", "Barbell row", "4x12 — pause en haut — RPE 8 — repos 2 min après le superset"],
         ["WORKOUT", "Strict press", "3x8 — RPE 7 — finir en push press si nécessaire"],
         ["WORKOUT", "Pull-up", "3x max — repos 1 min 30 après le superset"],
-        ["WORKOUT", "Toes-to-bar", "4x8"],
-        ["WORKOUT", "Farmer carry", "4 allers-retours — lourd"]
+        ["WORKOUT", "Toes-to-bar", "4x8 — SUPERSET D1"],
+        ["WORKOUT", "Farmer carry", "4x1 aller-retour — lourd — SUPERSET D2"]
       ]
     },
     {
@@ -271,7 +273,8 @@
         ["STRENGTH WORK", "Bench press", "4x5 @85% — repos 3 min"],
         ["STRENGTH WORK", "Bench press", "1x5 @80% — tempo 3131 — repos 3 min"],
         ["RENFO", "Alternating single arm DB bench press", "3x8-12 @12 kg"],
-        ["RENFO", "Pull-up + Dips", "4x5"],
+        ["RENFO", "Pull-up", "4x5 — SUPERSET A1"],
+        ["RENFO", "Dips", "4x5 — SUPERSET A2"],
         ["RENFO", "Bent over row", "3x15 — tempo 3131 — barre à vide"]
       ]
     },
@@ -434,7 +437,8 @@
         ["STRENGTH WORK", "Bench press", "5x5 @85% — repos 3 min"],
         ["STRENGTH WORK", "Bench press", "1x25-30 @45% — technique mais explosif — repos 2 min"],
         ["RENFO", "Alternating single arm incline DB bench press", "3x8-12 @12 kg"],
-        ["RENFO", "Pull-up + Dips", "4x10"]
+        ["RENFO", "Pull-up", "4x10 — SUPERSET A1"],
+        ["RENFO", "Dips", "4x10 — SUPERSET A2"]
       ]
     },
     {
@@ -546,7 +550,8 @@
         ["STRENGTH WORK", "Bench press", "5x5 @85% +2.5 kg — repos 3 min"],
         ["STRENGTH WORK", "Bench press", "1x25-30 @45% — technique mais explosif — repos 2 min"],
         ["RENFO", "Alternating single arm incline DB bench press", "3x8-12 @14 kg"],
-        ["RENFO", "Pull-up + Dips", "4x12"]
+        ["RENFO", "Pull-up", "4x12 — SUPERSET A1"],
+        ["RENFO", "Dips", "4x12 — SUPERSET A2"]
       ]
     }
   ]
