@@ -19,6 +19,7 @@ const { buildExerciseGroups, groupSetNumbers, groupRest, exercisePrescription } 
 const { buildFallbackSets } = load('src/lib/workout-sets.ts');
 const wod = load('src/lib/wod.ts');
 const snapshot = require('./fixtures/superset-programs.json');
+snapshot.corrections.push(...require('./fixtures/powerbuilding-pullup-dips.json'));
 for (const w of snapshot.workouts) w.items ??= [];
 const before = structuredClone(snapshot.workouts);
 const workouts = structuredClone(snapshot.workouts);
@@ -60,7 +61,11 @@ for (const week of [1,2,3]) {
   assert.equal(pairs.length, 1); assert.deepEqual(pairs[0].items.map((i) => i.position), [6,7]);
   assert.deepEqual(pairs[0].items.map((i) => buildFallbackSets(i).length), [4,4]);
   assert.match(groupRest(pairs[0]), /2 min/);
-  assert.equal(paired(pick('powerbuilding', week, 2)).length, 0, 'no invented pairing from equal reps without source evidence');
+  const benchPair = paired(pick('powerbuilding', week, 2));
+  assert.equal(benchPair.length, 1, 'Pull-up + Dips confirmed by the user');
+  assert.deepEqual(benchPair[0].items.map((i) => i.exercises.name), ['Pull-up','Dips']);
+  assert.deepEqual(benchPair[0].items.map((i) => buildFallbackSets(i).length), [4,4]);
+  assert.match(groupRest(benchPair[0]), /non précisé/);
 }
 const item = (id, note) => ({ id, prescription_notes: note });
 assert.equal(buildExerciseGroups([item('a','RENFO — 4x12'),item('b','RENFO — 4x12')]).length, 2);

@@ -22,9 +22,10 @@ Reviewed the 30 Tactical templates (including the rest week) and nine Power Buil
 
 No sessions or performed sets were written. Before/after checks matched all 97 session records and all 269 performed-set records exactly.
 
+- Power Building S1/S2/S3 J2: the owner confirmed Pull-up + Dips as a superset on 2026-09-29. `scripts/fix-powerbuilding-pullup-dips.sql` restores six grouping notes. Four rounds of five reps each; rest remains unspecified.
+
 ## Limits requiring source/device confirmation
 
-- Power Building BENCH has separate Pull-up and Dips rows with equal set counts but no explicit pairing in the available source. They remain separate; equality alone is not evidence of a superset. The original Power Building page is needed to establish the intended relationship.
 - This is a check against available prescriptions and the supplied screenshot, not certification against an unavailable original complete program.
 - TypeScript, both native exports, regression fixtures and component callback tests validate code behavior; physical iPhone/Android layout and interaction still require a device check.
 - Existing Expo update groups remain available and the SDK/runtime are unchanged. A QR pinned to an older group continues to open that older code; this does not automatically upgrade it.
