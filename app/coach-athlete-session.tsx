@@ -1,6 +1,9 @@
+import { ExerciseGroupHeader } from "@/src/components/exercise-group-header";
+import { buildExerciseGroups, exercisePrescription } from "@/src/lib/exercise-groups";
+import { workoutBlock } from "@/src/lib/wod";
 import { ScreenScrollView } from "@/src/components/screen-scroll-view";
 import { useEffect, useState } from "react";
-import { useLocalSearchParams, router } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import {
   ActivityIndicator,
   Pressable,
@@ -14,7 +17,7 @@ import { colors } from "@/src/theme";
 import { getCoachAthleteSessionDetail } from "@/src/lib/coachApi";
 
 export default function CoachAthleteSessionScreen() {
-  const { athleteId, workoutTemplateId, programId } =
+  const { athleteId, workoutTemplateId } =
     useLocalSearchParams<{
       athleteId: string;
       workoutTemplateId: string;
@@ -51,32 +54,11 @@ export default function CoachAthleteSessionScreen() {
     load();
   }, [athleteId, workoutTemplateId]);
 
-  const blockOrder = ["WARM UP", "STRENGTH WORK", "RENFO", "WOD", "AUTRE"];
-
-  const blockSubtitles: Record<string, string> = {
-    "WARM UP": "Préparation / activation",
-    "STRENGTH WORK": "Force principale",
-    "RENFO": "Travail complémentaire",
-    "WOD": "Conditionnement",
-    "AUTRE": "Travail complémentaire",
-  };
+  const blockOrder = ["WARM UP", "STRENGTH WORK", "RENFO", "WORKOUT", "WOD", "AUTRE"];
 
   const groupedExercises = (detail?.exercises ?? []).reduce(
     (grouped: Record<string, any[]>, exercise: any) => {
-      const value = String(exercise?.prescription_notes ?? "")
-        .trim()
-        .toUpperCase();
-
-      const block =
-        value.startsWith("WARM UP") || value.startsWith("WARMUP")
-          ? "WARM UP"
-          : value.startsWith("STRENGTH WORK") || value.startsWith("STRENGTH")
-          ? "STRENGTH WORK"
-          : value.startsWith("RENFO")
-          ? "RENFO"
-          : value.startsWith("WOD")
-          ? "WOD"
-          : "AUTRE";
+      const block = workoutBlock(exercise);
 
       if (!grouped[block]) grouped[block] = [];
       grouped[block].push(exercise);
@@ -284,155 +266,23 @@ export default function CoachAthleteSessionScreen() {
                 ) : null}
 
                 <View style={{ marginTop: rounds ? 0 : 8 }}>
-                  {items.map((item: any, index: number) => {
-                    const exercise = Array.isArray(item.exercises)
-                      ? item.exercises[0]
-                      : item.exercises;
-
-                    const name = String(
-                      exercise?.name ?? `Exercice ${index + 1}`
-                    ).trim();
-
-                    const cleanNote = String(item.prescription_notes ?? "")
-                      .replace(
-                        /^(WARM\s*UP|WARMUP|STRENGTH\s*WORK|STRENGTH|RENFO|WOD)\s*[:\-–—]?\s*/i,
-                        ""
-                      )
-                      .replace(
-                        /^\d+\s*(ROUNDS?|TOURS?)\s*[:\-–—]?\s*/i,
-                        ""
-                      )
-                      .trim();
-
-                    const sets = item.prescribed_sets ?? [];
-                    const firstSet = sets[0];
-
-                    const repMatch = cleanNote.match(
-                      /^(\d+(?:[.,]\d+)?)\s*(?:REPS?)\b/i
-                    );
-
-                    const distanceMatch = cleanNote.match(
-                      /^(\d+(?:[.,]\d+)?\s*(?:M|KM))\b/i
-                    );
-
-                    const loadMatch = cleanNote.match(
-                      /@\s*(\d+(?:[.,]\d+)?)\s*KG\b/i
-                    );
-
-                    const reps =
-                      firstSet?.target_reps ??
-                      (repMatch ? repMatch[1] : null);
-
-                    const load =
-                      firstSet?.target_load_kg ??
-                      (loadMatch ? loadMatch[1] : null);
-
-                    const noteHasName =
-                      cleanNote &&
-                      cleanNote.toLowerCase().includes(name.toLowerCase());
-
-                    const compactLine = (() => {
-                      if (noteHasName) return cleanNote;
-
-                      if (distanceMatch) {
-                        return `${distanceMatch[1]} ${name.toLowerCase()}`;
-                      }
-
-                      if (reps != null) {
-                        return `${reps} ${name.toLowerCase()}${
-                          load != null ? ` @ ${load} kg` : ""
-                        }`;
-                      }
-
-                      if (cleanNote) {
-                        return `${cleanNote} ${name.toLowerCase()}`;
-                      }
-
-                      return name;
-                    })();
-
-                    const same =
-                      sets.length > 0 &&
-                      sets.every(
-                        (set: any) =>
-                          set.target_reps === firstSet?.target_reps &&
-                          set.target_load_kg === firstSet?.target_load_kg &&
-                          set.target_rpe === firstSet?.target_rpe &&
-                          set.target_rir === firstSet?.target_rir &&
-                          set.rest_seconds === firstSet?.rest_seconds
-                      );
-
-                    const strengthFallback =
-                      same && sets.length
-                        ? [
-                            firstSet?.target_reps != null
-                              ? `${sets.length} × ${firstSet.target_reps}`
-                              : null,
-                            firstSet?.target_load_kg != null
-                              ? `@ ${firstSet.target_load_kg} kg`
-                              : null,
-                            firstSet?.target_rpe != null
-                              ? `RPE ${firstSet.target_rpe}`
-                              : null,
-                            firstSet?.target_rir != null
-                              ? `RIR ${firstSet.target_rir}`
-                              : null,
-                            firstSet?.rest_seconds != null
-                              ? `repos ${Math.round(
-                                  firstSet.rest_seconds / 60
-                                )} min`
-                              : null,
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")
-                        : "";
-
-                    if (block === "STRENGTH WORK") {
-                      return (
-                        <View
-                          key={item.id ?? index}
-                          style={{ marginTop: index === 0 ? 2 : 14 }}
-                        >
-                          <Text
-                            style={{
-                              color: colors.text,
-                              fontSize: 15,
-                              fontWeight: "800",
-                            }}
-                          >
-                            {name}
+                  {buildExerciseGroups(items).map((group) => (
+                    <View key={group.id} style={group.paired ? styles.supersetGroup : undefined}>
+                      <ExerciseGroupHeader group={group} />
+                      {group.items.map((item: any) => {
+                        const exercise = Array.isArray(item.exercises) ? item.exercises[0] : item.exercises;
+                        const prescription = exercisePrescription(item);
+                        return <View key={item.id} style={{ marginBottom: 12 }}>
+                          <Text style={{ color: colors.text, fontSize: 15, fontWeight: "800" }}>
+                            {exercise?.name ?? "Exercice"}
                           </Text>
-
-                          {(cleanNote || strengthFallback) ? (
-                            <Text
-                              style={{
-                                color: colors.muted,
-                                fontSize: 13,
-                                lineHeight: 19,
-                                marginTop: 2,
-                              }}
-                            >
-                              {cleanNote || strengthFallback}
-                            </Text>
-                          ) : null}
-                        </View>
-                      );
-                    }
-
-                    return (
-                      <Text
-                        key={item.id ?? index}
-                        style={{
-                          color: colors.text,
-                          fontSize: 14,
-                          fontWeight: "600",
-                          lineHeight: 22,
-                        }}
-                      >
-                        {compactLine}
-                      </Text>
-                    );
-                  })}
+                          {prescription ? <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 2 }}>
+                            {prescription}
+                          </Text> : null}
+                        </View>;
+                      })}
+                    </View>
+                  ))}
                 </View>
 
                 {(() => {
@@ -552,22 +402,12 @@ export default function CoachAthleteSessionScreen() {
           })}
       </View>
 
-      <Text style={styles.debug}>
-        athleteId : {athleteId ?? "—"}
-      </Text>
-
-      <Text style={styles.debug}>
-        workoutTemplateId : {workoutTemplateId ?? "—"}
-      </Text>
-
-      <Text style={styles.debug}>
-        programId : {programId ?? "—"}
-      </Text>
     </ScreenScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  supersetGroup: { borderWidth: 1, borderColor: colors.yellow, borderRadius: 14, padding: 12, marginTop: 10, marginBottom: 10 },
   page: {
     padding: 20,
     paddingTop: 64,
@@ -611,10 +451,4 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
 
-  debug: {
-    color: colors.muted2,
-    fontSize: 9,
-    textAlign: "center",
-    marginTop: 4,
-  },
 });

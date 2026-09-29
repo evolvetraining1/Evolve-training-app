@@ -1,3 +1,5 @@
+import { ExerciseGroupHeader } from "@/src/components/exercise-group-header";
+import { buildExerciseGroups } from "@/src/lib/exercise-groups";
 import { ScreenScrollView } from "@/src/components/screen-scroll-view";
 
 import { useEffect, useState } from "react";
@@ -290,7 +292,10 @@ export default function ProgramWorkoutScreen() {
 
                 <View style={styles.phaseDivider} />
 
-                {exercises.map((item: any, index: number) => {
+                {buildExerciseGroups(exercises).map((group) => (
+                  <View key={group.id} style={group.paired ? styles.supersetGroup : undefined}>
+                    <ExerciseGroupHeader group={group} />
+                    {group.items.map((item: any, index: number) => {
                   const exercise = Array.isArray(item.exercises)
                     ? item.exercises[0]
                     : item.exercises;
@@ -328,7 +333,7 @@ export default function ProgramWorkoutScreen() {
                             <Text style={styles.phaseThumbnailGlyph}>＋</Text>
                           )}
                           <View style={styles.phaseNumberBadge}>
-                            <Text style={styles.phaseExerciseNumber}>{index + 1}</Text>
+                            <Text style={styles.phaseExerciseNumber}>{group.paired ? index + 1 : exercises.indexOf(item) + 1}</Text>
                           </View>
                         </View>
 
@@ -370,7 +375,9 @@ export default function ProgramWorkoutScreen() {
                       <Text style={styles.openExercise}>OUVRIR LA FICHE</Text>
                     </Pressable>
                   );
-                })}
+                    })}
+                  </View>
+                ))}
               </View>
             );
           });
@@ -386,6 +393,7 @@ export default function ProgramWorkoutScreen() {
 }
 
 const styles = StyleSheet.create({
+  supersetGroup: { borderWidth: 1, borderColor: colors.yellow, borderRadius: 14, padding: 12, marginBottom: 16 },
   screen: {
     flex: 1,
     backgroundColor: "transparent",

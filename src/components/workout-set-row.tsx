@@ -3,14 +3,15 @@ import { compactFields } from '../lib/screen-layout';
 import { colors } from '../theme';
 
 type Values = { reps: string; load: string; rpe: string };
-export function WorkoutSetRow({ number, values, done, disabled, onChange, onToggle }: {
+export function WorkoutSetRow({ number, values, done, disabled, onChange, onToggle, repsLabel = "REPS", contextLabel = "" }: {
+  repsLabel?: string; contextLabel?: string;
   number: number; values: Values; done: boolean; disabled: boolean;
   onChange: (patch: Partial<Values>) => void; onToggle: () => void;
 }) {
   const { width, fontScale } = useWindowDimensions();
   const compact = compactFields(width, fontScale);
   const toggle = <Pressable accessibilityRole="checkbox"
-    accessibilityLabel={`Valider la série ${number}`} accessibilityState={{ checked: done, disabled }}
+    accessibilityLabel={`${contextLabel ? `${contextLabel}, ` : ""}Valider la série ${number}`} accessibilityState={{ checked: done, disabled }}
     disabled={disabled} onPress={onToggle} style={[styles.check, done && styles.done]}>
     <Text style={styles.checkText}>{done ? '✓' : ''}</Text>
   </Pressable>;
@@ -18,10 +19,10 @@ export function WorkoutSetRow({ number, values, done, disabled, onChange, onTogg
     {compact ? <View style={styles.heading}><Text style={styles.label}>SÉRIE {number}</Text>{toggle}</View>
       : <Text style={styles.number}>{number}</Text>}
     <View style={[styles.fields, compact && { flex: 0, width: "100%" }]}>
-      {([['reps', 'REPS'], ['load', 'POIDS'], ['rpe', 'RPE']] as const).map(([key, label]) =>
+      {([['reps', repsLabel], ['load', 'POIDS'], ['rpe', 'RPE']] as const).map(([key, label]) =>
         <View key={key} style={[styles.field, compact && styles.compactField]}>
           {compact ? <Text style={styles.label}>{label}</Text> : null}
-          <TextInput accessibilityLabel={`${label}, série ${number}`} editable={!disabled}
+          <TextInput accessibilityLabel={`${contextLabel ? `${contextLabel}, ` : ""}${label}, série ${number}`} editable={!disabled}
             style={styles.input} keyboardType={key === 'reps' ? 'number-pad' : 'decimal-pad'}
             value={values[key]} onChangeText={(value) => onChange({ [key]: value })} />
         </View>)}
