@@ -7,6 +7,7 @@ export type SearchableFood = {
   fat100: number | null;
   fiber100: number | null;
   source: string;
+  servingGrams?: number | null;
 };
 
 const COMMON_ALIASES: Record<string, string[]> = {
