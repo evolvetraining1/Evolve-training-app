@@ -1,8 +1,9 @@
 import { ScreenScrollView } from "@/src/components/screen-scroll-view";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Image,
+  Linking,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -17,6 +18,7 @@ import * as ImagePicker from "expo-image-picker";
 import { Card, Label, PrimaryButton, ScreenHeader, goBackOrReplace } from "@/src/components/ui";
 import { localDateString } from "@/src/lib/date";
 import { supabase } from "@/src/lib/supabase";
+import { buildPhotoEntries, createFoodId, photoMimeType, portion } from "@/src/lib/meal-photo";
 import { colors } from "@/src/theme";
 
 type MealType = "breakfast" | "lunch" | "dinner" | "snack";
@@ -60,14 +62,6 @@ function round1(value: number) {
   return Math.round(value * 10) / 10;
 }
 
-function localId() {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
-function portion(value100: number, grams: number) {
-  return round1((Math.max(0, value100) * Math.max(0, grams)) / 100);
-}
-
 function errorMessage(error: unknown) {
   if (error && typeof error === "object" && "message" in error) {
     const message = String((error as { message?: unknown }).message ?? "");
@@ -93,6 +87,27 @@ export default function NutritionPhotoScreen() {
   const [analyzing, setAnalyzing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [mealNotes, setMealNotes] = useState("");
+  const [permissionBlocked, setPermissionBlocked] = useState(false);
+  const [picking, setPicking] = useState(false);
+  const [saveStarted, setSaveStarted] = useState(false);
+  const busyRef = useRef(false);
+  const mountedRef = useRef(true);
+  const pendingRowsRef = useRef<ReturnType<typeof buildPhotoEntries> | null>(null);
+  const busy = analyzing || saving || picking;
+
+  useEffect(() => {
+    mountedRef.current = true;
+    // Android may recreate the activity while the system camera is open.
+    if (Platform.OS === "android") {
+      void ImagePicker.getPendingResultAsync().then((result) => {
+        if (mountedRef.current && !busyRef.current && result && "assets" in result && !result.canceled && result.assets?.[0]) {
+          resetAnalysis(result.assets[0]);
+        }
+      }).catch(() => {});
+    }
+    return () => { mountedRef.current = false; };
+  }, []);
 
   const totals = useMemo(
     () =>
@@ -117,12 +132,20 @@ export default function NutritionPhotoScreen() {
     setFoods([]);
     setWarnings([]);
     setMessage("");
+    setMealNotes("");
+    setPermissionBlocked(false);
+    setSaveStarted(false);
+    pendingRowsRef.current = null;
   }
 
   async function takePhoto() {
+    if (busyRef.current || saveStarted) return;
+    busyRef.current = true;
+    setPicking(true);
     try {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
       if (!permission.granted) {
+        setPermissionBlocked(!permission.canAskAgain);
         setMessage("Autorise l'accès à la caméra pour photographier ton assiette.");
         return;
       }
@@ -135,20 +158,21 @@ export default function NutritionPhotoScreen() {
         exif: false,
       });
 
-      if (!result.canceled && result.assets[0]) resetAnalysis(result.assets[0]);
+      if (mountedRef.current && !result.canceled && result.assets[0]) resetAnalysis(result.assets[0]);
     } catch (error) {
       setMessage(errorMessage(error));
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setPicking(false);
     }
   }
 
   async function choosePhoto() {
+    if (busyRef.current || saveStarted) return;
+    busyRef.current = true;
+    setPicking(true);
     try {
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) {
-        setMessage("Autorise l'accès aux photos pour sélectionner ton repas.");
-        return;
-      }
-
+      // The system photo picker grants access to the selected photo only.
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["images"],
         allowsEditing: false,
@@ -158,13 +182,17 @@ export default function NutritionPhotoScreen() {
         selectionLimit: 1,
       });
 
-      if (!result.canceled && result.assets[0]) resetAnalysis(result.assets[0]);
+      if (mountedRef.current && !result.canceled && result.assets[0]) resetAnalysis(result.assets[0]);
     } catch (error) {
       setMessage(errorMessage(error));
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setPicking(false);
     }
   }
 
   async function analyzePhoto() {
+    if (busyRef.current || saveStarted) return;
     if (!photo?.base64) {
       setMessage("Reprends ou resélectionne la photo avant l'analyse.");
       return;
@@ -175,6 +203,7 @@ export default function NutritionPhotoScreen() {
       return;
     }
 
+    busyRef.current = true;
     try {
       setAnalyzing(true);
       setMessage("");
@@ -182,9 +211,11 @@ export default function NutritionPhotoScreen() {
       const { data, error } = await supabase.functions.invoke<AnalysisResult>(
         "analyze-meal-photo",
         {
+          timeout: 90_000,
           body: {
             imageBase64: photo.base64,
-            mimeType: photo.mimeType ?? "image/jpeg",
+            mimeType: photoMimeType(photo.base64),
+            mealNotes: mealNotes.trim().slice(0, 500),
             mealType,
           },
         }
@@ -200,24 +231,28 @@ export default function NutritionPhotoScreen() {
         throw new Error(remoteMessage);
       }
 
-      if (!data?.analysisId || !data.foods?.length) {
+      if (!mountedRef.current) return;
+      if (!data?.analysisId || !Array.isArray(data.foods) || !data.foods.length) {
         throw new Error("Aucun aliment n'a été reconnu sur cette photo.");
       }
 
+      const nextFoods = data.foods.map((food) => ({
+        ...food,
+        localId: createFoodId(),
+        assumptions: Array.isArray(food.assumptions) ? food.assumptions : [],
+      }));
+      // Reject malformed responses before rendering numeric controls/totals.
+      buildPhotoEntries(nextFoods, "validation", data.analysisId, mealType, localDateString());
       setAnalysisId(data.analysisId);
       setMealSummary(data.meal_summary);
       setConfidence(data.confidence);
-      setWarnings(data.warnings ?? []);
-      setFoods(
-        data.foods.map((food) => ({
-          ...food,
-          localId: localId(),
-        }))
-      );
+      setWarnings(Array.isArray(data.warnings) ? data.warnings : []);
+      setFoods(nextFoods);
     } catch (error) {
       setMessage(errorMessage(error));
     } finally {
-      setAnalyzing(false);
+      busyRef.current = false;
+      if (mountedRef.current) setAnalyzing(false);
     }
   }
 
@@ -245,7 +280,7 @@ export default function NutritionPhotoScreen() {
     setFoods((current) => [
       ...current,
       {
-        localId: localId(),
+        localId: createFoodId(),
         name: "Nouvel aliment",
         estimated_grams: 100,
         kcal_100g: 0,
@@ -261,15 +296,15 @@ export default function NutritionPhotoScreen() {
   }
 
   async function saveMeal() {
-    const validFoods = foods.filter(
-      (food) => food.name.trim() && food.estimated_grams > 0
-    );
+    if (busyRef.current) return;
+    const validFoods = foods;
 
     if (!analysisId || !validFoods.length) {
       setMessage("Ajoute au moins un aliment avec une quantité valide.");
       return;
     }
 
+    busyRef.current = true;
     try {
       setSaving(true);
       setMessage("");
@@ -282,26 +317,17 @@ export default function NutritionPhotoScreen() {
       if (userError) throw userError;
       if (!user) throw new Error("Utilisateur non connecté.");
 
-      const eatenOn = localDateString();
-      const rows = validFoods.map((food) => ({
-        user_id: user.id,
-        entry_date: eatenOn,
-        eaten_on: eatenOn,
-        meal_type: mealType,
-        food_name: food.name.trim(),
-        grams: round1(food.estimated_grams),
-        calories: portion(food.kcal_100g, food.estimated_grams),
-        protein_g: portion(food.protein_100g, food.estimated_grams),
-        carbs_g: portion(food.carbs_100g, food.estimated_grams),
-        fat_g: portion(food.fat_100g, food.estimated_grams),
-        fiber_g: portion(food.fiber_100g, food.estimated_grams),
-        source: "ai_plate",
-        ai_analysis_id: analysisId,
-      }));
-
+      if (!pendingRowsRef.current) {
+        pendingRowsRef.current = buildPhotoEntries(validFoods, user.id, analysisId, mealType, localDateString());
+      }
+      if (pendingRowsRef.current.some((row) => row.user_id !== user.id)) {
+        throw new Error("Le compte connecté a changé. Reviens au suivi nutrition avant de recommencer.");
+      }
+      setSaveStarted(true);
+      // Stable row IDs + ignoreDuplicates make retries safe if the response was lost.
       const { error: insertError } = await supabase
         .from("nutrition_entries")
-        .insert(rows);
+        .upsert(pendingRowsRef.current, { onConflict: "id", ignoreDuplicates: true });
       if (insertError) throw insertError;
 
       const correctedFoods = validFoods.map(({ localId: _, ...food }) => food);
@@ -321,7 +347,8 @@ export default function NutritionPhotoScreen() {
     } catch (error) {
       setMessage(errorMessage(error));
     } finally {
-      setSaving(false);
+      busyRef.current = false;
+      if (mountedRef.current) setSaving(false);
     }
   }
 
@@ -349,6 +376,7 @@ export default function NutritionPhotoScreen() {
           {meals.map((meal) => (
             <Pressable
               key={meal.key}
+              disabled={busy || saveStarted}
               onPress={() => setMealType(meal.key)}
               style={[
                 styles.mealButton,
@@ -381,24 +409,33 @@ export default function NutritionPhotoScreen() {
           )}
 
           <View style={styles.photoActions}>
-            <Pressable style={styles.photoActionPrimary} onPress={() => void takePhoto()}>
+            <Pressable style={styles.photoActionPrimary} disabled={busy || saveStarted} onPress={() => void takePhoto()}>
               <Text style={styles.photoActionPrimaryText}>PRENDRE UNE PHOTO</Text>
             </Pressable>
-            <Pressable style={styles.photoAction} onPress={() => void choosePhoto()}>
+            <Pressable style={styles.photoAction} disabled={busy || saveStarted} onPress={() => void choosePhoto()}>
               <Text style={styles.photoActionText}>GALERIE</Text>
             </Pressable>
           </View>
 
-          {photo ? (
+          {photo && !analysisId ? (
+            <View>
+              <Text style={styles.inputLabel}>PRÉCISIONS FACULTATIVES</Text>
+              <TextInput value={mealNotes} onChangeText={setMealNotes} editable={!busy}
+                maxLength={500} multiline style={styles.notesInput}
+                placeholder="Ex. : pâtes pesées cuites, une cuillère d'huile, sauce à part…"
+                placeholderTextColor={colors.muted2} />
+            </View>
+          ) : null}
+          {photo && !analysisId ? (
             <PrimaryButton
               label={analyzing ? "ANALYSE EN COURS..." : "ANALYSER L'ASSIETTE"}
               onPress={() => void analyzePhoto()}
-              disabled={analyzing}
+              disabled={busy || saveStarted}
             />
           ) : null}
 
           <Text style={styles.privacyText}>
-            La photo est analysée à la demande et n'est pas enregistrée dans ton journal.
+            En lançant l'analyse, tu envoies cette photo à notre service d'analyse IA (OpenAI). Seuls les aliments et estimations sont enregistrés dans ton journal, pas la photo.
           </Text>
         </Card>
 
@@ -412,6 +449,10 @@ export default function NutritionPhotoScreen() {
         ) : null}
 
         {message ? <Text style={styles.error}>{message}</Text> : null}
+        {permissionBlocked ? (
+          <PrimaryButton label="OUVRIR LES RÉGLAGES" onPress={() => { void Linking.openSettings().catch(() => setMessage("Ouvre les réglages de ton téléphone pour autoriser la caméra.")); }} />
+        ) : null}
+        {saveStarted && !saving ? <Text style={styles.sectionHelp}>Si l'enregistrement a été interrompu, réessaie : le repas ne sera pas ajouté deux fois.</Text> : null}
 
         {analysisId ? (
           <>
@@ -429,7 +470,7 @@ export default function NutritionPhotoScreen() {
                 >
                   <Text style={styles.confidenceText}>
                     {confidence === "high"
-                      ? "FIABLE"
+                      ? "À CONFIRMER"
                       : confidence === "medium"
                         ? "MOYEN"
                         : "À VÉRIFIER"}
@@ -470,7 +511,7 @@ export default function NutritionPhotoScreen() {
                   Corrige surtout les grammes, l'huile et les sauces.
                 </Text>
               </View>
-              <Pressable style={styles.addButton} onPress={addFood}>
+              <Pressable disabled={busy || saveStarted} style={styles.addButton} onPress={addFood}>
                 <Text style={styles.addButtonText}>＋ AJOUTER</Text>
               </Pressable>
             </View>
@@ -480,6 +521,7 @@ export default function NutritionPhotoScreen() {
                 <View style={styles.foodTitleRow}>
                   <Text style={styles.foodNumber}>{String(index + 1).padStart(2, "0")}</Text>
                   <TextInput
+                    editable={!busy && !saveStarted}
                     value={food.name}
                     onChangeText={(value) => updateFood(food.localId, { name: value })}
                     style={styles.foodNameInput}
@@ -487,6 +529,7 @@ export default function NutritionPhotoScreen() {
                     placeholderTextColor={colors.muted2}
                   />
                   <Pressable
+                    disabled={busy || saveStarted}
                     style={styles.removeButton}
                     onPress={() =>
                       setFoods((current) =>
@@ -502,6 +545,7 @@ export default function NutritionPhotoScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.inputLabel}>QUANTITÉ ESTIMÉE</Text>
                     <TextInput
+                      editable={!busy && !saveStarted}
                       value={String(food.estimated_grams)}
                       onChangeText={(value) =>
                         updateNumber(food.localId, "estimated_grams", value)
@@ -530,6 +574,7 @@ export default function NutritionPhotoScreen() {
                   ] as const).map(([field, label, value]) => (
                     <View key={field} style={styles.macroField}>
                       <TextInput
+                        editable={!busy && !saveStarted}
                         value={String(value)}
                         onChangeText={(text) => updateNumber(food.localId, field, text)}
                         keyboardType="decimal-pad"
@@ -565,7 +610,7 @@ export default function NutritionPhotoScreen() {
             <PrimaryButton
               label={saving ? "ENREGISTREMENT..." : "AJOUTER AU JOURNAL"}
               onPress={() => void saveMeal()}
-              disabled={saving || !foods.length}
+              disabled={busy || !foods.length}
             />
           </>
         ) : null}
@@ -597,6 +642,7 @@ const styles = StyleSheet.create({
   mealButtonActive: { borderColor: colors.yellow, backgroundColor: "#191500" },
   mealText: { color: colors.muted, fontSize: 12, fontWeight: "800" },
   mealTextActive: { color: colors.yellow },
+  notesInput: { color: colors.text, backgroundColor: colors.surface2, borderRadius: 12, padding: 12, minHeight: 72, marginTop: 8, textAlignVertical: "top" },
   photoCard: { gap: 14, marginBottom: 16 },
   photo: { width: "100%", height: 320, borderRadius: 16, backgroundColor: colors.surface2 },
   photoEmpty: {

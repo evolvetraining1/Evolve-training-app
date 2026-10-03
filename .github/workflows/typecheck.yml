@@ -30,3 +30,10 @@ jobs:
 
       - name: Superset prescription and rendering regression tests
         run: node scripts/test-exercise-groups.cjs
+
+
+      - name: Nutrition search and photo regression tests
+        run: node scripts/test-nutrition.cjs
+
+      - name: Meal photo service contract tests
+        run: node scripts/test-meal-photo-service.cjs

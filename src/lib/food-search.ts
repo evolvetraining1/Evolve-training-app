@@ -21,7 +21,7 @@ const COMMON_ALIASES: Record<string, string[]> = {
   boeuf: ["boeuf", "steak", "steak hache"],
   "steak hache": ["steak hache", "boeuf hache"],
   riz: ["riz"],
-  pates: ["pate", "pates", "spaghetti", "macaroni"],
+  pates: ["pates", "spaghetti", "macaroni", "tagliatelles", "penne", "nouilles"],
   patate: ["pomme de terre", "patate"],
   "patate douce": ["patate douce"],
   saumon: ["saumon"],
@@ -64,9 +64,14 @@ function queryVariants(query: string) {
 
   const variants = new Set<string>([normalized]);
 
-  for (const [alias, values] of Object.entries(COMMON_ALIASES)) {
-    if (normalized === alias || normalized.includes(alias)) {
-      values.forEach((value) => variants.add(normalizeFoodText(value)));
+  // Replace a whole phrase, keeping every qualifier ("riz complet", "poulet cru").
+  const entry = Object.entries(COMMON_ALIASES)
+    .sort(([a], [b]) => b.length - a.length)
+    .find(([alias]) => (` ${normalized} `).includes(` ${alias} `));
+  if (entry) {
+    const [alias, values] = entry;
+    for (const value of values) {
+      variants.add((` ${normalized} `).replace(` ${alias} `, ` ${value} `).trim());
     }
   }
 
@@ -82,36 +87,72 @@ function normalizedFoodName(food: SearchableFood) {
   return normalized;
 }
 
-function scoreFood(food: SearchableFood, variants: string[]) {
-  const normalizedName = normalizedFoodName(food);
-  if (!normalizedName) return -1;
+const STOP_WORDS = new Set(["a", "au", "aux", "de", "des", "d", "du", "en", "et", "la", "le", "les"]);
 
+function words(value: string) {
+  return value.split(" ").filter((word) => word && !STOP_WORDS.has(word));
+}
+
+function wordMatches(name: string, query: string) {
+  if (name === query) return true;
+  // Plurals, without confusing pâtes with pâte or pâté.
+  if ([name, query].some((word) => word === "pate" || word === "pates")) return false;
+  return name.replace(/s$/, "") === query.replace(/s$/, "");
+}
+
+function scoreFood(food: SearchableFood, variants: string[], query: string) {
+  const name = normalizedFoodName(food);
+  if (!name) return -1;
+  const nameWords = words(name);
+  const pastaQuery = words(normalizeFoodText(query)).includes("pates") &&
+    !/(^|[\s,(])pâtés?(?=$|[\s,)])/iu.test(query) &&
+    !/feuillete|brise|sable|pizza|tartiner|amande/.test(normalizeFoodText(query));
+  if (pastaQuery && (/(^|[\s,(])pâtés?(?=$|[\s,)])/iu.test(food.name) ||
+      /\b(pate|feuilletee?s?|brisee?s?|sablee?s?|tartiner|pizza|courge)\b/.test(name))) return -1;
+
+  const explicitPate = /(^|[\s,(])pâtés?(?=$|[\s,)])/iu.test(query);
+  if (explicitPate && !/(^|[\s,(])pâtés?(?=$|[\s,)])/iu.test(food.name)) return -1;
   let best = -1;
-
-  for (const variant of variants) {
-    if (normalizedName === variant) best = Math.max(best, 1000);
-    if (normalizedName.startsWith(`${variant} `)) best = Math.max(best, 900);
-    if (normalizedName.includes(variant)) best = Math.max(best, 700);
-
-    const tokens = variant.split(" ").filter(Boolean);
-    if (tokens.length && tokens.every((token) => normalizedName.includes(token))) {
-      best = Math.max(best, 500 + tokens.length * 10);
+  variants.forEach((variant, index) => {
+    const tokens = words(variant);
+    if (!tokens.length) return;
+    const complete = tokens.every((token) => nameWords.some((word) => wordMatches(word, token)));
+    // Prefix completion only on the final unfinished word, never in the middle of a word.
+    const prefix = tokens.every((token, i) => nameWords.some((word) =>
+      wordMatches(word, token) || (i === tokens.length - 1 && token.length >= 3 && word.startsWith(token))));
+    let score = -1;
+    if (complete) {
+      score = name === variant ? 1100 : name.startsWith(`${variant} `) ? 950 :
+        (` ${name} `).includes(` ${variant} `) ? 850 : 700;
+    } else if (prefix && !pastaQuery) score = 400;
+    if (score < 0) return;
+    if (index > 0) score -= 25;
+    if (pastaQuery && /^(pates (seches|fraiches)|spaghetti|macaroni|tagliatelles|penne|nouilles)/.test(name) &&
+        !/farci|sauce|carbonara|bolognaise/.test(name)) {
+      score += 120;
+      if (name.includes("standard")) score += 60;
+      if (name.includes("cuites")) score += 10;
     }
-  }
-
+    best = Math.max(best, score);
+  });
   return best;
 }
 
 export function searchFoods<T extends SearchableFood>(foods: T[], query: string, limit = 16) {
   const variants = queryVariants(query);
   if (!variants.length || normalizeFoodText(query).length < 2) return [];
-
+  const seen = new Set<string>();
   return foods
-    .map((food) => ({ food, score: scoreFood(food, variants) }))
+    .map((food) => ({ food, score: scoreFood(food, variants, query) }))
     .filter((item) => item.score >= 0)
-    .sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score;
-      return a.food.name.localeCompare(b.food.name, "fr");
+    .sort((a, b) => b.score - a.score ||
+      Number(b.food.source === "ciqual_2025") - Number(a.food.source === "ciqual_2025") ||
+      a.food.name.localeCompare(b.food.name, "fr"))
+    .filter(({ food }) => {
+      const key = normalizedFoodName(food);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
     })
     .slice(0, limit)
     .map((item) => item.food);
