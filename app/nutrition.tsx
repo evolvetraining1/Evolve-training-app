@@ -346,6 +346,7 @@ export default function NutritionScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      lastLoadAtRef.current = 0; // Refresh after adding an analysed meal.
       void load();
     }, [load])
   );
@@ -374,6 +375,7 @@ export default function NutritionScreen() {
       return;
     }
 
+    setRemoteFoods([]);
     let cancelled = false;
     const controller = new AbortController();
 
@@ -409,24 +411,11 @@ export default function NutritionScreen() {
     const query = deferredFoodName.trim();
     if (normalizeFoodText(query).length < 2) return [];
 
-    const local = searchFoods(
-      ciqualFoods as CiqualFood[],
+    return searchFoods(
+      [...(ciqualFoods as CiqualFood[]), ...communityFoods, ...remoteFoods],
       query,
-      12
+      16
     );
-
-    const community = searchFoods(communityFoods, query, 10);
-    const remote = searchFoods(remoteFoods, query, 8);
-    const seen = new Set<string>();
-
-    return [...community, ...local, ...remote]
-      .filter((food) => {
-        const key = normalizeFoodText(food.name);
-        if (!key || seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      })
-      .slice(0, 16);
   }, [deferredFoodName, selectedFood, remoteFoods, communityFoods]);
 
   const calculated = useMemo(() => {
@@ -1085,6 +1074,31 @@ export default function NutritionScreen() {
         </Pressable>
       </View>
 
+      <Pressable
+        style={styles.aiPlateCard}
+        onPress={() =>
+          router.push({
+            pathname: "/nutrition-photo",
+            params: { mealType },
+          })
+        }
+      >
+        <View style={styles.aiPlateIcon}>
+          <Text style={styles.aiPlateIconText}>◎</Text>
+        </View>
+
+        <View style={styles.aiPlateCopy}>
+          <Text style={styles.aiPlateEyebrow}>ANALYSE IA</Text>
+          <Text style={styles.aiPlateTitle}>Photographier mon assiette</Text>
+          <Text style={styles.aiPlateSubtitle}>
+            Aliments, quantités et macros estimés, puis vérifiés par toi.
+          </Text>
+        </View>
+
+        <Text style={styles.aiPlateArrow}>›</Text>
+      </Pressable>
+
+
       {showSettings ? (
         <Card style={styles.settingsCard}>
           <Label>Réglages nutrition</Label>
@@ -1251,29 +1265,6 @@ export default function NutritionScreen() {
         </View>
       </Card>
 
-      <Pressable
-        style={styles.aiPlateCard}
-        onPress={() =>
-          router.push({
-            pathname: "/nutrition-photo",
-            params: { mealType },
-          })
-        }
-      >
-        <View style={styles.aiPlateIcon}>
-          <Text style={styles.aiPlateIconText}>◎</Text>
-        </View>
-
-        <View style={styles.aiPlateCopy}>
-          <Text style={styles.aiPlateEyebrow}>ANALYSE IA</Text>
-          <Text style={styles.aiPlateTitle}>Photographier mon assiette</Text>
-          <Text style={styles.aiPlateSubtitle}>
-            Aliments, quantités et macros estimés, puis vérifiés par toi.
-          </Text>
-        </View>
-
-        <Text style={styles.aiPlateArrow}>›</Text>
-      </Pressable>
 
       <Card style={styles.diabetesCard}>
         <Pressable
