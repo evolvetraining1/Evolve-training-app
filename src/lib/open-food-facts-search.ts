@@ -7,12 +7,15 @@ type OffProduct = {
   generic_name_fr?: string;
   generic_name?: string;
   brands?: string;
+  serving_quantity?: number;
+  serving_quantity_unit?: string;
   nutriments?: Record<string, unknown>;
 };
 
 function finiteNumber(value: unknown): number | null {
+  if (value == null || value === "") return null;
   const number = Number(value);
-  return Number.isFinite(number) ? number : null;
+  return Number.isFinite(number) && number >= 0 ? number : null;
 }
 
 function remoteSearchTerm(query: string) {
@@ -36,8 +39,9 @@ function remoteSearchTerm(query: string) {
 
 export async function searchOpenFoodFactsProducts(
   query: string,
-  limit = 12,
-  signal?: AbortSignal
+  limit = 50,
+  signal?: AbortSignal,
+  page = 1
 ): Promise<SearchableFood[]> {
   const trimmed = remoteSearchTerm(query);
   if (trimmed.length < 3) return [];
@@ -47,9 +51,11 @@ export async function searchOpenFoodFactsProducts(
     search_simple: "1",
     action: "process",
     json: "1",
-    page_size: String(Math.max(1, Math.min(limit, 20))),
+    page_size: String(Math.max(1, Math.min(limit, 50))),
+    page: String(Math.max(1, Math.min(Math.floor(page), 5))),
+    lc: "fr",
     fields:
-      "code,product_name_fr,product_name,generic_name_fr,generic_name,brands,nutriments",
+      "code,product_name_fr,product_name,generic_name_fr,generic_name,brands,nutriments,serving_quantity,serving_quantity_unit",
   });
 
   const response = await fetch(
@@ -96,9 +102,11 @@ export async function searchOpenFoodFactsProducts(
         fat100: finiteNumber(nutriments.fat_100g),
         fiber100: finiteNumber(nutriments.fiber_100g),
         source: "open_food_facts",
+        servingGrams: product.serving_quantity_unit === "g" ? finiteNumber(product.serving_quantity) : null,
       };
     })
     .filter((product): product is SearchableFood => product !== null)
+    .filter(product => [product.kcal100, product.protein100, product.carbs100, product.fat100].some(value => value != null))
     .filter(
       (product, index, all) =>
         index === all.findIndex((candidate) => candidate.code === product.code)

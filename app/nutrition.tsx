@@ -24,6 +24,8 @@ import { localDateString } from "@/src/lib/date";
 import { normalizeFoodText, searchFoods, type SearchableFood } from "@/src/lib/food-search";
 import { searchOpenFoodFactsProducts } from "@/src/lib/open-food-facts-search";
 
+import { defaultUnitGrams, portionGrams, portionNumber, portionEntryName, type PortionUnit } from "@/src/lib/food-portions";
+
 const ciqualFoods = require("../src/data/ciqual-foods.json");
 
 type MealType = "breakfast" | "lunch" | "dinner" | "snack";
@@ -152,6 +154,19 @@ export default function NutritionScreen() {
   const [mealType, setMealType] = useState<MealType>("lunch");
   const [foodName, setFoodName] = useState("");
   const [grams, setGrams] = useState("");
+  const [portionUnit, setPortionUnit] = useState<PortionUnit>("g");
+  const [gramsPerUnit, setGramsPerUnit] = useState("");
+  const [gramsPerMl, setGramsPerMl] = useState("1");
+  const entrySavingRef = useRef(false);
+  const [searchLimit, setSearchLimit] = useState(16);
+  const [remotePage, setRemotePage] = useState(0);
+  const [remoteHasMore, setRemoteHasMore] = useState(true);
+  const [remoteLoading, setRemoteLoading] = useState(false);
+  const [remoteMessage, setRemoteMessage] = useState("");
+  const remoteController = useRef<AbortController | null>(null);
+  const remoteGeneration = useRef(0);
+  const remoteBusy = useRef(false);
+  const lastRemoteRequest = useRef(0);
   const [selectedFood, setSelectedFood] = useState<CiqualFood | null>(null);
   const [remoteFoods, setRemoteFoods] = useState<CiqualFood[]>([]);
   const [communityFoods, setCommunityFoods] = useState<CiqualFood[]>([]);
@@ -328,6 +343,7 @@ export default function NutritionScreen() {
               fiber100:
                 product.fiber100 != null ? Number(product.fiber100) : null,
               source: "evolve_community",
+              servingGrams: product.serving_size_g,
             })
           )
         );
@@ -368,42 +384,62 @@ export default function NutritionScreen() {
   const deferredFoodName = useDeferredValue(foodName);
 
   useEffect(() => {
-    const query = deferredFoodName.trim();
+    const defaultGrams = selectedFood ? defaultUnitGrams(selectedFood.name, selectedFood.servingGrams) : null;
+    setPortionUnit(defaultGrams != null ? "unit" : "g");
+    setGramsPerUnit(defaultGrams != null ? String(defaultGrams) : "");
+    setGramsPerMl("1");
+    setGrams("");
+  }, [selectedFood]);
 
-    if (selectedFood || query.length < 3) {
-      setRemoteFoods([]);
-      return;
-    }
-
+  useEffect(() => {
+    remoteGeneration.current += 1;
+    remoteController.current?.abort();
+    remoteBusy.current = false;
+    setRemoteLoading(false);
     setRemoteFoods([]);
-    let cancelled = false;
-    const controller = new AbortController();
+    setRemotePage(0);
+    setRemoteHasMore(true);
+    setRemoteMessage("");
+    setSearchLimit(16);
+    return () => { remoteGeneration.current += 1; remoteController.current?.abort(); };
+  }, [foodName, selectedFood]);
 
-    const normalizedQuery = normalizeFoodText(query);
-    const cached = remoteSearchCache.current.get(normalizedQuery);
-
-    if (cached) {
-      setRemoteFoods(cached);
+  async function loadMoreProducts() {
+    const query = foodName.trim();
+    if (selectedFood || query.length < 3 || remoteBusy.current) return;
+    const page = remotePage + 1;
+    if (page > 5 || !remoteHasMore) return;
+    const key = `${normalizeFoodText(query)}:${page}`;
+    const cached = remoteSearchCache.current.get(key);
+    if (!cached && Date.now() - lastRemoteRequest.current < 6500) {
+      setRemoteMessage("Patiente quelques secondes avant une nouvelle recherche de marques.");
       return;
     }
-
-    const timeout = setTimeout(() => {
-      void searchOpenFoodFactsProducts(query, 12, controller.signal)
-        .then((results) => {
-          remoteSearchCache.current.set(normalizedQuery, results);
-          if (!cancelled) setRemoteFoods(results);
-        })
-        .catch(() => {
-          if (!cancelled) setRemoteFoods([]);
-        });
-    }, 1200);
-
-    return () => {
-      cancelled = true;
-      controller.abort();
+    remoteBusy.current = true;
+    setRemoteLoading(true);
+    setRemoteMessage("");
+    const generation = remoteGeneration.current;
+    const controller = new AbortController();
+    remoteController.current = controller;
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    try {
+      if (!cached) lastRemoteRequest.current = Date.now();
+      const products = cached ?? await searchOpenFoodFactsProducts(query, 50, controller.signal, page);
+      if (generation !== remoteGeneration.current) return;
+      remoteSearchCache.current.set(key, products);
+      if (remoteSearchCache.current.size > 40) remoteSearchCache.current.delete(remoteSearchCache.current.keys().next().value!);
+      setRemoteFoods(current => [...current, ...products].filter((food, index, all) => all.findIndex(item => item.code === food.code) === index));
+      setRemotePage(page);
+      setRemoteHasMore(page < 5 && products.length > 0);
+      setSearchLimit(current => current + 50);
+      setRemoteMessage(products.length ? "Produits de marque chargés. Vérifie les valeurs avec l’étiquette." : "Aucun autre produit trouvé pour cette recherche.");
+    } catch {
+      if (generation === remoteGeneration.current) setRemoteMessage("La recherche en ligne est indisponible. Les aliments Ciqual restent accessibles ; réessaie dans un instant.");
+    } finally {
       clearTimeout(timeout);
-    };
-  }, [deferredFoodName, selectedFood]);
+      if (generation === remoteGeneration.current) { remoteBusy.current = false; setRemoteLoading(false); }
+    }
+  }
 
   const suggestions = useMemo(() => {
     if (selectedFood) return [];
@@ -414,12 +450,14 @@ export default function NutritionScreen() {
     return searchFoods(
       [...(ciqualFoods as CiqualFood[]), ...communityFoods, ...remoteFoods],
       query,
-      16
+      searchLimit
     );
-  }, [deferredFoodName, selectedFood, remoteFoods, communityFoods]);
+  }, [deferredFoodName, selectedFood, remoteFoods, communityFoods, searchLimit]);
+
+  const equivalentGrams = portionGrams(grams, portionUnit, gramsPerUnit, gramsPerMl);
 
   const calculated = useMemo(() => {
-    const quantity = numberValue(grams);
+    const quantity = equivalentGrams ?? 0;
 
     if (!selectedFood || quantity <= 0) {
       return {
@@ -438,7 +476,7 @@ export default function NutritionScreen() {
       fat: calculateValue(selectedFood.fat100, quantity),
       fiber: calculateValue(selectedFood.fiber100, quantity),
     };
-  }, [selectedFood, grams]);
+  }, [selectedFood, equivalentGrams]);
 
   function chooseFood(food: CiqualFood) {
     setSelectedFood(food);
@@ -491,6 +529,7 @@ export default function NutritionScreen() {
       fat100: product.fat100 != null ? Number(product.fat100) : null,
       fiber100: product.fiber100 != null ? Number(product.fiber100) : null,
       source: "evolve_community",
+      servingGrams: product.serving_size_g,
     };
   }
 
@@ -762,21 +801,23 @@ export default function NutritionScreen() {
   }
 
   async function saveEntry() {
+    if (entrySavingRef.current) return;
     try {
       setMessage("");
 
       if (!selectedFood) {
-        setMessage("Sélectionne un aliment dans les résultats Ciqual.");
+        setMessage("Sélectionne un aliment dans les résultats.");
         return;
       }
 
-      const quantity = numberValue(grams);
+      const quantity = equivalentGrams;
 
-      if (quantity <= 0) {
-        setMessage("Entre un grammage valide.");
+      if (quantity == null) {
+        setMessage("Entre une quantité et une conversion valides (équivalent de 0,1 à 10 000 g).");
         return;
       }
 
+      entrySavingRef.current = true;
       setSaving(true);
 
       const {
@@ -789,7 +830,7 @@ export default function NutritionScreen() {
 
       const { error } = await supabase.from("nutrition_entries").insert({
         user_id: user.id,
-        food_name: selectedFood.name,
+        food_name: portionEntryName(selectedFood.name, grams, portionUnit),
         grams: quantity,
         calories: calculated.calories,
         protein_g: calculated.protein,
@@ -818,6 +859,7 @@ export default function NutritionScreen() {
     } catch (e: any) {
       setMessage(e?.message ?? "Erreur lors de l'enregistrement.");
     } finally {
+      entrySavingRef.current = false;
       setSaving(false);
     }
   }
@@ -1735,6 +1777,15 @@ export default function NutritionScreen() {
           </View>
         ) : null}
 
+        {!selectedFood && foodName.trim().length >= 2 ? (
+          <View style={{ gap: 10 }}>
+            <Text style={styles.suggestionMeta}>3 484 aliments Ciqual hors ligne + produits Evolve et recherche de marques en ligne.</Text>
+            {suggestions.length >= searchLimit ? <Pressable onPress={() => setSearchLimit(value => value + 24)} style={styles.mealButton}><Text style={styles.mealText}>VOIR PLUS D’ALIMENTS</Text></Pressable> : null}
+            {foodName.trim().length >= 3 && remoteHasMore ? <Pressable disabled={remoteLoading} onPress={() => void loadMoreProducts()} style={styles.mealButton}><Text style={styles.mealText}>{remoteLoading ? "RECHERCHE EN COURS…" : remotePage ? "PLUS DE PRODUITS DE MARQUE" : "RECHERCHER LES PRODUITS DE MARQUE"}</Text></Pressable> : null}
+            {remoteMessage ? <Text accessibilityLiveRegion="polite" style={styles.suggestionMeta}>{remoteMessage}</Text> : null}
+          </View>
+        ) : null}
+
         {selectedFood ? (
           <View style={styles.selectedFood}>
             <Text style={styles.selectedLabel}>ALIMENT SÉLECTIONNÉ</Text>
@@ -1742,29 +1793,39 @@ export default function NutritionScreen() {
             <Text style={styles.selectedSource}>
               Source : {selectedFood.source === "open_food_facts"
                 ? "Open Food Facts"
-                : "Ciqual 2025"}
+                : selectedFood.source === "evolve_community" ? "Communauté Evolve" : "Ciqual 2025"}
             </Text>
           </View>
         ) : null}
 
         <Text style={styles.fieldLabel}>Quantité consommée</Text>
-
-        <View style={styles.gramsRow}>
-          <TextInput
-            value={grams}
-            onChangeText={setGrams}
-            keyboardType="decimal-pad"
-            placeholder="Ex. 150"
-            placeholderTextColor={colors.muted}
-            style={[styles.input, { flex: 1 }]}
-          />
-          <Text style={styles.gramsUnit}>g</Text>
+        <View style={styles.mealRow}>
+          {([{ key: "g", label: "Grammes" }, { key: "ml", label: "Millilitres" }, { key: "unit", label: "Unités" }] as const).map(item => (
+            <Pressable key={item.key} accessibilityRole="button" accessibilityState={{ selected: portionUnit === item.key }} onPress={() => { if (portionUnit !== item.key) { setPortionUnit(item.key); setGrams(""); } }} style={[styles.mealButton, portionUnit === item.key && styles.mealButtonActive]}>
+              <Text style={[styles.mealText, portionUnit === item.key && styles.mealTextActive]}>{item.label}</Text>
+            </Pressable>
+          ))}
         </View>
+        <View style={styles.gramsRow}>
+          <TextInput value={grams} onChangeText={setGrams} keyboardType="decimal-pad" accessibilityLabel={portionUnit === "unit" ? "Nombre d’unités consommées" : "Quantité consommée"} placeholder={portionUnit === "unit" ? "Ex. 2" : "Ex. 150"} placeholderTextColor={colors.muted} style={[styles.input, { flex: 1 }]} />
+          <Text style={styles.gramsUnit}>{portionUnit === "unit" ? "unité(s)" : portionUnit}</Text>
+        </View>
+        {portionUnit === "unit" ? <View>
+          <Text style={styles.fieldLabel}>Poids comestible d’une unité (g)</Text>
+          <TextInput value={gramsPerUnit} onChangeText={setGramsPerUnit} keyboardType="decimal-pad" placeholder="Ex. 50" accessibilityLabel="Grammes par unité" placeholderTextColor={colors.muted} style={styles.input} />
+          <Text style={styles.suggestionMeta}>Poids indicatif à ajuster selon la taille, l’étiquette ou une pesée. Pour les œufs, le poids doit être sans coquille.</Text>
+        </View> : null}
+        {portionUnit === "ml" ? <View>
+          <Text style={styles.fieldLabel}>Poids de 1 ml (g)</Text>
+          <TextInput value={gramsPerMl} onChangeText={setGramsPerMl} keyboardType="decimal-pad" accessibilityLabel="Grammes par millilitre" placeholderTextColor={colors.muted} style={styles.input} />
+          <Text style={styles.suggestionMeta}>Conversion approximative : 1 ml = 1 g par défaut. Elle varie selon le liquide, notamment les huiles et sirops. Ajuste à partir du poids et du volume mesurés ; pour 100 ml pesant 92 g, saisis 0,92.</Text>
+        </View> : null}
+        {selectedFood && selectedFood.carbs100 == null ? <Text style={styles.suggestionMeta}>Glucides non renseignés : le total sera incomplet. Vérifie l’étiquette avant d’utiliser ce repas pour ton suivi glycémique.</Text> : null}
 
-        {selectedFood && numberValue(grams) > 0 ? (
+        {selectedFood && equivalentGrams != null ? (
           <View style={styles.calculationCard}>
             <Text style={styles.calculationLabel}>
-              POUR {numberValue(grams)} G
+              POUR {portionNumber(grams)} {portionUnit === "unit" ? "UNITÉ(S)" : portionUnit.toUpperCase()}{portionUnit !== "g" ? ` · ${equivalentGrams} G` : ""}
             </Text>
 
             <Text style={styles.calculationCalories}>

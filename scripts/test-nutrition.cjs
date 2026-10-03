@@ -42,3 +42,48 @@ for(const patch of [{estimated_grams:NaN},{estimated_grams:0},{estimated_grams:-
   assert.throws(()=>buildPhotoEntries([{...food,...patch}],'u','a','lunch','2026-10-03'));
 }
 console.log('Nutrition regression tests passed: search relevance, accents, qualifiers, cross-source ordering, MIME, portions, validation and stable retry IDs.');
+
+const {portionGrams, defaultUnitGrams, portionNumber, portionEntryName} = load('src/lib/food-portions.ts');
+assert.equal(portionGrams('2','unit','50','1'),100);
+assert.equal(portionGrams('0,5','unit','50','1'),25);
+assert.equal(portionGrams('200','ml','','1'),200);
+assert.equal(portionGrams('100','ml','','0,92'),92);
+assert.equal(portionGrams('150','g','',''),150);
+for(const amount of ['', '-1', 'Infinity', 'NaN', '1e3', '1.2.3', '0', '10001']) assert.equal(portionGrams(amount,'g','','1'),null);
+assert.equal(portionGrams('2','unit','','1'),null);
+assert.equal(portionGrams('2','unit','-20','1'),null);
+assert.equal(portionGrams('200','ml','',''),null);
+assert.equal(defaultUnitGrams('Oeuf dur'),50);
+assert.equal(defaultUnitGrams("Oeuf, blanc (blanc d'oeuf), cuit"),30);
+assert.equal(defaultUnitGrams("Oeuf, jaune (jaune d'oeuf), cru"),18);
+for(const name of ['Pâtes aux oeufs', 'Oeuf de caille, cru', 'Oeuf au jambon en gelée', 'Oeuf, blanc (blanc d\'oeuf), en poudre', 'Oeufs de saumon']) assert.equal(defaultUnitGrams(name),null);
+assert.equal(defaultUnitGrams('Yaourt',125),125);
+assert.equal(portionEntryName('Œuf dur','2','unit'),'Œuf dur (2 unité(s))');
+console.log('Portion tests passed: eggs, fractions, ml density, invalid inputs and legacy gram storage.');
+
+(async () => {
+  const {searchOpenFoodFactsProducts} = load('src/lib/open-food-facts-search.ts');
+  const originalFetch = global.fetch;
+  try {
+    let requested;
+    global.fetch = async (url) => {
+      requested = new URL(url);
+      return {ok:true,json:async()=>({products:[
+        {code:'1',product_name_fr:'Skyr nature',brands:'Marque',serving_quantity:125,serving_quantity_unit:'g',nutriments:{'energy-kcal_100g':60,proteins_100g:10,carbohydrates_100g:null}},
+        {code:'2',product_name_fr:'Produit sans données',nutriments:{}},
+        {code:'3',product_name_fr:'Lait',serving_quantity:200,serving_quantity_unit:'ml',nutriments:{'energy-kcal_100g':45}},
+        {code:'1',product_name_fr:'Doublon',nutriments:{proteins_100g:10}}
+      ]})};
+    };
+    const products = await searchOpenFoodFactsProducts('skyr',50,undefined,2);
+    assert.equal(requested.searchParams.get('page'),'2');
+    assert.equal(requested.searchParams.get('page_size'),'50');
+    assert.equal(products.length,2);
+    assert.equal(products[0].carbs100,null,'Missing carbohydrates must not become zero');
+    assert.equal(products[0].servingGrams,125);
+    assert.equal(products[1].servingGrams,null,'A volume serving must not be treated as a gram weight');
+    global.fetch = async () => ({ok:false});
+    await assert.rejects(()=>searchOpenFoodFactsProducts('riz',50));
+    console.log('Extended catalogue tests passed: pagination, serving units, missing nutrients, duplicates and provider failure.');
+  } finally { global.fetch = originalFetch; }
+})().catch(error => { console.error(error); process.exitCode=1; });
