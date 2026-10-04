@@ -1,3 +1,4 @@
+import { withoutRpe } from '@/src/lib/athlete-workout';
 import { ExerciseGroupHeader } from "@/src/components/exercise-group-header";
 import { buildExerciseGroups } from "@/src/lib/exercise-groups";
 import { ScreenScrollView } from "@/src/components/screen-scroll-view";
@@ -29,9 +30,6 @@ function displaySet(set: any) {
     parts.push(`${set.target_load_kg} kg`);
   }
 
-  if (set.target_rpe != null) {
-    parts.push(`RPE ${set.target_rpe}`);
-  }
 
   if (set.target_rir != null) {
     parts.push(`RIR ${set.target_rir}`);
@@ -82,7 +80,7 @@ function cleanPrescription(notes?: string) {
     ""
   );
 
-  return value.trim();
+  return withoutRpe(value);
 }
 
 function estimateWorkoutMinutes(items: any[], explicitMinutes?: number | null) {
@@ -686,3 +684,4 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
 });
+

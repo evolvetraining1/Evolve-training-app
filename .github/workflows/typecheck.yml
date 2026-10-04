@@ -37,3 +37,6 @@ jobs:
 
       - name: Meal photo service contract tests
         run: node scripts/test-meal-photo-service.cjs
+
+      - name: Athlete exercise card regression tests
+        run: node scripts/test-athlete-workout.cjs

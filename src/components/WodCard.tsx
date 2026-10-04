@@ -1,3 +1,4 @@
+import { withoutRpe } from '../lib/athlete-workout';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Card } from './ui';
 import { ExerciseNameLink } from './exercise-name-link';
@@ -10,7 +11,7 @@ export function WodCard({ section, value, disabled, navigationDisabled = false, 
   onChange: (patch: Partial<WodDraft>) => void; onValidate: () => void;
 }) {
   const format = section.format!;
-  const prescriptions = section.items.map((item) => String(item.prescription_notes ?? '').replace(/^(WORKOUT|WOD)\s*[—–:-]?\s*/i, ''));
+  const prescriptions = section.items.map((item) => withoutRpe(item.prescription_notes).replace(/^(WORKOUT|WOD)\s*[—–:-]?\s*/i, ''));
   const firstHeader = prescriptions[0]?.split(/[—–]/)[0].trim() ?? '';
   const commonHeader = firstHeader && prescriptions.every((p) => p.startsWith(firstHeader) && /[—–]/.test(p)) ? firstHeader : '';
 
@@ -27,7 +28,7 @@ export function WodCard({ section, value, disabled, navigationDisabled = false, 
     <Text style={styles.title}>{commonHeader ? commonHeader.toUpperCase() : wodLabels[format]}</Text>
     {section.items.map((item: any) => {
       const exercise = Array.isArray(item.exercises) ? item.exercises[0] : item.exercises;
-      const fullPrescription = String(item.prescription_notes ?? '').replace(/^(WORKOUT|WOD)\s*[—–:-]?\s*/i, '');
+      const fullPrescription = withoutRpe(item.prescription_notes).replace(/^(WORKOUT|WOD)\s*[—–:-]?\s*/i, '');
       const prescription = commonHeader ? fullPrescription.slice(commonHeader.length).replace(/^\s*[—–]\s*/, '') : fullPrescription;
       return <View style={styles.movement} key={item.id}>
         <ExerciseNameLink exerciseId={item.exercise_id ?? exercise?.id} name={exercise?.name}
@@ -51,7 +52,7 @@ export function WodCard({ section, value, disabled, navigationDisabled = false, 
     {field('notes', value.capped ? 'Travail réalisé / adaptations' : 'Charges, adaptations, ressenti (facultatif)', 'Ex. haltère 15 kg, variante adaptée…', true)}
     <Pressable disabled={disabled} accessibilityRole="checkbox" accessibilityState={{ checked: !!value.completed, disabled }} onPress={onValidate}
       style={[styles.validate, value.completed && styles.done]}>
-      <Text style={styles.validateText}>{value.completed ? '✓ RÉSULTAT VALIDÉ' : 'VALIDER LE RÉSULTAT DU BLOC'}</Text>
+      <Text style={styles.validateText}>{value.completed ? '✓ RÉSULTAT VALIDÉ' : 'VALIDER MON RÉSULTAT'}</Text>
     </Pressable>
   </Card>;
 }
