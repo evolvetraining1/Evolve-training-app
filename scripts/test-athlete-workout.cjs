@@ -1,0 +1,60 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),ts=require('typescript'),React=require('react');
+function load(file,deps={}){const m={exports:{}};const code=ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;new Function('require','module','exports',code)(n=>deps[n]??(n==='react/jsx-runtime'?require(n):{}),m,m.exports);return m.exports;}
+const sets=load('src/lib/workout-sets.ts'),groups=load('src/lib/exercise-groups.ts'),wod=load('src/lib/wod.ts');
+const h=load('src/lib/athlete-workout.ts',{'./workout-sets':sets,'./exercise-groups':groups});
+const item=(id,note,extra={})=>({id,exercise_id:`ex-${id}`,prescription_notes:note,exercises:{id:`ex-${id}`,name:id},...extra});
+const squat=item('squat','STRENGTH WORK — 3x10 @16 kg — RPE 7 — repos 90 sec');
+const ps=h.prescribedRows(squat);assert.equal(ps.length,3);assert.equal(ps[0].reps,'10');assert.equal(ps[0].load,'16');assert.equal(ps[0].rpe,'');assert.ok(!ps[0].simpleCompletion);
+assert.equal(h.withoutRpe('3x10 — RPE 7–8 — repos 90 s'),'3x10 — repos 90 s');
+assert.equal(h.withoutRpe('RPE 8'),'');
+const steps=h.athleteSteps(wod.buildWorkoutSections([item('warm','WARM UP — 3 rounds — 10 reps'),squat,item('pull','RENFO — SUPERSET A1 — 4x8 — RPE 7'),item('dip','RENFO — SUPERSET A2 — 4x12 — repos 90 sec après le superset'),item('snatch','WORKOUT — AMRAP 40 min — 5 reps'),item('push','WORKOUT — AMRAP 40 min — 10 reps')]),()=>true);
+assert.equal(steps.length,4);assert.equal(steps[0].warmup,true);assert.equal(steps[2].group.items.length,2);assert.equal(steps[3].wod,true);assert.equal(steps[3].group.items.length,2);
+const planned=h.asPlanned(steps[1],{squat:ps});assert.deepEqual(planned.map(h.parseAthleteSet),Array.from({length:3},()=>({reps:10,load_kg:16,rpe:null})));assert.ok(ps.every(r=>!r.done));
+const changed=h.editCommon(ps,'2','8','14,5');assert.equal(h.stepStatus(changed),'partial');assert.deepEqual(changed.map(h.parseAthleteSet),[{reps:8,load_kg:14.5,rpe:null},{reps:8,load_kg:14.5,rpe:null},{reps:0,load_kg:0,rpe:null}]);
+assert.equal(changed[1].setNumber,2);assert.equal(h.stepStatus(h.skipRows(planned)),'skipped');assert.ok(h.skipRows(planned).every(r=>h.parseAthleteSet(r).reps===0));
+assert.equal(h.editCommon(ps,'4','8','14')[3].prescribedId,null);assert.equal(h.editCommon(ps,'4','8','14')[3].setNumber,4);assert.throws(()=>h.editCommon(ps,'101','8','14'));assert.throws(()=>h.editCommon(ps,'1.5','8','14'));
+for(const patch of [{reps:''},{reps:'8-12'},{reps:'-1'},{reps:'2.5'},{load:''},{load:'80%'},{load:'-1'},{load:'Infinity'},{load:'1e3'},{inputError:'invalid'}])assert.throws(()=>h.parseAthleteSet({...planned[0],...patch}));
+assert.equal(h.parseAthleteSet({...planned[0],load:'0'}).load_kg,0);
+assert.equal(h.parseAthleteSet({...planned[0],done:false,reps:'oops',load:'80%',inputError:'bad draft'}).reps,0,'unfinished inputs cannot block completion or create a performance');
+assert.equal(h.parseAthleteSet({...planned[0],rpe:'8'}).rpe,8,'historical measured RPE stays intact');
+assert.equal(h.prescribedRows(item('carry','RENFO — 4x1 aller-retour — lourd'))[0].reps,'1');
+assert.ok(h.prescribedRows(item('plank','RENFO — 3x30 sec plank hold')).every(r=>r.simpleCompletion));
+assert.equal(h.restoreAthleteRow(planned[0],{...planned[0],done:false}).done,true,'server-confirmed completion survives a stale draft');
+assert.equal(h.restoreAthleteRow(planned[0],{...planned[0],load:'20',done:true}).done,false,'changed draft never fabricates completion');
+assert.equal(h.restoreAthleteRow(planned[0],{...planned[0],dirty:true,skipped:true}).skipped,true,'a skipped set draft survives reopening');
+const native={View:'View',Text:'Text',Pressable:'Pressable',TextInput:'Input',StyleSheet:{create:s=>s},ActivityIndicator:'Spinner',ScrollView:'Scroll'};
+const card=load('src/components/athlete-exercise-card.tsx',{'react':{useState:v=>[v,()=>{}]},'react-native':native,'./ui':{Card:'Card',PrimaryButton:'Button'},'./exercise-name-link':{ExerciseNameLink:'ExerciseLink'},'./exercise-group-header':{ExerciseGroupHeader:'GroupHeader'},'../lib/athlete-workout':h,'../lib/exercise-groups':groups,'../theme':{colors:{}}}).AthleteExerciseCard;
+const descend=n=>!React.isValidElement(n)?[]:[n,...React.Children.toArray(n.props.children).flatMap(descend)];
+const props={step:steps[1],rows:{squat:ps},previous:{},editing:false,disabled:false,readOnly:false,onEdit:()=>{},onPatch:()=>{},onPlanned:()=>{},onSave:()=>{},onSkip:()=>{}};
+const nodes=descend(card(props));assert.equal(nodes.filter(n=>n.type==='Input').length,0,'no input field on default card');assert.equal(nodes.filter(n=>n.type==='ExerciseLink')[0].props.exerciseId,'ex-squat');
+assert.equal(nodes.find(n=>n.type==='Button').props.onPress,props.onPlanned);
+assert.ok(!nodes.filter(n=>n.type==='Text').flatMap(n=>React.Children.toArray(n.props.children)).filter(v=>typeof v==='string').join(' ').includes('RPE 7'),'RPE removed from athlete prescription');
+assert.equal(descend(card({...props,readOnly:true})).filter(n=>n.type==='Button'||n.type==='Pressable').length,0,'history has no mutation controls');
+let statements=[],current='athlete';const supabase={auth:{getSession:async()=>({data:{session:{user:{id:current}}}})},from:table=>({upsert:async(rows,options)=>{statements.push({table,rows,options});return {error:null};}})};
+const api=load('src/lib/api.ts',{'@/src/lib/supabase':{supabase}});
+(async()=>{await api.savePerformedSets('session',planned.map(r=>({workout_exercise_id:r.workoutExerciseId,prescribed_set_id:r.prescribedId,set_number:r.setNumber,...h.parseAthleteSet(r),completed:r.done})));
+ assert.equal(statements.length,1,'one atomic card upsert');assert.equal(statements[0].rows.length,3);assert.ok(statements[0].rows.every(r=>r.workout_session_id==='session'));assert.equal(statements[0].options.onConflict,'workout_session_id,workout_exercise_id,set_number');
+ await assert.rejects(()=>api.savePerformedSets('session',[]));
+ console.log('Athlete card regressions passed: one-card flow, supersets/WODs, exact/changed/skipped results, unknown loads, zero bodyweight, time prescriptions, RPE, draft restoration, history and atomic saves.');
+})().catch(e=>{console.error(e);process.exitCode=1;});
+
+// Exercise screen state and async callbacks with the real component, isolated from live athlete data.
+async function screenFlow(){
+ let state=[],refs=[],cursor=0,refCursor=0,effects=[],upserts=[],fail=false,resolveSave,hold=false;
+ let persisted={},finished=[],nav=[];
+ const fixture={session:{id:'session',status:'in_progress',started_at:'2026-10-04T07:00:00Z',workout_templates:{name:'Test'}},workoutExercises:[squat,item('row','RENFO — 2x12 @12 kg — RPE 8')],performedSets:[]};
+ const hooks={useState:v=>{const k=cursor++;if(!(k in state))state[k]=v;return [state[k],n=>{state[k]=typeof n==='function'?n(state[k]):n}];},useRef:v=>{const k=refCursor++;if(!(k in refs))refs[k]={current:v};return refs[k];},useMemo:f=>f(),useEffect:f=>{if(!effects.length)effects.push(f);}};
+ const apiMock={getSessionDetail:async()=>fixture,startWorkoutSession:async()=>fixture.session,getAthletePreviousSets:async()=>({}),savePerformedSets:async(id,rs)=>{upserts.push(rs);if(fail)throw new Error('offline');if(hold)await new Promise(r=>{resolveSave=r;});},saveWorkoutWodResults:async()=>{},completeWorkoutSession:async(...v)=>finished.push(v)};
+ const Screen=load('app/workout.tsx',{'react':hooks,'react-native':{...native,Alert:{alert:()=>{}}},'expo-router':{router:{replace:p=>nav.push(p)},useLocalSearchParams:()=>({sessionId:'session'})},'@react-native-async-storage/async-storage':{getItem:async k=>persisted[k]??null,setItem:async(k,v)=>{persisted[k]=v;},removeItem:async k=>{delete persisted[k];}},'@/src/components/screen-scroll-view':{ScreenScrollView:'Scroll'},'@/src/components/ui':{BackScreenHeader:'Header',Card:'Card',PrimaryButton:'Button'},'@/src/components/athlete-exercise-card':{AthleteExerciseCard:'AthleteCard'},'@/src/components/WodCard':{WodCard:'WodCard'},'@/src/theme':{colors:{}},'@/src/lib/session-flow':{isFinishedSession:s=>['completed','skipped'].includes(s?.status)},'@/src/lib/wod':wod,'@/src/lib/athlete-workout':h,'@/src/lib/api':apiMock}).default;
+ const render=()=>{cursor=0;refCursor=0;return descend(Screen());};
+ const tick=()=>new Promise(r=>setImmediate(r));
+ render();const cleanup=effects[0]();await tick();await tick();let nodes=render();
+ let card=nodes.find(n=>n.type==='AthleteCard');assert.equal(nodes.filter(n=>n.type==='AthleteCard').length,1);assert.equal(card.props.step.group.items[0].id,'squat');
+ fail=true;card.props.onPlanned();await tick();nodes=render();card=nodes.find(n=>n.type==='AthleteCard');assert.equal(card.props.step.group.items[0].id,'squat','failed save stays on current card');assert.ok(card.props.rows.squat.every(r=>!r.done));
+ fail=false;hold=true;card.props.onPlanned();card.props.onPlanned();await tick();assert.equal(upserts.length,2,'double tap sends only one new request');resolveSave();hold=false;await tick();nodes=render();card=nodes.find(n=>n.type==='AthleteCard');assert.equal(card.props.step.group.items[0].id,'row');assert.ok(card.props.rows.squat.every(r=>r.done));
+ card.props.onPatch('row',h.editCommon(card.props.rows.row,'1','9','10'));await tick();card=render().find(n=>n.type==='AthleteCard');card.props.onSave();await tick();nodes=render();assert.equal(nodes.filter(n=>n.type==='AthleteCard').length,0,'last card opens summary');
+ assert.deepEqual(upserts.at(-1).map(r=>[r.set_number,r.reps,r.load_kg,r.completed]),[[1,9,10,true],[2,0,0,false]]);
+ nodes.find(n=>n.type==='Button'&&n.props.label==='TERMINER MA SÉANCE').props.onPress();await tick();await tick();assert.equal(finished.length,1);assert.equal(finished[0][1].filter(r=>r.completed).length,4);assert.deepEqual(nav,['/(tabs)']);assert.equal(Object.keys(persisted).length,0);
+ cleanup();console.log('Athlete screen interaction checks passed: single visible card, failed save recovery, rapid double tap, automatic advance, edited partial exercise, summary and transactional finish.');
+}
+screenFlow().catch(e=>{console.error(e);process.exitCode=1;});

@@ -1,698 +1,299 @@
-import { SupersetCard } from "@/src/components/superset-card";
-import { buildFallbackSets, type LocalSet } from "@/src/lib/workout-sets";
-import { buildExerciseGroups } from "@/src/lib/exercise-groups";
-import { WorkoutSetRow } from "@/src/components/workout-set-row";
-import { ExerciseNameLink } from "@/src/components/exercise-name-link";
-import { compactFields } from "@/src/lib/screen-layout";
-import { ScreenScrollView } from "@/src/components/screen-scroll-view";
-import { useEffect, useMemo, useState, useRef } from "react";
-import { router, useLocalSearchParams } from "expo-router";
-import {
-  useWindowDimensions,
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
-
-import { BackScreenHeader, Card, PrimaryButton } from "@/src/components/ui";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { isFinishedSession } from "@/src/lib/session-flow";
-import { WodCard } from "@/src/components/WodCard";
-import { buildWorkoutSections, workoutBlock, serializeWod, restoreWod, type WodDraft, type WorkoutSection } from "@/src/lib/wod";
-import { colors } from "@/src/theme";
-import {
-  completeWorkoutSession,
-  getSessionDetail,
-  savePerformedSet,
-  startWorkoutSession,
-} from "@/src/lib/api";
-
-
-function exerciseData(item: any) {
-  return Array.isArray(item?.exercises) ? item.exercises[0] : item?.exercises;
-}
-
-function isSimpleCompletionBlock(block: string) {
-  return block === "WARM UP" || block === "WOD";
-}
-
-function cleanExercisePrescription(notes?: string | null, block?: string) {
-  let value = String(notes ?? "").trim();
-  if (!value) return "";
-
-  value = value.replace(
-    /^(WARM\s*[- ]?UP|STRENGTH\s*WORK|STRENGTH|RENFO|WORKOUT|WOD)\s*[—–:-]?\s*/i,
-    ""
-  );
-
-  if (block === "WARM UP" || block === "WOD") {
-    value = value.replace(/^\d+\s*(?:ROUNDS?|TOURS?)\s*[—–:-]?\s*/i, "");
-  }
-
-  return value.trim();
-}
-
-function exerciseDisplayLine(item: any, block: string) {
-  const exercise = exerciseData(item);
-  const name = String(exercise?.name ?? "Exercice").trim();
-  const prescription = cleanExercisePrescription(item?.prescription_notes, block);
-  return prescription ? `${name} — ${prescription}` : name;
-}
-
-function parseRounds(items: any[]) {
-  for (const item of items) {
-    const notes = String(item?.prescription_notes ?? "");
-    const match = notes.match(/(\d+)\s*(?:ROUNDS?|TOURS?)/i);
-    if (match) return Number(match[1]);
-  }
-  return null;
-}
-
-
-function parsePerformedValues(item: LocalSet) {
-  if (item.simpleCompletion) {
-    return { reps: 0, load_kg: 0, rpe: null as number | null };
-  }
-
-  const repsRaw = String(item.reps).trim();
-  let reps = 0;
-
-  if (repsRaw) {
-    if (!/^\d+$/.test(repsRaw)) {
-      throw new Error(`Série ${item.setNumber} : indique un nombre entier de répétitions.`);
-    }
-    reps = Number(repsRaw);
-    if (!Number.isSafeInteger(reps) || reps > 2147483647) throw new Error("Nombre de répétitions trop élevé.");
-  }
-
-  const loadRaw = String(item.load).trim();
-  let loadKg = 0;
-
-  if (loadRaw) {
-    if (loadRaw.includes("%")) {
-      throw new Error(
-        `Série ${item.setNumber} : remplace le pourcentage par la charge réellement utilisée en kg.`
-      );
-    }
-
-    const parsedLoad = Number(loadRaw.replace(",", "."));
-    if (!Number.isFinite(parsedLoad) || parsedLoad < 0) {
-      throw new Error(`Série ${item.setNumber} : charge invalide.`);
-    }
-    loadKg = parsedLoad;
-  }
-
-  const rpeRaw = String(item.rpe).trim();
-  let rpe: number | null = null;
-
-  if (rpeRaw) {
-    const parsedRpe = Number(rpeRaw.replace(",", "."));
-    if (!Number.isFinite(parsedRpe) || parsedRpe < 1 || parsedRpe > 10) {
-      throw new Error(`Série ${item.setNumber} : le RPE doit être compris entre 1 et 10.`);
-    }
-    rpe = parsedRpe;
-  }
-
-  return { reps, load_kg: loadKg, rpe };
-}
-
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ScreenScrollView } from '@/src/components/screen-scroll-view';
+import { BackScreenHeader, Card, PrimaryButton } from '@/src/components/ui';
+import { AthleteExerciseCard } from '@/src/components/athlete-exercise-card';
+import { WodCard } from '@/src/components/WodCard';
+import { colors } from '@/src/theme';
+import { isFinishedSession } from '@/src/lib/session-flow';
+import { buildWorkoutSections, serializeWod, restoreWod, type WodDraft, type WodResult } from '@/src/lib/wod';
+import { athleteSteps, asPlanned, parseAthleteSet, prescribedRows, restoreAthleteRow, skipRows, stepRows, stepStatus, summaryRows, withoutRpe, type AthleteSet, type AthleteStep } from '@/src/lib/athlete-workout';
+import { completeWorkoutSession, getSessionDetail, getAthletePreviousSets, savePerformedSets, saveWorkoutWodResults, startWorkoutSession } from '@/src/lib/api';
+const exerciseName = (item: any) => String((Array.isArray(item.exercises) ? item.exercises[0] : item.exercises)?.name ?? 'Exercice');
+const stepName = (step: AthleteStep) => step.wod ? step.section.format!.toUpperCase().replace('_', ' ') : step.warmup ? 'Échauffement' : step.group.paired ? `${step.group.label} · ${step.group.items.map(exerciseName).join(' + ')}` : exerciseName(step.group.items[0]);
+const payload = (row: AthleteSet) => ({ workout_exercise_id: row.workoutExerciseId, prescribed_set_id: row.prescribedId, set_number: row.setNumber, ...parseAthleteSet(row), completed: row.done });
 export default function WorkoutScreen() {
-  const { width, fontScale } = useWindowDimensions();
-  const compact = compactFields(width, fontScale);
-  const { sessionId } = useLocalSearchParams<{ sessionId?: string }>();
-  const [loading, setLoading] = useState(true);
-  const [detail, setDetail] = useState<any>(null);
-  const [sets, setSets] = useState<Record<string, LocalSet[]>>({});
-  const [wods, setWods] = useState<Record<string, WodDraft>>({});
-  const wodsRef = useRef<Record<string, WodDraft>>({});
-  const activeSession = useRef(sessionId);
-  const [message, setMessage] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [pendingCount, setPendingCount] = useState(0);
-  const pending = useRef(new Set<string>());
-  const finishing = useRef(false);
-  const setsRef = useRef<Record<string, LocalSet[]>>({});
-  const draftQueue = useRef(Promise.resolve());
-  const readOnly = isFinishedSession(detail?.session);
-  const draftKey = `evolve-session-draft:${sessionId}`;
-
-
-  useEffect(() => {
-    if (!sessionId) {
-      setLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-    activeSession.current = sessionId;
-    pending.current.clear();
-    finishing.current = false;
-    setPendingCount(0);
-    setSaving(false);
-    setLoading(true);
-    setDetail(null);
-    setSets({});
-    setWods({});
-    wodsRef.current = {};
-    setsRef.current = {};
-    setMessage("");
-
-    (async () => {
-      let d = await getSessionDetail(sessionId);
-      if (cancelled) return;
-
-      if (d.session.status === "planned") {
-        d.session = { ...d.session, ...await startWorkoutSession(sessionId) };
-        if (isFinishedSession(d.session)) d = await getSessionDetail(sessionId);
-      }
-      if (cancelled) return;
-      setDetail(d);
-
-      const performedByExerciseAndSet = new Map<string, any>(
-        (d.performedSets ?? []).map((item: any) => [
-          `${item.workout_exercise_id}:${item.set_number}`,
-          item,
-        ])
-      );
-
-      const byExercise: Record<string, LocalSet[]> = {};
-
-      const sections = buildWorkoutSections(d.workoutExercises, d.session.workout_templates);
-      const scoredIds = new Set(sections.filter((section) => section.format && (!isFinishedSession(d.session) || d.session.wod_results?.[section.id])).flatMap((section) => section.items.map((item) => item.id)));
-      const loadedWods: Record<string, WodDraft> = {};
-      for (const section of sections) {
-        const saved = d.session.wod_results?.[section.id];
-        if (section.format) loadedWods[section.id] = saved ? restoreWod(saved) : {};
-      }
-      for (const item of d.workoutExercises ?? []) {
-        if (scoredIds.has(item.id)) continue;
-        const block = workoutBlock(item);
-
-        if (isSimpleCompletionBlock(block)) {
-          const existing = performedByExerciseAndSet.get(`${item.id}:1`);
-          byExercise[item.id] = [
-            {
-              prescribedId: null,
-              workoutExerciseId: item.id,
-              setNumber: 1,
-              reps: "",
-              load: "",
-              rpe: "",
-              done: existing?.completed ?? false,
-              simpleCompletion: true,
-            },
-          ];
-          continue;
+    const { sessionId } = useLocalSearchParams<{
+        sessionId?: string;
+    }>();
+    const [loading, setLoading] = useState(true), [detail, setDetail] = useState<any>(null), [message, setMessage] = useState('');
+    const [rows, setRows] = useState<Record<string, AthleteSet[]>>({}), rowsRef = useRef(rows), plans = useRef<Record<string, AthleteSet[]>>({});
+    const [wods, setWods] = useState<Record<string, WodDraft>>({}), wodsRef = useRef(wods), savedWods = useRef<Record<string, WodResult>>({});
+    const [previous, setPrevious] = useState<Record<string, string>>({});
+    const [index, setIndex] = useState(0), [editing, setEditing] = useState(false), [overview, setOverview] = useState(false);
+    const [busy, setBusy] = useState(false), lock = useRef(false), active = useRef(sessionId), queue = useRef(Promise.resolve());
+    const scroll = useRef<ScrollView>(null), [retry, setRetry] = useState(0);
+    const readOnly = isFinishedSession(detail?.session), draftKey = `evolve-session-draft:${sessionId}`;
+    const sections = useMemo(() => buildWorkoutSections(detail?.workoutExercises ?? [], detail?.session?.workout_templates), [detail]);
+    const steps = useMemo(() => athleteSteps(sections, s => !readOnly || !!detail?.session?.wod_results?.[s.id]), [sections, readOnly, detail]);
+    const step = steps[index];
+    useEffect(() => {
+        let cancelled = false;
+        active.current = sessionId;
+        lock.current = false;
+        setBusy(false);
+        setLoading(true);
+        setDetail(null);
+        setMessage('');
+        setIndex(0);
+        setEditing(false);
+        setOverview(false);
+        setPrevious({});
+        setRows({});
+        rowsRef.current = {};
+        plans.current = {};
+        setWods({});
+        wodsRef.current = {};
+        savedWods.current = {};
+        if (!sessionId) {
+            setLoading(false);
+            return;
         }
-
-        const prescribed = [...(item.prescribed_sets ?? [])].sort(
-          (a: any, b: any) => Number(a.set_number ?? 0) - Number(b.set_number ?? 0)
-        );
-
-        const rows: LocalSet[] = prescribed.length
-          ? prescribed.map((ps: any) => ({
-              prescribedId: ps.id,
-              workoutExerciseId: item.id,
-              setNumber: Number(ps.set_number ?? 1),
-              reps: ps.target_reps != null ? String(ps.target_reps) : "",
-              load:
-                ps.target_load_kg != null && Number(ps.target_load_kg) !== 0
-                  ? String(ps.target_load_kg)
-                  : "",
-              rpe: ps.target_rpe != null ? String(ps.target_rpe) : "",
-              done: false,
-            }))
-          : buildFallbackSets(item);
-
-        byExercise[item.id] = rows.map((row) => {
-          const existing = performedByExerciseAndSet.get(`${item.id}:${row.setNumber}`);
-          return {
-            ...row,
-            reps: existing ? (existing.reps == null ? "" : String(existing.reps)) : isFinishedSession(d.session) ? "" : row.reps,
-            load:
-              existing ? (existing.load_kg == null ? "" : String(existing.load_kg)) : isFinishedSession(d.session) ? "" : row.load,
-            rpe: existing ? (existing.rpe == null ? "" : String(existing.rpe)) : isFinishedSession(d.session) ? "" : row.rpe,
-            done: existing?.completed ?? false,
-          };
-        });
-      }
-
-      // Restore only matching rows, retaining the current prescription identity.
-      await draftQueue.current;
-      const rawDraft = await AsyncStorage.getItem(draftKey).catch(() => null);
-      if (!isFinishedSession(d.session) && rawDraft) {
+        (async () => {
+            let d = await getSessionDetail(sessionId);
+            if (cancelled)
+                return;
+            if (d.session.status === 'planned') {
+                d.session = { ...d.session, ...await startWorkoutSession(sessionId) };
+                if (isFinishedSession(d.session))
+                    d = await getSessionDetail(sessionId);
+            }
+            if (cancelled)
+                return;
+            const finished = isFinishedSession(d.session), ss = buildWorkoutSections(d.workoutExercises, d.session.workout_templates);
+            const localSteps = athleteSteps(ss, s => !finished || !!d.session.wod_results?.[s.id]);
+            const byId: Record<string, AthleteSet[]> = {}, prescribed: Record<string, AthleteSet[]> = {}, loadedWods: Record<string, WodDraft> = {};
+            const saved = new Map<string, any>((d.performedSets ?? []).map((r: any) => [`${r.workout_exercise_id}:${r.set_number}`, r]));
+            for (const s of localSteps) {
+                if (s.wod) {
+                    loadedWods[s.section.id] = d.session.wod_results?.[s.section.id] ? restoreWod(d.session.wod_results[s.section.id]) : {};
+                    continue;
+                }
+                for (const item of s.group.items) {
+                    const base = prescribedRows(item, s.warmup);
+                    prescribed[item.id] = base;
+                    const extra = (d.performedSets ?? []).filter((r: any) => r.workout_exercise_id === item.id && !base.some(b => b.setNumber === r.set_number));
+                    const allRows = [...base, ...extra.map((r: any) => ({ ...base[0], prescribedId: r.prescribed_set_id, setNumber: r.set_number }))].sort((a, b) => a.setNumber - b.setNumber);
+                    byId[item.id] = allRows.map(r => {
+                        const old = saved.get(`${item.id}:${r.setNumber}`);
+                        return old ? { ...r, reps: r.simpleCompletion ? '' : old.reps == null ? '' : String(old.reps), load: r.simpleCompletion ? '' : old.load_kg == null ? '' : String(old.load_kg), rpe: old.rpe == null ? '' : String(old.rpe), done: !!old.completed, skipped: !old.completed } : finished ? { ...r, reps: '', load: '', done: false, skipped: true } : r;
+                    });
+                }
+            }
+            await queue.current;
+            const raw = await AsyncStorage.getItem(draftKey).catch(() => null);
+            let focus = 0;
+            if (!finished && raw) {
+                try {
+                    const draft = JSON.parse(raw), oldRows = draft.sets ?? draft;
+                    for (const id of Object.keys(byId)) {
+                        const extraDraft = (oldRows[id] ?? []).filter((v: AthleteSet) => v.workoutExerciseId === id && v.prescribedId == null && Number.isInteger(v.setNumber) && v.setNumber > 0 && v.setNumber <= 100 && !byId[id].some(r => r.setNumber === v.setNumber));
+                        const unique = new Map(byId[id].map(r => [r.setNumber, r]));
+                        for (const v of extraDraft)
+                            if (!unique.has(v.setNumber))
+                                unique.set(v.setNumber, { ...byId[id][0], setNumber: v.setNumber, prescribedId: null, done: false, skipped: false });
+                        byId[id] = [...unique.values()].sort((a, b) => a.setNumber - b.setNumber).map(r => restoreAthleteRow(r, oldRows[id]?.find((v: AthleteSet) => v.setNumber === r.setNumber)));
+                    }
+                    for (const id of Object.keys(loadedWods))
+                        if (draft.wods?.[id])
+                            loadedWods[id] = draft.wods[id];
+                    const found = localSteps.findIndex(s => s.id === draft.activeStep);
+                    if (found >= 0)
+                        focus = found;
+                }
+                catch { /* Keep verified server data if a device draft is corrupt. */ }
+            }
+            if (cancelled)
+                return;
+            plans.current = prescribed;
+            rowsRef.current = byId;
+            setRows(byId);
+            wodsRef.current = loadedWods;
+            setWods(loadedWods);
+            savedWods.current = d.session.wod_results ?? {};
+            setIndex(focus);
+            setDetail(d);
+            setLoading(false);
+            // Nonessential history must never delay or block the active session.
+            void getAthletePreviousSets([...new Set<string>(d.workoutExercises.map((i: any) => i.exercise_id).filter(Boolean))], d.session.started_at ?? new Date().toISOString(), sessionId)
+                .then(history => { if (!cancelled)
+                setPrevious(Object.fromEntries(Object.entries(history).map(([id, rs]) => [id, summaryRows(rs.map((r: any) => ({ workoutExerciseId: r.workout_exercise_id, setNumber: r.set_number, reps: String(r.reps), load: String(r.load_kg), rpe: '', done: true })))]))); })
+                .catch(() => { });
+        })().catch((e: any) => { if (!cancelled) {
+            setMessage(e.message ?? 'Impossible de charger la séance.');
+            setLoading(false);
+        } });
+        return () => { cancelled = true; if (active.current === sessionId)
+            active.current = undefined; };
+    }, [sessionId, retry]);
+    function persist(focus = step?.id) {
+        const snapshot = JSON.stringify({ sets: rowsRef.current, wods: wodsRef.current, activeStep: focus });
+        queue.current = queue.current.then(() => AsyncStorage.setItem(draftKey, snapshot)).catch(() => { if (active.current === sessionId)
+            setMessage('Le brouillon n’a pas pu être conservé. Valide tes résultats avant de quitter.'); });
+    }
+    function move(next: number) { if (lock.current)
+        return; setIndex(next); setEditing(false); setOverview(false); setMessage(''); persist(steps[next]?.id); scroll.current?.scrollTo({ y: 0, animated: false }); }
+    function next() { if (index + 1 < steps.length)
+        move(index + 1);
+    else {
+        setOverview(true);
+        setEditing(false);
+        scroll.current?.scrollTo({ y: 0, animated: false });
+        persist();
+    } }
+    function patch(id: string, nextRows: AthleteSet[]) {
+        if (lock.current || readOnly)
+            return;
+        rowsRef.current = { ...rowsRef.current, [id]: nextRows.map(r => ({ ...r, done: false, dirty: true })) };
+        setRows(rowsRef.current);
+        persist();
+    }
+    async function commitRows(nextRows: AthleteSet[]) {
+        if (lock.current || readOnly || !sessionId || !step)
+            return;
+        let parsed;
         try {
-          const savedDraft = JSON.parse(rawDraft);
-          const draft = savedDraft.sets ?? savedDraft;
-          for (const section of sections.filter((section) => section.format)) {
-            if (savedDraft.wods?.[section.id]) loadedWods[section.id] = savedDraft.wods[section.id];
-          }
-          for (const id of Object.keys(byExercise)) {
-            byExercise[id] = byExercise[id].map((row) => {
-              const saved = draft[id]?.find((v: LocalSet) => v.setNumber === row.setNumber);
-              if (!saved) return row;
-              const restored = { ...row, reps: String(saved.reps ?? row.reps), load: String(saved.load ?? row.load), rpe: String(saved.rpe ?? row.rpe) };
-              if (restored.reps !== row.reps || restored.load !== row.load || restored.rpe !== row.rpe) restored.done = false;
-              return restored;
-            });
-          }
-        } catch { /* Ignore a corrupt device draft; server records remain intact. */ }
-      }
-      if (cancelled) return;
-      wodsRef.current = loadedWods;
-      setWods(loadedWods);
-      setsRef.current = byExercise;
-      setSets(byExercise);
-    })()
-      .catch((e: any) => {
-        if (!cancelled) setMessage(e?.message ?? "Impossible de charger la séance");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-      if (activeSession.current === sessionId) activeSession.current = undefined;
-    };
-  }, [sessionId]);
-
-  const sections = useMemo(() => buildWorkoutSections(detail?.workoutExercises ?? [], detail?.session?.workout_templates), [detail]);
-
-  function persistDraft() {
-    const snapshot = JSON.stringify({ sets: setsRef.current, wods: wodsRef.current });
-    draftQueue.current = draftQueue.current.then(() => AsyncStorage.setItem(draftKey, snapshot)).catch(() => {
-      if (activeSession.current === sessionId) setMessage("Le brouillon n’a pas pu être conservé sur cet appareil. Valide la séance avant de quitter.");
-    });
-  }
-  function patchWod(id: string, values: Partial<WodDraft>, validating = false) {
-    if (readOnly || finishing.current) return;
-    const next = { ...wodsRef.current, [id]: { ...wodsRef.current[id], ...values, ...(!validating ? { completed: false } : {}) } };
-    wodsRef.current = next;
-    setWods(next);
-    persistDraft();
-  }
-  function validateWod(section: WorkoutSection) {
-    try {
-      const draft = { ...wodsRef.current[section.id], completed: !wodsRef.current[section.id]?.completed };
-      serializeWod(section, draft);
-      patchWod(section.id, draft, true);
-      setMessage("");
-    } catch (e: any) { setMessage(e.message); }
-  }
-
-  function patch(exerciseId: string, setNumber: number, values: Partial<LocalSet>) {
-    if (readOnly || finishing.current) return;
-    const next = {
-      ...setsRef.current,
-      [exerciseId]: (setsRef.current[exerciseId] ?? []).map((item) => item.setNumber === setNumber ? { ...item, ...values, ...(values.done == null ? { done: false } : {}) } : item),
-    };
-    setsRef.current = next;
-    setSets(next);
-    persistDraft();
-  }
-
-  async function toggleDone(exerciseId: string, item: LocalSet) {
-    const key = `${exerciseId}:${item.setNumber}`;
-    if (readOnly || finishing.current || pending.current.has(key)) return;
-    const next = !item.done;
-    pending.current.add(key);
-    setPendingCount(pending.current.size);
-    try {
-      const parsed = parsePerformedValues(item);
-      await savePerformedSet({
-        workout_session_id: sessionId!, workout_exercise_id: exerciseId,
-        prescribed_set_id: item.simpleCompletion ? null : item.prescribedId,
-        set_number: item.setNumber, ...parsed, completed: next,
-      });
-      if (activeSession.current !== sessionId) return;
-      patch(exerciseId, item.setNumber, { done: next });
-      setMessage("");
-    } catch (e: any) {
-      if (activeSession.current === sessionId) setMessage(e?.message ?? "Erreur d’enregistrement. La série n’a pas été modifiée.");
-    } finally {
-      if (activeSession.current === sessionId) {
-        pending.current.delete(key);
-        setPendingCount(pending.current.size);
-      }
+            const error = nextRows.find(r => r.inputError)?.inputError;
+            if (error)
+                throw new Error(error);
+            parsed = nextRows.map(payload);
+        }
+        catch (e: any) {
+            setEditing(true);
+            setMessage(e.message);
+            return;
+        }
+        lock.current = true;
+        setBusy(true);
+        setMessage('');
+        try {
+            await savePerformedSets(sessionId, parsed);
+            if (active.current !== sessionId)
+                return;
+            const normalized = nextRows.map((r, i) => ({ ...r, reps: r.simpleCompletion ? '' : String(parsed[i].reps), load: r.simpleCompletion ? '' : String(parsed[i].load_kg), inputError: undefined, dirty: false }));
+            const updated = { ...rowsRef.current };
+            for (const id of new Set(normalized.map(r => r.workoutExerciseId)))
+                updated[id] = normalized.filter(r => r.workoutExerciseId === id);
+            rowsRef.current = updated;
+            setRows(updated);
+            persist(steps[index + 1]?.id ?? step.id);
+            lock.current = false;
+            next();
+        }
+        catch (e: any) {
+            if (active.current === sessionId)
+                setMessage(e.message ?? 'Enregistrement impossible. Tes saisies sont conservées ; réessaie.');
+        }
+        finally {
+            if (active.current === sessionId) {
+                lock.current = false;
+                setBusy(false);
+            }
+        }
     }
-  }
-
-  async function finalizeWorkout() {
-    if (finishing.current || pending.current.size || readOnly || loading || !detail) return;
-    finishing.current = true;
-    setSaving(true);
-    setMessage("");
-    try {
-      // Parse every input before sending one transactional request.
-      const rows = Object.values(setsRef.current).flat().map((item) => ({
-        workout_exercise_id: item.workoutExerciseId,
-        prescribed_set_id: item.simpleCompletion ? null : item.prescribedId,
-        set_number: item.setNumber, ...parsePerformedValues(item), completed: item.done,
-      }));
-      const results = Object.fromEntries(sections.filter((section) => section.format).map((section) => [section.id, serializeWod(section, wodsRef.current[section.id])]));
-      await completeWorkoutSession(sessionId!, rows, undefined, results);
-      await draftQueue.current;
-      await AsyncStorage.removeItem(draftKey).catch(() => {});
-      if (activeSession.current === sessionId) router.replace("/(tabs)");
-    } catch (e: any) {
-      if (activeSession.current === sessionId) setMessage(e?.message ?? "Validation impossible. Tes réponses restent disponibles ; réessaie.");
-    } finally {
-      if (activeSession.current === sessionId) {
-        finishing.current = false;
-        setSaving(false);
-      }
+    function edit(value: boolean) { if (lock.current)
+        return; setEditing(value); setMessage(''); }
+    function patchWod(value: Partial<WodDraft>) { if (lock.current || readOnly || !step)
+        return; wodsRef.current = { ...wodsRef.current, [step.section.id]: { ...wodsRef.current[step.section.id], ...value, completed: false } }; setWods(wodsRef.current); persist(); }
+    async function commitWod(skipped = false) {
+        if (lock.current || readOnly || !sessionId || !step)
+            return;
+        const draft: WodDraft = skipped ? { completed: false, notes: 'Non réalisé' } : { ...wodsRef.current[step.section.id], completed: true };
+        let score;
+        try {
+            score = serializeWod(step.section, draft);
+        }
+        catch (e: any) {
+            setMessage(e.message);
+            return;
+        }
+        lock.current = true;
+        setBusy(true);
+        setMessage('');
+        try {
+            const results = { ...savedWods.current, [step.section.id]: score };
+            await saveWorkoutWodResults(sessionId, results);
+            if (active.current !== sessionId)
+                return;
+            savedWods.current = results;
+            wodsRef.current = { ...wodsRef.current, [step.section.id]: draft };
+            setWods(wodsRef.current);
+            persist(steps[index + 1]?.id ?? step.id);
+            lock.current = false;
+            next();
+        }
+        catch (e: any) {
+            if (active.current === sessionId)
+                setMessage(e.message ?? 'Résultat non enregistré. Réessaie.');
+        }
+        finally {
+            if (active.current === sessionId) {
+                lock.current = false;
+                setBusy(false);
+            }
+        }
     }
-  }
-
-  function finish() {
-    if (detail && !detail.workoutExercises.length && !/\b(repos|récupération|recovery|rest)\b/i.test(`${detail.session.workout_templates?.name ?? ""} ${detail.session.workout_templates?.notes ?? ""}`)) {
-      setMessage("Cette séance ne contient aucun exercice. Elle ne peut pas être validée tant que son contenu n’est pas renseigné.");
-      return;
+    const status = (s: AthleteStep) => s.wod ? (wods[s.section.id]?.completed ? 'done' : wods[s.section.id]?.notes === 'Non réalisé' ? 'skipped' : 'pending') : stepStatus(stepRows(s, rows));
+    async function finalize() {
+        if (lock.current || readOnly || !sessionId || !detail)
+            return;
+        lock.current = true;
+        setBusy(true);
+        setMessage('');
+        try {
+            const results = Object.fromEntries(steps.filter(s => s.wod).map(s => [s.section.id, serializeWod(s.section, wodsRef.current[s.section.id]?.completed ? wodsRef.current[s.section.id] : { completed: false, notes: wodsRef.current[s.section.id]?.notes })]));
+            await completeWorkoutSession(sessionId, Object.values(rowsRef.current).flat().map(payload), undefined, results);
+            await queue.current;
+            await AsyncStorage.removeItem(draftKey).catch(() => { });
+            if (active.current === sessionId)
+                router.replace('/(tabs)');
+        }
+        catch (e: any) {
+            if (active.current === sessionId)
+                setMessage(e.message ?? 'Validation impossible. Tes résultats restent disponibles.');
+        }
+        finally {
+            if (active.current === sessionId) {
+                lock.current = false;
+                setBusy(false);
+            }
+        }
     }
-    if (finishing.current || pending.current.size || readOnly || loading || !detail) return;
-    const all = Object.values(setsRef.current).flat();
-    const remaining = all.filter((item) => !item.done).length + sections.filter((section) => section.format && !wodsRef.current[section.id]?.completed).length;
-
-    if (remaining > 0) {
-      Alert.alert(
-        "Séance incomplète",
-        `${remaining} ${remaining === 1 ? "élément n'est pas validé" : "éléments ne sont pas validés"}. Terminer quand même ?`,
-        [
-          { text: "ANNULER", style: "cancel" },
-          {
-            text: "TERMINER QUAND MÊME",
-            style: "destructive",
-            onPress: () => void finalizeWorkout(),
-          },
-        ]
-      );
-      return;
+    function finish() {
+        if (lock.current || readOnly || !detail)
+            return;
+        if (!detail.workoutExercises.length && !/\b(repos|récupération|recovery|rest)\b/i.test(`${detail.session.workout_templates?.name} ${detail.session.workout_templates?.notes}`)) {
+            setMessage('Cette séance ne contient aucun exercice.');
+            return;
+        }
+        const remaining = steps.filter(s => status(s) === 'pending').length;
+        if (remaining) {
+            Alert.alert('Résultats non confirmés', `${remaining} carte(s) restent sans validation. Elles ne seront pas comptées comme réalisées. Terminer ?`, [{ text: 'REVENIR À LA SÉANCE', style: 'cancel' }, { text: 'TERMINER', onPress: () => void finalize() }]);
+            return;
+        }
+        void finalize();
     }
-
-    void finalizeWorkout();
-  }
-
-  if (!loading && (!sessionId || !detail)) {
-    return (
-      <View style={styles.center}>
-        <Text style={styles.error}>{message || "Aucune séance sélectionnée."}</Text>
-      </View>
-    );
-  }
-
-  return (
-    <ScreenScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
-      <BackScreenHeader
-        eyebrow={readOnly ? "HISTORIQUE DE SÉANCE" : "SÉANCE EN COURS"}
-        title={detail?.session?.workout_templates?.name ?? "Séance"}
-        subtitle={readOnly ? "Séance terminée · consultation des résultats." : "Valide tes séries et renseigne le résultat de chaque WOD."}
-      />
-
-      {loading ? (
-        <View style={styles.loadingInline}>
-          <ActivityIndicator color={colors.yellow} size="large" />
-        </View>
-      ) : null}
-
-      {!loading && detail?.session?.workout_templates?.notes ? (
-        <Card style={styles.simpleBlock}>
-          <Text style={styles.simpleLine}>
-            {detail.session.workout_templates.notes}
-          </Text>
-          {detail.workoutExercises.length === 0 ? (
-            <Text style={styles.simpleLine}>Aucun exercice prévu pour cette journée de récupération.</Text>
-          ) : null}
-        </Card>
-      ) : null}
-
-      {!loading && detail
-        ? sections.map((section) => {
-              const { block, items } = section;
-              if (section.format && (!readOnly || detail.session.wod_results?.[section.id])) {
-                return <WodCard key={section.id} section={section} value={wods[section.id] ?? {}} disabled={readOnly || saving || pendingCount > 0} navigationDisabled={saving}
-                  onChange={(patch) => patchWod(section.id, patch)} onValidate={() => validateWod(section)} />;
-              }
-              const simple = isSimpleCompletionBlock(block);
-              const rounds = simple ? parseRounds(items) : null;
-
-              if (simple) {
-                return (
-                  <Card key={section.id} style={styles.simpleBlock}>
-                    <Text style={styles.simpleBlockTitle}>{block}</Text>
-                    {rounds ? (
-                      <Text style={styles.roundsText}>
-                        {rounds} {rounds === 1 ? "ROUND" : "ROUNDS"}
-                      </Text>
-                    ) : null}
-
-                    <View style={styles.simpleList}>
-                      {items.map((item: any) => {
-                        const tracker = sets[item.id]?.[0];
-                        return (
-                          <View key={item.id} style={styles.simpleRow}>
-                            <ExerciseNameLink
-                              exerciseId={item.exercise_id ?? exerciseData(item)?.id}
-                              name={exerciseData(item)?.name}
-                              disabled={saving}
-                              style={styles.simpleLine}
-                            >
-                              {exerciseDisplayLine(item, block)}
-                            </ExerciseNameLink>
-                            {tracker ? (
-                              <Pressable
-                                disabled={readOnly || saving || pendingCount > 0}
-                            onPress={() => toggleDone(item.id, tracker)}
-                                style={[styles.check, tracker.done && styles.done]}
-                              >
-                                <Text style={styles.checkText}>{tracker.done ? "✓" : ""}</Text>
-                              </Pressable>
-                            ) : null}
-                          </View>
-                        );
-                      })}
-                    </View>
-                  </Card>
-                );
-              }
-
-              return (
-                <View key={section.id} style={styles.trainingBlock}>
-                  <View style={styles.blockHeader}>
-                    <View style={styles.blockAccent} />
-                    <Text style={styles.blockTitle}>{block}</Text>
-                  </View>
-
-                  {buildExerciseGroups(items).map((group) => {
-                    if (group.paired) return <SupersetCard key={group.id} group={group} rows={sets}
-                      disabled={readOnly || saving || pendingCount > 0} onChange={patch} onToggle={toggleDone} />;
-                    const item = group.items[0];
-                    return (
-                    <Card key={item.id} style={styles.exerciseCard}>
-                      <ExerciseNameLink
-                        exerciseId={item.exercise_id ?? exerciseData(item)?.id}
-                        name={exerciseData(item)?.name}
-                        disabled={saving}
-                        style={styles.exerciseLine}
-                      >
-                        {exerciseDisplayLine(item, block)}
-                      </ExerciseNameLink>
-
-                      {!compact && (sets[item.id] ?? []).length ? (
-                        <View style={styles.tableHeader}>
-                          <Text style={[styles.tableHeaderText, styles.seriesHeader]}>SÉRIE</Text>
-                          <Text style={[styles.tableHeaderText, styles.dataHeader]}>REPS</Text>
-                          <Text style={[styles.tableHeaderText, styles.dataHeader]}>POIDS</Text>
-                          <Text style={[styles.tableHeaderText, styles.dataHeader]}>RPE</Text>
-                          <View style={styles.checkHeader}>
-                            <Text style={styles.tableHeaderText}>OK</Text>
-                          </View>
-                        </View>
-                      ) : null}
-
-                      {(sets[item.id] ?? []).map((set) => (
-                        <WorkoutSetRow key={set.setNumber} number={set.setNumber} values={set}
-                          done={set.done} disabled={readOnly || saving || pendingCount > 0}
-                          onChange={(value) => patch(item.id, set.setNumber, value)}
-                          onToggle={() => toggleDone(item.id, set)} />
-                      ))}
-                    </Card>
-                   );
-                  })}
-                </View>
-              );
-            })
-        : null}
-
-      {!loading && detail ? (
-        readOnly ? <PrimaryButton label="RETOUR AUX SÉANCES" onPress={() => router.replace("/(tabs)")} /> :
-        <PrimaryButton label={saving ? "ENREGISTREMENT…" : pendingCount ? "ENREGISTREMENT D’UNE SÉRIE…" : "VALIDER LA SÉANCE"} disabled={saving || pendingCount > 0} onPress={finish} />
-      ) : null}
-
-      {message ? <Text style={styles.message}>{message}</Text> : null}
-    </ScreenScrollView>
-  );
+    return <ScreenScrollView ref={scroll} contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+    <BackScreenHeader eyebrow={readOnly ? 'HISTORIQUE DE SÉANCE' : 'SÉANCE EN COURS'} title={detail?.session?.workout_templates?.name ?? 'Séance'} subtitle={readOnly ? 'Tes résultats enregistrés.' : 'Une carte à la fois. Confirme ou ajuste ce que tu as fait.'}/>
+    {loading ? <ActivityIndicator color={colors.yellow} size="large"/> : !detail ? <PrimaryButton label="RÉESSAYER" onPress={() => setRetry(n => n + 1)}/> : <>
+      {steps.length > 0 ? <View style={styles.progress}><Text style={styles.progressText}>{steps.filter(s => status(s) !== 'pending').length} / {steps.length} cartes renseignées</Text><Pressable accessibilityRole="button" disabled={busy} onPress={() => setOverview(v => !v)} style={styles.navButton}><Text style={styles.link}>{overview ? 'REVENIR À LA CARTE' : 'VOIR LA SÉANCE'}</Text></Pressable></View> : null}
+      {overview ? <>
+        <Text style={styles.heading}>Ma séance</Text>
+        {detail.session.workout_templates?.notes ? <Text style={styles.notes}>{withoutRpe(detail.session.workout_templates.notes)}</Text> : null}
+        {steps.map((s, i) => <Pressable key={s.id} accessibilityRole="button" accessibilityLabel={`Ouvrir ${stepName(s)}`} disabled={busy} onPress={() => move(i)} style={styles.overviewRow}><Text style={styles.overviewName}>{i + 1}. {stepName(s)}</Text><Text style={styles.status}>{({ done: '✓ Fait', partial: 'Adapté', skipped: 'Non réalisé', pending: 'À confirmer' })[status(s)]}</Text></Pressable>)}
+        {!readOnly ? <PrimaryButton label={busy ? 'ENREGISTREMENT…' : 'TERMINER MA SÉANCE'} disabled={busy} onPress={finish}/> : null}
+      </> : step ? <>
+        <Text style={styles.heading}>{step.section.block === 'AUTRE' ? 'EXERCICE' : step.section.block} · {index + 1} / {steps.length}</Text>
+        {step.wod ? <><WodCard section={step.section} value={wods[step.section.id] ?? {}} disabled={readOnly || busy} navigationDisabled={busy} onChange={patchWod} onValidate={() => void commitWod()}/>{!readOnly ? <Pressable disabled={busy} onPress={() => void commitWod(true)} style={styles.navButton}><Text style={styles.link}>Je n’ai pas fait ce WOD</Text></Pressable> : null}</> :
+                    <AthleteExerciseCard key={step.id} step={step} rows={rows} previous={previous} editing={editing} disabled={busy} readOnly={readOnly} onEdit={edit} onPatch={patch} onPlanned={() => { const planned = asPlanned(step, plans.current); const extra = stepRows(step, rowsRef.current).filter(r => !planned.some(p => p.workoutExerciseId === r.workoutExerciseId && p.setNumber === r.setNumber)); void commitRows([...planned, ...skipRows(extra)]); }} onSave={() => void commitRows(stepRows(step, rowsRef.current).map(r => ({ ...r, done: !r.skipped })))} onSkip={() => void commitRows(skipRows(stepRows(step, rowsRef.current)))}/>}
+        <View style={styles.navigation}><Pressable accessibilityRole="button" disabled={busy || index === 0} onPress={() => move(index - 1)} style={[styles.navButton, index === 0 && styles.dim]}><Text style={styles.link}>PRÉCÉDENT</Text></Pressable><Pressable accessibilityRole="button" disabled={busy} onPress={next} style={styles.navButton}><Text style={styles.link}>{index + 1 < steps.length ? 'SUIVANT' : 'VOIR LE BILAN'}</Text></Pressable></View>
+      </> : <Card><Text style={styles.notes}>{withoutRpe(detail.session.workout_templates?.notes) || 'Aucun exercice prévu.'}</Text>{!readOnly ? <PrimaryButton label="TERMINER" disabled={busy} onPress={finish}/> : null}</Card>}
+      {readOnly ? <PrimaryButton label="RETOUR AUX SÉANCES" onPress={() => router.replace('/(tabs)')}/> : null}
+    </>}
+    {busy ? <ActivityIndicator color={colors.yellow}/> : null}
+    {message ? <Text accessibilityRole="alert" style={styles.message}>{message}</Text> : null}
+  </ScreenScrollView>;
 }
-
-const styles = StyleSheet.create({
-  page: {
-    padding: 20,
-    paddingTop: 68,
-    paddingBottom: 50,
-    backgroundColor: "transparent",
-  },
-  center: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "transparent",
-    padding: 20,
-  },
-  loadingInline: {
-    minHeight: 180,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  simpleBlock: {
-    marginBottom: 16,
-    paddingHorizontal: 18,
-    paddingVertical: 18,
-  },
-  simpleBlockTitle: {
-    color: colors.text,
-    fontSize: 24,
-    fontWeight: "900",
-    letterSpacing: 1,
-  },
-  roundsText: {
-    color: colors.yellow,
-    fontSize: 14,
-    fontWeight: "900",
-    marginTop: 4,
-    marginBottom: 12,
-  },
-  simpleList: {
-    gap: 4,
-  },
-  simpleRow: {
-    minHeight: 48,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderSoft,
-    paddingVertical: 8,
-  },
-  simpleLine: {
-    flex: 1,
-    color: colors.text,
-    fontSize: 15,
-    lineHeight: 21,
-    fontWeight: "700",
-  },
-  trainingBlock: {
-    marginBottom: 18,
-  },
-  blockHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 10,
-    paddingHorizontal: 4,
-  },
-  blockAccent: {
-    width: 4,
-    height: 24,
-    backgroundColor: colors.yellow,
-    borderRadius: 2,
-    marginRight: 10,
-  },
-  blockTitle: {
-    color: colors.text,
-    fontSize: 19,
-    fontWeight: "900",
-    letterSpacing: 0.8,
-  },
-  exerciseCard: {
-    marginBottom: 10,
-  },
-  exerciseLine: {
-    color: colors.text,
-    fontSize: 16,
-    lineHeight: 22,
-    fontWeight: "800",
-    marginBottom: 10,
-  },
-  tableHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 7,
-    marginTop: 8,
-    marginBottom: 7,
-  },
-  tableHeaderText: {
-    color: colors.muted,
-    fontSize: 9,
-    fontWeight: "900",
-    textAlign: "center",
-  },
-  seriesHeader: { width: 42 },
-  dataHeader: { flex: 1 },
-  checkHeader: { width: 42, alignItems: "center" },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 7,
-    marginBottom: 9,
-  },
-  number: {
-    width: 42,
-    color: colors.text,
-    fontWeight: "900",
-    textAlign: "center",
-  },
-  input: {
-    flex: 1,
-    minWidth: 0,
-    height: 42,
-    backgroundColor: colors.surface2,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 10,
-    color: colors.text,
-    textAlign: "center",
-    fontWeight: "800",
-    paddingHorizontal: 4,
-  },
-  check: {
-    width: 42,
-    height: 42,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface2,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  done: {
-    backgroundColor: colors.green,
-    borderColor: colors.green,
-  },
-  checkText: {
-    color: "#111",
-    fontSize: 20,
-    fontWeight: "900",
-  },
-  message: {
-    color: colors.yellow,
-    textAlign: "center",
-    marginTop: 12,
-    fontWeight: "800",
-  },
-  error: {
-    color: colors.red,
-    textAlign: "center",
-  },
-});
+const styles = StyleSheet.create({ page: { padding: 20, paddingTop: 68, paddingBottom: 50 }, progress: { gap: 6, marginBottom: 12 }, progressText: { color: colors.muted, fontSize: 14 }, link: { color: colors.yellow, fontWeight: '800', fontSize: 13 }, navButton: { minHeight: 48, paddingVertical: 12, justifyContent: 'center' }, heading: { color: colors.yellow, fontWeight: '900', fontSize: 14, marginVertical: 14 }, navigation: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 16, marginTop: 12 }, dim: { opacity: 0.3 }, overviewRow: { paddingVertical: 18, borderBottomWidth: 1, borderBottomColor: colors.border, gap: 8 }, overviewName: { color: colors.text, fontSize: 17, fontWeight: '700', lineHeight: 24 }, status: { color: colors.muted, fontSize: 13 }, message: { color: colors.yellow, fontSize: 15, lineHeight: 22, marginVertical: 14 }, notes: { color: colors.text, fontSize: 15, lineHeight: 23 } });

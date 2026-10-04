@@ -137,6 +137,56 @@ export async function savePerformedSet(input: {
   if (error) throw error;
 }
 
+/** One upsert statement: a card is saved entirely or not at all. Existing IDs remain stable. */
+export async function savePerformedSets(sessionId: string, rows: PerformedSetInput[]) {
+  await currentUserId();
+  if (!rows.length) throw new Error("Aucune série à enregistrer.");
+  const { error } = await supabase.from("performed_sets").upsert(
+    rows.map(row => ({ ...row, workout_session_id: sessionId })),
+    { onConflict: "workout_session_id,workout_exercise_id,set_number" }
+  );
+  if (error) throw error;
+}
+
+export async function saveWorkoutWodResults(sessionId: string, results: Record<string, import("./wod").WodResult>) {
+  const uid = await currentUserId();
+  const { data, error } = await supabase.from("workout_sessions").update({ wod_results: results })
+    .eq("id", sessionId).eq("athlete_id", uid).eq("status", "in_progress").select("id").single();
+  if (error) throw error;
+  return data;
+}
+
+/** Last matching performance within the 50 most recent completed sessions; never another athlete. */
+export async function getAthletePreviousSets(exerciseIds: string[], before: string, excludeSessionId: string) {
+  const uid = await currentUserId();
+  if (!exerciseIds.length) return {} as Record<string, any[]>;
+  const { data: sessions, error } = await supabase.from("workout_sessions").select("id, completed_at")
+    .eq("athlete_id", uid).eq("status", "completed").neq("id", excludeSessionId)
+    .lt("completed_at", before).order("completed_at", { ascending: false }).limit(50);
+  if (error) throw error;
+  if (!sessions?.length) return {} as Record<string, any[]>;
+  const rows: any[] = [];
+  for (let offset=0; ; offset+=500) {
+    const result=await supabase.from("performed_sets")
+      .select("workout_session_id, workout_exercise_id, set_number, reps, load_kg, workout_exercises!inner(exercise_id)")
+      .in("workout_session_id", sessions.map(s=>s.id)).in("workout_exercises.exercise_id", exerciseIds)
+      .eq("completed", true).order("workout_session_id").order("workout_exercise_id").order("set_number").range(offset,offset+499);
+    if (result.error) throw result.error;
+    rows.push(...(result.data ?? []));
+    if ((result.data?.length ?? 0)<500) break;
+  }
+  const byExercise: Record<string, any[]> = {};
+  for (const session of sessions) {
+    const matching=rows.filter(r=>r.workout_session_id===session.id);
+    for (const id of exerciseIds) {
+      if (byExercise[id]) continue;
+      const found=matching.filter(r=>(Array.isArray(r.workout_exercises)?r.workout_exercises[0]:r.workout_exercises)?.exercise_id===id);
+      if (found.length) byExercise[id]=found;
+    }
+  }
+  return byExercise;
+}
+
 export async function getTodayCheckin() {
   const id = await currentUserId();
   const today = localDateString();
