@@ -1,5 +1,22 @@
 import { athletePrescription, type AthleteStep } from './athlete-workout';
 
+/** Put a recognized dose beside its movement without guessing or changing the prescription. */
+export function inlineExerciseDisplay(name: string, prescription: string) {
+  const text = prescription.trim();
+  const dose = text.match(/^((?:\d+\s*[x×]\s*)?\d+(?:[.,]\d+)?(?:\s*[-–à]\s*\d+(?:[.,]\d+)?)?)(?:\s*(reps?|répétitions?|repetitions?|secondes?|seconds?|sec|s|minutes?|min|mètres?|metres?|km|m|calories?|cal|allers?[ -]retours?|A\/R))?(?=$|\s|[—·:@+])/i);
+  if (!dose) return { title: name, detail: text };
+  let detail = text.slice(dose[0].length).trim();
+  // A bare number followed by an unknown unit (kg, %, rounds...) is not a rep count.
+  if (!dose[2] && detail && !/^(?:[—–·:@+]|par\b|de chaque\b|chaque\b|tempo\b|repos\b)/i.test(detail))
+    return { title: name, detail: text };
+  let amount = dose[1].replace(/\s*[x×]\s*/g, ' × ');
+  const unit = dose[2];
+  if (unit && !/^(?:reps?|répétitions?|repetitions?)$/i.test(unit)) amount += ` ${unit}`;
+  const side = detail.match(/^(?:par\s+(?:côté|cote|jambe|bras)|de chaque\s+(?:côté|cote|jambe|bras)|chaque\s+(?:côté|cote|jambe|bras))(?=\s|$)/i);
+  if (side) { amount += ` ${side[0]}`; detail = detail.slice(side[0].length).trim(); }
+  return { title: `${amount} ${name}`, detail: detail.replace(/^[—–·:]\s*/, '') };
+}
+
 const parts = (value: string) => {
   // Dashes inside repetition ranges (8–12) are not instruction separators.
   const clauses: string[] = [];

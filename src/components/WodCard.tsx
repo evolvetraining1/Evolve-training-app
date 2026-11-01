@@ -1,4 +1,5 @@
 import { withoutRpe } from '../lib/athlete-workout';
+import { inlineExerciseDisplay } from '../lib/athlete-display';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Card } from './ui';
 import { ExerciseNameLink } from './exercise-name-link';
@@ -32,10 +33,11 @@ export function WodCard({ section, value, disabled, navigationDisabled = false, 
       const exercise = Array.isArray(item.exercises) ? item.exercises[0] : item.exercises;
       const fullPrescription = withoutRpe(item.prescription_notes).replace(/^(WORKOUT|WOD)\s*[—–:-]?\s*/i, '');
       const prescription = commonHeader ? fullPrescription.slice(commonHeader.length).replace(/^\s*[—–]\s*/, '') : fullPrescription;
+      const line = inlineExerciseDisplay(exercise?.name ?? 'Mouvement', prescription);
       return <View style={styles.movement} key={item.id}>
-        <ExerciseNameLink exerciseId={item.exercise_id ?? exercise?.id} name={exercise?.name}
-          disabled={navigationDisabled} onOpen={onOpen} style={styles.name}>{exercise?.name ?? 'Mouvement'}{item.exercise_id || exercise?.id ? <Text style={styles.chevron}> ›</Text> : null}</ExerciseNameLink>
-        <Text style={styles.prescription}>{prescription}</Text>
+        <ExerciseNameLink exerciseId={item.exercise_id ?? exercise?.id} name={line.title}
+          disabled={navigationDisabled} onOpen={onOpen} style={styles.name}>{line.title}{item.exercise_id || exercise?.id ? <Text style={styles.chevron}> ›</Text> : null}</ExerciseNameLink>
+        {line.detail ? <Text style={styles.prescription}>{line.detail}</Text> : null}
       </View>;
     })}
     {value.completed ? <Text style={styles.result}>{wodScoreSummary(format, value)}</Text> : value.notes === 'Non réalisé' ? <Text style={styles.help}>Passé</Text> : null}
@@ -79,11 +81,11 @@ export function wodScoreSummary(format: string, value: WodDraft): string {
   return ['✓ Terminé', ...score.filter(Boolean)].join(' · ');
 }
 const styles = StyleSheet.create({
-  card: { padding: 0, borderWidth: 0, borderRadius: 0, backgroundColor: 'transparent', gap: 18 }, title: { color: colors.yellow, fontSize: 13, lineHeight: 20, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' },
-  movement: { borderBottomWidth: 1, borderBottomColor: colors.borderSoft, paddingBottom: 16, gap: 6 },
-  name: { color: colors.text, fontSize: 20, fontWeight: '600', lineHeight: 28 },
+  card: { padding: 0, borderWidth: 0, borderRadius: 0, backgroundColor: 'transparent', gap: 12 }, title: { color: colors.yellow, fontSize: 16, lineHeight: 24, fontWeight: '700' },
+  movement: { gap: 6 },
+  name: { color: colors.text, fontSize: 17, fontWeight: '400', lineHeight: 26 },
   chevron: { color: colors.yellow, fontWeight: '400' },
-  prescription: { color: '#D7D6D3', fontSize: 16, fontWeight: '400', lineHeight: 24 },
+  prescription: { color: colors.muted, fontSize: 14, fontWeight: '400', lineHeight: 22 },
   result: { color: colors.text, fontSize: 15, fontWeight: '500', lineHeight: 23 },
   help: { color: colors.muted, fontSize: 14, fontWeight: '400', lineHeight: 22 }, fields: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
   field: { flexGrow: 1, minWidth: 120, gap: 6 }, label: { color: colors.muted, fontSize: 13, fontWeight: '500', lineHeight: 20 },
