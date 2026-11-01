@@ -42,21 +42,48 @@ const api=load('src/lib/api.ts',{'@/src/lib/supabase':{supabase}});
 // Exercise screen state and async callbacks with the real component, isolated from live athlete data.
 async function screenFlow(){
  let state=[],refs=[],cursor=0,refCursor=0,effects=[],upserts=[],fail=false,resolveSave,hold=false;
- let persisted={},finished=[],nav=[];
- const fixture={session:{id:'session',status:'in_progress',started_at:'2026-10-04T07:00:00Z',workout_templates:{name:'Test'}},workoutExercises:[squat,item('row','RENFO — 2x12 @12 kg — RPE 8')],performedSets:[]};
+ let persisted={},finished=[],nav=[],wodSaves=[],alerts=[];
+ const fixture={session:{id:'session',status:'in_progress',started_at:'2026-10-04T07:00:00Z',workout_templates:{name:'Test',estimated_minutes:60}},workoutExercises:[squat,item('row','RENFO — 2x12 @12 kg — RPE 8'),item('snatch','WORKOUT — AMRAP 10 min — 5 reps'),item('push','WORKOUT — AMRAP 10 min — 10 reps'),item('bike','WORKOUT — FOR TIME — 30 calories')],performedSets:[]};
  const hooks={useState:v=>{const k=cursor++;if(!(k in state))state[k]=v;return [state[k],n=>{state[k]=typeof n==='function'?n(state[k]):n}];},useRef:v=>{const k=refCursor++;if(!(k in refs))refs[k]={current:v};return refs[k];},useMemo:f=>f(),useEffect:f=>{if(!effects.length)effects.push(f);}};
- const apiMock={getSessionDetail:async()=>fixture,startWorkoutSession:async()=>fixture.session,getAthletePreviousSets:async()=>({}),savePerformedSets:async(id,rs)=>{upserts.push(rs);if(fail)throw new Error('offline');if(hold)await new Promise(r=>{resolveSave=r;});},saveWorkoutWodResults:async()=>{},completeWorkoutSession:async(...v)=>finished.push(v)};
- const Screen=load('app/workout.tsx',{'react':hooks,'react-native':{...native,Alert:{alert:()=>{}}},'expo-router':{router:{replace:p=>nav.push(p)},useLocalSearchParams:()=>({sessionId:'session'})},'@react-native-async-storage/async-storage':{getItem:async k=>persisted[k]??null,setItem:async(k,v)=>{persisted[k]=v;},removeItem:async k=>{delete persisted[k];}},'@/src/components/screen-scroll-view':{ScreenScrollView:'Scroll'},'@/src/components/ui':{BackScreenHeader:'Header',Card:'Card',PrimaryButton:'Button'},'@/src/components/athlete-exercise-card':{AthleteExerciseCard:'AthleteCard'},'@/src/components/WodCard':{WodCard:'WodCard'},'@/src/theme':{colors:{}},'@/src/lib/session-flow':{isFinishedSession:s=>['completed','skipped'].includes(s?.status)},'@/src/lib/wod':wod,'@/src/lib/athlete-workout':h,'@/src/lib/api':apiMock}).default;
+ const apiMock={getSessionDetail:async()=>fixture,startWorkoutSession:async()=>fixture.session,getAthletePreviousSets:async()=>({}),savePerformedSets:async(id,rs)=>{upserts.push(rs);if(fail)throw new Error('offline');if(hold)await new Promise(r=>{resolveSave=r;});},saveWorkoutWodResults:async(id,rs)=>{wodSaves.push(rs);},completeWorkoutSession:async(...v)=>finished.push(v)};
+ const Screen=load('app/workout.tsx',{'react':hooks,'react-native':{...native,Alert:{alert:(...v)=>alerts.push(v)}},'expo-router':{router:{replace:p=>nav.push(p)},useLocalSearchParams:()=>({sessionId:'session'})},'@react-native-async-storage/async-storage':{getItem:async k=>persisted[k]??null,setItem:async(k,v)=>{persisted[k]=v;},removeItem:async k=>{delete persisted[k];}},'@/src/components/screen-scroll-view':{ScreenScrollView:'Scroll'},'@/src/components/ui':{BackScreenHeader:'Header',Card:'Card',PrimaryButton:'Button'},'@/src/components/athlete-exercise-card':{AthleteExerciseCard:'AthleteCard'},'@/src/components/WodCard':{WodCard:'WodCard'},'@/src/theme':{colors:{}},'@/src/lib/session-flow':{isFinishedSession:s=>['completed','skipped'].includes(s?.status)},'@/src/lib/wod':wod,'@/src/lib/athlete-workout':h,'@/src/lib/api':apiMock}).default;
  const render=()=>{cursor=0;refCursor=0;return descend(Screen());};
  const tick=()=>new Promise(r=>setImmediate(r));
- render();const cleanup=effects[0]();await tick();await tick();let nodes=render();
- let card=nodes.find(n=>n.type==='AthleteCard');assert.equal(nodes.filter(n=>n.type==='AthleteCard').length,1);assert.equal(card.props.step.group.items[0].id,'squat');
- fail=true;card.props.onPlanned();await tick();nodes=render();card=nodes.find(n=>n.type==='AthleteCard');assert.equal(card.props.step.group.items[0].id,'squat','failed save stays on current card');assert.ok(card.props.rows.squat.every(r=>!r.done));
- fail=false;hold=true;card.props.onPlanned();card.props.onPlanned();await tick();assert.equal(upserts.length,2,'double tap sends only one new request');resolveSave();hold=false;await tick();nodes=render();card=nodes.find(n=>n.type==='AthleteCard');assert.equal(card.props.step.group.items[0].id,'row');assert.ok(card.props.rows.squat.every(r=>r.done));
- card.props.onPatch('row',h.editCommon(card.props.rows.row,'1','9','10'));await tick();card=render().find(n=>n.type==='AthleteCard');card.props.onEdit(false);card=render().find(n=>n.type==='AthleteCard');card.props.onPlanned();await tick();nodes=render();assert.equal(nodes.filter(n=>n.type==='AthleteCard').length,0,'last card opens summary');
- assert.deepEqual(upserts.at(-1).map(r=>[r.set_number,r.reps,r.load_kg,r.completed]),[[1,9,10,true],[2,0,0,false]],'Terminé saves edits after Réduire without restoring targets');
- nodes.find(n=>n.type==='Button'&&n.props.label==='Terminer la séance').props.onPress();await tick();await tick();assert.equal(finished.length,1);assert.equal(finished[0][1].filter(r=>r.completed).length,4);assert.deepEqual(nav,['/(tabs)']);assert.equal(Object.keys(persisted).length,0);
- cleanup();console.log('Athlete screen interaction checks passed: single visible card, failed save recovery, rapid double tap, automatic advance, edited partial exercise, summary and transactional finish.');
+ const athlete=id=>render().find(n=>n.type==='AthleteCard'&&n.props.step.group.items[0].id===id);
+ const wodCard=format=>render().find(n=>n.type==='WodCard'&&n.props.section.format===format);
+ render();let cleanup=effects[0]();await tick();await tick();let nodes=render();
+ assert.equal(nodes.filter(n=>n.type==='AthleteCard').length,2,'all strength blocks are visible together');
+ assert.equal(nodes.filter(n=>n.type==='WodCard').length,2,'one card per WOD, never per movement');
+ assert.ok(nodes.filter(n=>n.type==='AthleteCard'||n.type==='WodCard').every(n=>n.props.editing===false),'all editors start collapsed');
+ athlete('row').props.onEdit(true);wodCard('amrap').props.onEdit(true);
+ assert.equal(athlete('row').props.editing,true);assert.equal(athlete('squat').props.editing,false);assert.equal(wodCard('amrap').props.editing,true);
+ fail=true;athlete('squat').props.onPlanned();await tick();assert.ok(athlete('squat').props.rows.squat.every(r=>!r.done));
+ assert.equal(render().filter(n=>n.type==='AthleteCard').length,2,'failed save preserves the entire list');
+ fail=false;hold=true;athlete('squat').props.onPlanned();athlete('row').props.onPlanned();await tick();assert.equal(upserts.length,2,'cross-block rapid taps are serialized');resolveSave();hold=false;await tick();
+ assert.ok(athlete('squat').props.rows.squat.every(r=>r.done));assert.equal(athlete('row').props.editing,true,'saving one block does not close another editor');
+ let card=athlete('row');card.props.onPatch('row',h.editCommon(card.props.rows.row,'1','9','10'));await tick();
+ render().find(n=>n.type==='Scroll').props.onScroll({nativeEvent:{contentOffset:{y:640}}});athlete('row').props.onOpen();await tick();
+ const draft=JSON.parse(Object.values(persisted)[0]);assert.equal(draft.scrollY,640);assert.equal(draft.sets.row[0].load,'10');
+ // Recreate the screen from its stored draft, as after process recreation.
+ cleanup();state=[];refs=[];effects=[];render();cleanup=effects[0]();await tick();await tick();
+ assert.equal(athlete('row').props.rows.row[0].load,'10');assert.equal(athlete('row').props.editing,true);
+ const positions=[];const scrollRef=refs.find(r=>r.current===null);scrollRef.current={scrollTo:v=>positions.push(v)};
+ render().find(n=>n.type==='Scroll').props.onContentSizeChange();assert.deepEqual(positions,[{y:640,animated:false}]);
+ // The server fixture is deliberately stale; revalidate squat after remount.
+ athlete('squat').props.onPlanned();await tick();
+ athlete('row').props.onEdit(false);athlete('row').props.onPlanned();await tick();
+ assert.deepEqual(upserts.at(-1).map(r=>[r.set_number,r.reps,r.load_kg,r.completed]),[[1,9,10,true],[2,0,0,false]],'Terminé saves edits after Réduire');
+ const count=positions.length;wodCard('amrap').props.onChange({rounds:'3',reps:'7'});wodCard('amrap').props.onValidate();await tick();
+ assert.equal(wodSaves.length,1);assert.equal(wodSaves[0]['block-snatch'].rounds,3);assert.equal(wodCard('for_time').props.value.completed,undefined);
+ // Finishing with an unconfirmed WOD must still ask, rather than silently marking it done.
+ render().find(n=>n.type==='Button'&&n.props.label==='Terminer la séance').props.onPress();assert.equal(alerts.length,1);assert.equal(finished.length,0);
+ wodCard('for_time').props.onChange({minutes:'6',seconds:'15'});wodCard('for_time').props.onValidate();await tick();
+ assert.equal(wodSaves.length,2);assert.equal(wodSaves[1]['block-snatch'].reps,7);assert.equal(wodSaves[1]['block-bike'].elapsed_seconds,375);
+ assert.equal(positions.length,count,'saving never jumps the scroll position');
+ assert.equal(render().filter(n=>n.type==='AthleteCard').length,2,'all cards remain present after validation');
+ render().find(n=>n.type==='Button'&&n.props.label==='Terminer la séance').props.onPress();await tick();await tick();
+ assert.equal(finished.length,1);assert.equal(finished[0][1].filter(r=>r.completed).length,4);assert.deepEqual(nav,['/(tabs)']);assert.equal(Object.keys(persisted).length,0);
+ cleanup();console.log('Full-session screen passed: all blocks, independent editors, failed saves, cross-block lock, restored draft/scroll, multiple WOD scores, pending warning and finish.');
 }
 screenFlow().catch(e=>{console.error(e);process.exitCode=1;});
 
@@ -84,3 +111,22 @@ const special=display.compactAthleteDisplay(displayStep([item('a','RENFO — 4x8
 assert.match(special.prescriptions.a,/4x8.*12/);assert.match(special.prescriptions.a,/tempo lent/);
 assert.match(special.prescriptions.b,/12 reps \+ 5 sec iso \+ 12 reps/);
 console.log('Compact cards: shared rounds/rest, warmup timing, tempo, unequal sets, rep ranges and unchanged source data passed.');
+
+// Exercise links push the library sheet and snapshot the current draft before leaving.
+let opened=0,dismissed=0;
+const ExerciseLink=load('src/components/exercise-name-link.tsx',{'expo-router':{Link:'Link'},'react-native':{Text:'Text',Keyboard:{dismiss:()=>dismissed++}}}).ExerciseNameLink;
+const link=ExerciseLink({exerciseId:'ex-squat',name:'Squat',children:'Squat',onOpen:()=>opened++});
+assert.equal(link.type,'Link');assert.equal(link.props.push,true);assert.equal(link.props.href.pathname,'/exercise/[id]');
+link.props.onPress();assert.equal(opened,1);assert.equal(dismissed,1);
+assert.equal(ExerciseLink({name:'Unknown',children:'Unknown'}).type,'Text');
+const wodUI=load('src/components/WodCard.tsx',{'react-native':native,'./ui':{Card:'Card'},'./exercise-name-link':{ExerciseNameLink:'ExerciseLink'},'../lib/athlete-workout':h,'../lib/wod':wod,'../theme':{colors:{}}});
+const wp={section:steps[3].section,value:{},disabled:false,editing:false,readOnly:false,onChange:()=>{},onValidate:()=>{},onEdit:()=>{},onSkip:()=>{}};
+assert.equal(descend(wodUI.WodCard(wp)).filter(n=>n.type==='Input').length,0,'WOD score inputs start collapsed');
+assert.ok(descend(wodUI.WodCard({...wp,editing:true})).some(n=>n.type==='Input'&&n.props.accessibilityLabel==='Tours complets'));
+assert.equal(descend(wodUI.WodCard({...wp,editing:true,readOnly:true})).filter(n=>n.type==='Input'||n.type==='Pressable').length,0,'historical WOD has no inputs or mutation actions');
+assert.match(wodUI.wodScoreSummary('amrap',{rounds:'3',reps:'7'}),/3 tours \+ 7 reps/);
+assert.match(wodUI.wodScoreSummary('for_time',{minutes:'6',seconds:'15'}),/6 min 15 s/);
+console.log('Library push navigation, collapsed WOD forms and read-only scores passed.');
+
+assert.doesNotMatch(wodUI.wodScoreSummary('for_time',{capped:true,notes:'Arrêt à mi-parcours'}),/0 tours|0 min|0 reps/,'unknown scores must not become zero');
+assert.match(wodUI.wodScoreSummary('amrap',{rounds:'0',reps:'7'}),/0 tours \+ 7 reps/,'explicit zero remains visible');
