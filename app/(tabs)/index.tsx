@@ -14,6 +14,8 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import BrandLogo from "@/src/components/BrandLogo";
 import SideMenu from "@/src/components/SideMenu";
+import { SimpleHome } from "@/src/components/simple-home";
+import { useHomePresentation } from "@/src/lib/home-presentation";
 import { colors } from "@/src/theme";
 import { probePedometer, watchTodaySteps } from "@/src/lib/pedometer";
 import {
@@ -96,6 +98,10 @@ export default function HomeScreen() {
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
+  const { simple: simpleHome, ready: homeModeReady, saving: homeModeSaving, error: homeModeError, change: saveHomeMode } = useHomePresentation();
+  async function changeHomeMode(simple: boolean) {
+    if (await saveHomeMode(simple)) setDashboardEditMode(false);
+  }
   const [dashboardEditMode, setDashboardEditMode] = useState(false);
   const [widgetPickerOpen, setWidgetPickerOpen] = useState(false);
   const [nutritionQuickSearch, setNutritionQuickSearch] = useState("");
@@ -679,7 +685,7 @@ export default function HomeScreen() {
     let cancelled = false;
 
     async function loadWorkoutPreview() {
-      if (!displayedTemplate?.id) {
+      if (simpleHome || !displayedTemplate?.id) {
         setWorkoutPreviewDetail(null);
         return;
       }
@@ -707,7 +713,7 @@ export default function HomeScreen() {
     return () => {
       cancelled = true;
     };
-  }, [displayedTemplate?.id]);
+  }, [displayedTemplate?.id, simpleHome]);
 
   const previewExercises =
     String(workoutPreviewDetail?.workout?.id ?? "") ===
@@ -756,7 +762,7 @@ export default function HomeScreen() {
     }
   }
 
-if (loading) return <View style={styles.center}><ActivityIndicator color={colors.yellow}/></View>;
+if (loading || !homeModeReady) return <View style={styles.center}><ActivityIndicator color={colors.yellow}/></View>;
 
   const homeBlockName = (we: any) => {
     const notes = String(
@@ -931,7 +937,16 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
         role={profile?.role}
         unreadMessages={unreadMessages}
       />
-      <NestableScrollContainer
+      {simpleHome ? <SimpleHome
+        firstName={profile?.first_name} workout={displayedTemplate} program={selectedProgram}
+        programs={myPrograms} switchingProgram={switchingProgram}
+        ready={sessionsReady && (!selectedProgram || templatesReady) && !switchingProgram} starting={startingWorkout}
+        inProgress={displayedSession?.status === 'in_progress'} complete={!!selectedProgram && templatesReady && progress.complete}
+        checkedIn={!!checkin} unread={unreadMessages} error={error} refreshing={refreshing}
+        onRefresh={() => { setRefreshing(true); setTemplatesRetry(value => value + 1); void load(); }}
+        onStart={() => void openWorkout()} onChooseWorkout={() => setWorkoutPickerOpen(true)}
+        onSelectProgram={switchProgram} onMenu={() => setMenuOpen(true)} onSettings={() => setWidgetPickerOpen(true)}
+      /> : <NestableScrollContainer
         style={styles.pageScroll}
         contentContainerStyle={styles.page}
         showsVerticalScrollIndicator={false}
@@ -952,7 +967,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
           <View style={[styles.logoWrap, { top: Math.max(insets.top - 5, 20) }]}>
             <BrandLogo compact />
           </View>
-          <View style={styles.topbarSpacer} />
+          <Pressable accessibilityRole="button" accessibilityLabel="Personnaliser l’accueil" onPress={() => setWidgetPickerOpen(true)} style={styles.homeSettingsButton}><Text style={styles.homeModeLink}>Réglages</Text></Pressable>
         </View>
 
         {dashboardEditMode ? (
@@ -1710,7 +1725,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
           <View style={styles.dashboardLayoutPlaceholder} />
         )}
 
-      </NestableScrollContainer>
+      </NestableScrollContainer>}
 
       <Modal
         visible={workoutPickerOpen}
@@ -1834,7 +1849,7 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
             <View style={styles.widgetPickerHeader}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.widgetPickerTitle}>
-                  AJOUTER UN WIDGET
+                  PERSONNALISER
                 </Text>
 
                 <Text style={styles.widgetPickerSubtitle}>
@@ -1851,7 +1866,18 @@ if (loading) return <View style={styles.center}><ActivityIndicator color={colors
             </View>
 
             <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ paddingBottom: 12 }} showsVerticalScrollIndicator>
-            {dashboardWidgets.map((widget) => (
+            <Text style={styles.homeModeHint}>Choisis ta présentation. Le mode Complet retrouve ton accueil précédent et sa disposition.</Text>
+            <View style={styles.homeModeOptions}>
+              {[{ simple: true, label: 'Simple' }, { simple: false, label: 'Complet' }].map(option => (
+                <Pressable key={option.label} accessibilityRole="radio" accessibilityState={{ checked: simpleHome === option.simple, disabled: homeModeSaving }} disabled={homeModeSaving}
+                  onPress={() => void changeHomeMode(option.simple)} style={[styles.homeModeOption, simpleHome === option.simple && styles.homeModeSelected]}>
+                  <Text style={styles.homeModeLink}>{simpleHome === option.simple ? '✓ ' : ''}{option.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+            {homeModeError ? <Text accessibilityRole="alert" style={styles.error}>{homeModeError}</Text> : null}
+            {simpleHome ? <Text style={styles.homeModeHint}>La séance et les raccourcis de suivi restent visibles. Le menu donne accès aux autres outils.</Text> : <Pressable accessibilityRole="button" onPress={() => { setWidgetPickerOpen(false); setDashboardEditMode(true); }} style={styles.homeModeOption}><Text style={styles.homeModeLink}>Réorganiser les modules</Text></Pressable>}
+            {!simpleHome && dashboardWidgets.map((widget) => (
               <Pressable
                 key={widget.id}
                 onPress={() => toggleDashboardWidget(widget.id)}
@@ -1925,6 +1951,12 @@ function MetricCard({
 }
 
 const styles = StyleSheet.create({
+  homeSettingsButton: { minHeight: 48, justifyContent: 'center' },
+  homeModeLink: { color: colors.yellow, fontSize: 14, lineHeight: 22 },
+  homeModeHint: { color: colors.muted, fontSize: 14, lineHeight: 22, marginVertical: 12 },
+  homeModeOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginVertical: 8 },
+  homeModeOption: { minHeight: 48, padding: 12, borderWidth: 1, borderColor: colors.border, borderRadius: 12, justifyContent: 'center' },
+  homeModeSelected: { borderColor: colors.yellow, backgroundColor: colors.surface2 },
   dashboardLayoutPlaceholder: {
     minHeight: 420,
   },
