@@ -119,7 +119,7 @@ const link=ExerciseLink({exerciseId:'ex-squat',name:'Squat',children:'Squat',onO
 assert.equal(link.type,'Link');assert.equal(link.props.push,true);assert.equal(link.props.href.pathname,'/exercise/[id]');
 link.props.onPress();assert.equal(opened,1);assert.equal(dismissed,1);
 assert.equal(ExerciseLink({name:'Unknown',children:'Unknown'}).type,'Text');
-const wodUI=load('src/components/WodCard.tsx',{'react-native':native,'./ui':{Card:'Card'},'./exercise-name-link':{ExerciseNameLink:'ExerciseLink'},'../lib/athlete-workout':h,'../lib/wod':wod,'../theme':{colors:{}}});
+const wodUI=load('src/components/WodCard.tsx',{'react-native':native,'./ui':{Card:'Card'},'./exercise-name-link':{ExerciseNameLink:'ExerciseLink'},'../lib/athlete-workout':h,'../lib/wod':wod,'../lib/athlete-display':display,'../theme':{colors:{}}});
 const wp={section:steps[3].section,value:{},disabled:false,editing:false,readOnly:false,onChange:()=>{},onValidate:()=>{},onEdit:()=>{},onSkip:()=>{}};
 assert.equal(descend(wodUI.WodCard(wp)).filter(n=>n.type==='Input').length,0,'WOD score inputs start collapsed');
 assert.ok(descend(wodUI.WodCard({...wp,editing:true})).some(n=>n.type==='Input'&&n.props.accessibilityLabel==='Tours complets'));
@@ -130,3 +130,32 @@ console.log('Library push navigation, collapsed WOD forms and read-only scores p
 
 assert.doesNotMatch(wodUI.wodScoreSummary('for_time',{capped:true,notes:'Arrêt à mi-parcours'}),/0 tours|0 min|0 reps/,'unknown scores must not become zero');
 assert.match(wodUI.wodScoreSummary('amrap',{rounds:'0',reps:'7'}),/0 tours \+ 7 reps/,'explicit zero remains visible');
+
+// A dose and its movement share one link; only additional instructions use a second line.
+for (const [prescription, title, detail] of [
+ ['15 reps', '15 Goblet squat', ''],
+ ['10', '10 Goblet squat', ''],
+ ['8–12 reps', '8–12 Goblet squat', ''],
+ ['4x8 @16 kg — repos 90 s', '4 × 8 Goblet squat', '@16 kg — repos 90 s'],
+ ['30 sec', '30 sec Goblet squat', ''],
+ ['200 m', '200 m Goblet squat', ''],
+ ['1 aller-retour', '1 aller-retour Goblet squat', ''],
+ ['10 reps par côté — tempo 3111', '10 par côté Goblet squat', 'tempo 3111'],
+ ['10 reps + 5 sec iso + 5 reps', '10 Goblet squat', '+ 5 sec iso + 5 reps'],
+ ['3 rounds', 'Goblet squat', '3 rounds'],
+ ['80% du maximum', 'Goblet squat', '80% du maximum'],
+ ['20 kg', 'Goblet squat', '20 kg'],
+ ['S1 · 15 reps / S2 · 10 reps', 'Goblet squat', 'S1 · 15 reps / S2 · 10 reps'],
+ ['Selon les consignes du coach', 'Goblet squat', 'Selon les consignes du coach']
+]) assert.deepEqual(display.inlineExerciseDisplay('Goblet squat',prescription),{title,detail});
+const textOf = n => typeof n === 'string' || typeof n === 'number' ? String(n) : React.isValidElement(n) ? React.Children.toArray(n.props.children).map(textOf).join('') : '';
+const warmItems=[item('goblet','WARM UP — 3 rounds — 15 reps',{exercises:{id:'ex-goblet',name:'Goblet squat'}}),item('hinge','WARM UP — 3 rounds — 10 reps',{exercises:{id:'ex-hinge',name:'Hip hinge'}})];
+const warmStep=displayStep(warmItems),warmRows=Object.fromEntries(warmItems.map(i=>[i.id,h.prescribedRows(i,true)]));
+const warmNodes=descend(card({...props,step:warmStep,rows:warmRows}));
+assert.ok(warmNodes.some(n=>n.type==='Text'&&textOf(n)==='Échauffement · 3 tours'));
+assert.deepEqual(warmNodes.filter(n=>n.type==='ExerciseLink').map(textOf),['15 Goblet squat ›','10 Hip hinge ›']);
+assert.ok(!warmNodes.some(n=>n.type==='Text'&&/^(15|10) reps$/.test(textOf(n))),'no second line repeating the dose');
+assert.equal(warmNodes.find(n=>n.type==='ExerciseLink').props.exerciseId,'ex-goblet');
+const wodNodes=descend(wodUI.WodCard(wp));
+assert.deepEqual(wodNodes.filter(n=>n.type==='ExerciseLink').map(textOf),['5 snatch ›','10 push ›']);
+console.log('Inline prescriptions passed: warmup rounds once, quantities beside linked movements, WODs, ranges, timing, distance, laterality and extra instructions preserved.');

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Card, PrimaryButton } from './ui';
 import { ExerciseNameLink } from './exercise-name-link';
-import { compactAthleteDisplay } from '../lib/athlete-display';
+import { compactAthleteDisplay, inlineExerciseDisplay } from '../lib/athlete-display';
 import { editCommon, stepRows, stepStatus, summaryRows, type AthleteSet, type AthleteStep } from '../lib/athlete-workout';
 import { repetitionLabel } from '../lib/exercise-groups';
 import { colors } from '../theme';
@@ -27,13 +27,15 @@ export function AthleteExerciseCard({ step, rows, previous, editing, disabled, r
     const title = display.title || ({ 'STRENGTH WORK': 'Force', RENFO: 'Renforcement' }[step.section.block] ?? 'Exercice');
     return <Card style={styles.card}>
     <View style={styles.heading}><Text style={styles.phase}>{ordinal ? `${ordinal} · ` : ''}{title}</Text>{status !== 'pending' ? <Text style={styles.muted}>{({ done: '✓ Terminé', partial: 'Adapté', skipped: 'Passé' })[status]}</Text> : null}</View>
-    {step.group.items.map(item => <View key={item.id} style={styles.exercise}>
-      <ExerciseNameLink exerciseId={item.exercise_id ?? exercise(item)?.id} name={exercise(item)?.name} disabled={disabled} onOpen={onOpen} style={styles.name}>{exercise(item)?.name ?? 'Exercice'}{item.exercise_id || exercise(item)?.id ? <Text style={styles.chevron}> ›</Text> : null}</ExerciseNameLink>
-      <Text style={styles.prescription}>{display.prescriptions[item.id] || 'Suis les consignes de ton coach.'}</Text>
+    {step.group.items.map(item => {
+      const line = inlineExerciseDisplay(exercise(item)?.name ?? 'Exercice', display.prescriptions[item.id] || 'Suis les consignes de ton coach.');
+      return <View key={item.id} style={styles.exercise}>
+      <ExerciseNameLink exerciseId={item.exercise_id ?? exercise(item)?.id} name={line.title} disabled={disabled} onOpen={onOpen} style={styles.name}>{line.title}{item.exercise_id || exercise(item)?.id ? <Text style={styles.chevron}> ›</Text> : null}</ExerciseNameLink>
+      {line.detail ? <Text style={styles.prescription}>{line.detail}</Text> : null}
       {editing && !step.warmup && previous[item.exercise_id] ? <Text style={styles.previous}>Précédent : {previous[item.exercise_id]}</Text> : null}
       {readOnly || (!step.warmup && status !== 'pending') ? <Text style={styles.result}>{summaryRows(rows[item.id] ?? [])}</Text> : null}
       {editing && !readOnly ? <ExerciseEditor key={`${step.id}:${item.id}`} item={item} rows={rows[item.id] ?? []} disabled={disabled} onChange={next => onPatch(item.id, next)}/> : null}
-    </View>)}
+    </View>; })}
     {display.footer ? <Text style={styles.muted}>{display.footer}</Text> : null}
     {!readOnly ? <View style={styles.actions}>
       {!editing ? <PrimaryButton compact label={status === 'done' ? 'Terminé ✓' : 'Terminé'} onPress={onPlanned} disabled={disabled || status === 'done'}/> : <PrimaryButton compact label="Enregistrer" onPress={onSave} disabled={disabled}/>}
@@ -88,13 +90,13 @@ function ExerciseEditor({ item, rows, disabled, onChange }: {
   </View>;
 }
 const styles = StyleSheet.create({
-    card: { gap: 18, padding: 0, borderWidth: 0, borderRadius: 0, backgroundColor: 'transparent' },
+    card: { gap: 12, padding: 0, borderWidth: 0, borderRadius: 0, backgroundColor: 'transparent' },
     heading: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
-    phase: { color: colors.yellow, fontSize: 13, lineHeight: 20, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' },
+    phase: { color: colors.yellow, fontSize: 16, lineHeight: 24, fontWeight: '700' },
     exercise: { gap: 6 },
-    name: { color: colors.text, fontSize: 20, fontWeight: '600', lineHeight: 28 },
+    name: { color: colors.text, fontSize: 17, fontWeight: '400', lineHeight: 26 },
     chevron: { color: colors.yellow, fontWeight: '400' },
-    prescription: { color: '#D7D6D3', fontSize: 16, fontWeight: '400', lineHeight: 24 },
+    prescription: { color: colors.muted, fontSize: 14, fontWeight: '400', lineHeight: 22 },
     previous: { color: colors.muted, fontSize: 14, lineHeight: 22 },
     result: { color: colors.text, fontSize: 15, fontWeight: '500', lineHeight: 23 },
     actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', columnGap: 12 },
