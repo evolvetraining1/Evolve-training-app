@@ -333,9 +333,9 @@ export default function WorkoutScreen() {
 }
 const styles = StyleSheet.create({
     surface: { backgroundColor: colors.surface }, page: { padding: 20, paddingBottom: 40 },
-    progressText: { color: colors.muted, fontSize: 13, marginBottom: 8 },
-    block: { paddingVertical: 22, borderBottomWidth: 1, borderBottomColor: colors.border },
-    footer: { paddingTop: 24 }, noteToggle: { minHeight: 44, justifyContent: 'center' }, noteLink: { color: colors.muted, fontSize: 13 },
+    progressText: { color: colors.muted, fontSize: 14, lineHeight: 22, marginBottom: 8 },
+    block: { paddingVertical: 28, borderBottomWidth: 1, borderBottomColor: colors.border },
+    footer: { paddingTop: 24 }, noteToggle: { minHeight: 44, justifyContent: 'center' }, noteLink: { color: colors.muted, fontSize: 14, lineHeight: 22 },
     message: { color: colors.yellow, fontSize: 14, lineHeight: 21, marginTop: 12 },
     notes: { color: colors.text, fontSize: 15, lineHeight: 23 }
 });

@@ -28,7 +28,7 @@ export function AthleteExerciseCard({ step, rows, previous, editing, disabled, r
     return <Card style={styles.card}>
     <View style={styles.heading}><Text style={styles.phase}>{ordinal ? `${ordinal} · ` : ''}{title}</Text>{status !== 'pending' ? <Text style={styles.muted}>{({ done: '✓ Terminé', partial: 'Adapté', skipped: 'Passé' })[status]}</Text> : null}</View>
     {step.group.items.map(item => <View key={item.id} style={styles.exercise}>
-      <ExerciseNameLink exerciseId={item.exercise_id ?? exercise(item)?.id} name={exercise(item)?.name} disabled={disabled} onOpen={onOpen} style={styles.name}>{exercise(item)?.name ?? 'Exercice'}</ExerciseNameLink>
+      <ExerciseNameLink exerciseId={item.exercise_id ?? exercise(item)?.id} name={exercise(item)?.name} disabled={disabled} onOpen={onOpen} style={styles.name}>{exercise(item)?.name ?? 'Exercice'}{item.exercise_id || exercise(item)?.id ? <Text style={styles.chevron}> ›</Text> : null}</ExerciseNameLink>
       <Text style={styles.prescription}>{display.prescriptions[item.id] || 'Suis les consignes de ton coach.'}</Text>
       {editing && !step.warmup && previous[item.exercise_id] ? <Text style={styles.previous}>Précédent : {previous[item.exercise_id]}</Text> : null}
       {readOnly || (!step.warmup && status !== 'pending') ? <Text style={styles.result}>{summaryRows(rows[item.id] ?? [])}</Text> : null}
@@ -88,9 +88,24 @@ function ExerciseEditor({ item, rows, disabled, onChange }: {
   </View>;
 }
 const styles = StyleSheet.create({
-    card: { gap: 12, padding: 0, borderWidth: 0, borderRadius: 0, backgroundColor: 'transparent' }, heading: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8 }, exercise: { gap: 4 }, phase: { color: colors.yellow, fontSize: 14, fontWeight: '500' }, name: { color: colors.yellow, fontSize: 18, fontWeight: '500', lineHeight: 25 },
-    prescription: { color: colors.text, fontSize: 15, lineHeight: 22 }, previous: { color: colors.muted, fontSize: 13, lineHeight: 20 }, result: { color: colors.yellow, fontSize: 14, lineHeight: 21 },
-    actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', columnGap: 12 }, secondary: { minHeight: 48, paddingVertical: 12, justifyContent: 'center' }, secondaryText: { color: colors.yellow, fontSize: 14, fontWeight: '400' }, muted: { color: colors.muted, fontSize: 13, lineHeight: 20 },
-    editor: { gap: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border }, fields: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 }, field: { flexGrow: 1, flexBasis: 95, gap: 6 }, label: { color: colors.text, fontSize: 12, lineHeight: 18 },
-    input: { minHeight: 48, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 10, color: colors.text, fontSize: 16, backgroundColor: colors.surface2 }, series: { borderTopWidth: 1, borderTopColor: colors.border }, error: { color: colors.red, lineHeight: 20 }
+    card: { gap: 18, padding: 0, borderWidth: 0, borderRadius: 0, backgroundColor: 'transparent' },
+    heading: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
+    phase: { color: colors.yellow, fontSize: 13, lineHeight: 20, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' },
+    exercise: { gap: 6 },
+    name: { color: colors.text, fontSize: 20, fontWeight: '600', lineHeight: 28 },
+    chevron: { color: colors.yellow, fontWeight: '400' },
+    prescription: { color: '#D7D6D3', fontSize: 16, fontWeight: '400', lineHeight: 24 },
+    previous: { color: colors.muted, fontSize: 14, lineHeight: 22 },
+    result: { color: colors.text, fontSize: 15, fontWeight: '500', lineHeight: 23 },
+    actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', columnGap: 12 },
+    secondary: { minHeight: 48, paddingVertical: 12, justifyContent: 'center' },
+    secondaryText: { color: colors.yellow, fontSize: 14, fontWeight: '500', lineHeight: 21 },
+    muted: { color: colors.muted, fontSize: 14, fontWeight: '400', lineHeight: 22 },
+    editor: { gap: 12, paddingTop: 16, borderTopWidth: 1, borderTopColor: colors.border },
+    fields: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+    field: { flexGrow: 1, flexBasis: 95, gap: 6 },
+    label: { color: colors.muted, fontSize: 13, fontWeight: '500', lineHeight: 20 },
+    input: { minHeight: 48, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 10, color: colors.text, fontSize: 18, backgroundColor: colors.surface2 },
+    series: { borderTopWidth: 1, borderTopColor: colors.border },
+    error: { color: colors.red, lineHeight: 20 }
 });
