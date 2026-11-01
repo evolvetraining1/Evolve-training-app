@@ -566,7 +566,6 @@ export default function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      let active = true;
       const stale =
         !lastHomeLoadAtRef.current ||
         Date.now() - lastHomeLoadAtRef.current > 120_000;
@@ -574,13 +573,13 @@ export default function HomeScreen() {
       if (stale) {
         void load();
       } else {
-        // Synchroniser aussi le programme choisi depuis l'onglet Programme.
+        // Au retour d'une séance, son statut doit être rafraîchi même si le
+        // reste de l'accueil est encore en cache. Le profil peut également
+        // avoir changé depuis l'écran d'édition.
         void Promise.allSettled([
           getMyProfile(),
           getMyUpcomingSessions(),
-          getMyProgramsWithSelection(),
-        ]).then(([profileResult, sessionsResult, programsResult]) => {
-          if (!active) return;
+        ]).then(([profileResult, sessionsResult]) => {
           if (profileResult.status === "fulfilled") {
             setProfile(profileResult.value);
           }
@@ -589,17 +588,10 @@ export default function HomeScreen() {
             setSessions(sessionsResult.value);
             setSessionsReady(true);
           }
-          if (programsResult.status === "fulfilled") {
-            const { programs, selectedProgramId } = programsResult.value;
-            setMyPrograms(programs);
-            setSelectedProgramIdState(
-              programs.find((program: any) => program.id === selectedProgramId)?.id ?? programs[0]?.id ?? null
-            );
-          }
         });
       }
 
-      return () => { active = false; };
+      return () => {};
     }, [load])
   );
 
