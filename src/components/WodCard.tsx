@@ -5,9 +5,11 @@ import { ExerciseNameLink } from './exercise-name-link';
 import { colors } from '../theme';
 import { wodHelp, wodLabels, type WorkoutSection, type WodDraft } from '../lib/wod';
 
-export function WodCard({ section, value, disabled, navigationDisabled = false, onChange, onValidate }: {
+export function WodCard({ section, value, disabled, navigationDisabled = false, onChange, onValidate, ordinal, editing = true, readOnly = false, onEdit, onOpen, onSkip }: {
   section: WorkoutSection; value: WodDraft; disabled: boolean;
   navigationDisabled?: boolean;
+  ordinal?: number; editing?: boolean; readOnly?: boolean;
+  onEdit?: (value: boolean) => void; onOpen?: () => void; onSkip?: () => void;
   onChange: (patch: Partial<WodDraft>) => void; onValidate: () => void;
 }) {
   const format = section.format!;
@@ -25,17 +27,20 @@ export function WodCard({ section, value, disabled, navigationDisabled = false, 
     </View>
   );
   return <Card style={styles.card}>
-    <Text style={styles.title}>{commonHeader ? commonHeader : wodLabels[format]}</Text>
+    <Text style={styles.title}>{ordinal ? `${ordinal} · ` : ''}{commonHeader || wodLabels[format]}</Text>
     {section.items.map((item: any) => {
       const exercise = Array.isArray(item.exercises) ? item.exercises[0] : item.exercises;
       const fullPrescription = withoutRpe(item.prescription_notes).replace(/^(WORKOUT|WOD)\s*[—–:-]?\s*/i, '');
       const prescription = commonHeader ? fullPrescription.slice(commonHeader.length).replace(/^\s*[—–]\s*/, '') : fullPrescription;
       return <View style={styles.movement} key={item.id}>
         <ExerciseNameLink exerciseId={item.exercise_id ?? exercise?.id} name={exercise?.name}
-          disabled={navigationDisabled} style={styles.name}>{exercise?.name ?? 'Mouvement'}</ExerciseNameLink>
+          disabled={navigationDisabled} onOpen={onOpen} style={styles.name}>{exercise?.name ?? 'Mouvement'}</ExerciseNameLink>
         <Text style={styles.prescription}>{prescription}</Text>
       </View>;
     })}
+    {value.completed ? <Text style={styles.help}>{wodScoreSummary(format, value)}</Text> : value.notes === 'Non réalisé' ? <Text style={styles.help}>Passé</Text> : null}
+    {value.completed && value.notes ? <Text style={styles.help}>{value.notes}</Text> : null}
+    {editing && !readOnly ? <>
     <Text style={styles.help}>{wodHelp[format]}</Text>
     {['amrap', 'rounds'].includes(format) || (format === 'for_time' && value.capped) ? <View style={styles.fields}>
       {field('rounds', 'Tours complets', '0')}{field('reps', 'Reps supplémentaires', '0')}
@@ -54,16 +59,34 @@ export function WodCard({ section, value, disabled, navigationDisabled = false, 
       style={[styles.validate, value.completed && styles.done]}>
       <Text style={styles.validateText}>{value.completed ? 'Résultat enregistré ✓' : 'Enregistrer'}</Text>
     </Pressable>
+    </> : null}
+    {!readOnly ? <View style={styles.actions}>
+      <Pressable accessibilityRole="button" accessibilityState={{ expanded: editing, disabled }} disabled={disabled} onPress={() => onEdit?.(!editing)} style={styles.action}>
+        <Text style={styles.actionText}>{editing ? 'Réduire' : value.completed ? 'Modifier le résultat' : 'Saisir le résultat'}</Text>
+      </Pressable>
+      <Pressable accessibilityRole="button" disabled={disabled} onPress={onSkip} style={styles.action}><Text style={styles.help}>Passer</Text></Pressable>
+    </View> : null}
   </Card>;
 }
+export function wodScoreSummary(format: string, value: WodDraft): string {
+  const score: string[] = [];
+  if (value.capped) score.push('Arrêt avant la fin');
+  if (['amrap', 'rounds'].includes(format) || format === 'for_time' && value.capped)
+    score.push([value.rounds ? `${value.rounds} tours` : '', value.reps ? `${value.reps} reps` : ''].filter(Boolean).join(' + '));
+  if (format === 'emom') score.push([value.intervals ? `${value.intervals} intervalles` : '', value.reps ? `${value.reps} reps au dernier` : ''].filter(Boolean).join(' · '));
+  if ((format === 'for_time' || format === 'rounds') && (value.minutes || value.seconds)) score.push(`${value.minutes || '0'} min ${value.seconds || '0'} s`);
+  if (format === 'tabata' || format === 'intervals') score.push(value.intervalResults || '');
+  return ['✓ Terminé', ...score.filter(Boolean)].join(' · ');
+}
 const styles = StyleSheet.create({
-  card: { marginBottom: 16, gap: 12 }, title: { color: colors.yellow, fontSize: 16, fontWeight: '500' },
+  card: { padding: 0, borderWidth: 0, borderRadius: 0, backgroundColor: 'transparent', gap: 12 }, title: { color: colors.yellow, fontSize: 16, fontWeight: '500' },
   movement: { borderBottomWidth: 1, borderBottomColor: colors.borderSoft, paddingBottom: 10, gap: 3 },
-  name: { color: colors.text, fontSize: 17, fontWeight: '500' }, prescription: { color: colors.muted, fontSize: 14, lineHeight: 20 },
+  name: { color: colors.yellow, fontSize: 17, fontWeight: '500' }, prescription: { color: colors.muted, fontSize: 14, lineHeight: 20 },
   help: { color: colors.muted, fontSize: 14, lineHeight: 21 }, fields: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
   field: { flexGrow: 1, minWidth: 120, gap: 6 }, label: { color: colors.text, fontSize: 12, fontWeight: '400' },
   input: { minHeight: 48, borderWidth: 1, borderColor: colors.borderSoft, borderRadius: 12, padding: 12, color: colors.text, fontSize: 18, backgroundColor: '#101010' },
   multiline: { minHeight: 66, fontSize: 14, textAlignVertical: 'top' },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 16 }, action: { minHeight: 48, justifyContent: 'center' }, actionText: { color: colors.yellow, fontSize: 14 },
   status: { paddingVertical: 8 }, statusText: { color: colors.text, fontSize: 14 },
   validate: { padding: 15, borderRadius: 12, borderWidth: 1, borderColor: colors.yellow, alignItems: 'center' },
   done: { backgroundColor: '#39320a' }, validateText: { color: colors.yellow, fontSize: 13, fontWeight: '500' },

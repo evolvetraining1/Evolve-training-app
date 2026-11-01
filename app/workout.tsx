@@ -3,7 +3,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ScreenScrollView } from '@/src/components/screen-scroll-view';
-import { BackScreenHeader, Card, PrimaryButton } from '@/src/components/ui';
+import { BackScreenHeader, PrimaryButton } from '@/src/components/ui';
 import { AthleteExerciseCard } from '@/src/components/athlete-exercise-card';
 import { WodCard } from '@/src/components/WodCard';
 import { colors } from '@/src/theme';
@@ -11,8 +11,6 @@ import { isFinishedSession } from '@/src/lib/session-flow';
 import { buildWorkoutSections, serializeWod, restoreWod, type WodDraft, type WodResult } from '@/src/lib/wod';
 import { athleteSteps, asPlanned, parseAthleteSet, prescribedRows, restoreAthleteRow, skipRows, stepRows, stepStatus, summaryRows, withoutRpe, type AthleteSet, type AthleteStep } from '@/src/lib/athlete-workout';
 import { completeWorkoutSession, getSessionDetail, getAthletePreviousSets, savePerformedSets, saveWorkoutWodResults, startWorkoutSession } from '@/src/lib/api';
-const exerciseName = (item: any) => String((Array.isArray(item.exercises) ? item.exercises[0] : item.exercises)?.name ?? 'Exercice');
-const stepName = (step: AthleteStep) => step.wod ? step.section.format!.toUpperCase().replace('_', ' ') : step.warmup ? 'Échauffement' : step.group.paired ? `${step.group.label} · ${step.group.items.map(exerciseName).join(' + ')}` : exerciseName(step.group.items[0]);
 const payload = (row: AthleteSet) => ({ workout_exercise_id: row.workoutExerciseId, prescribed_set_id: row.prescribedId, set_number: row.setNumber, ...parseAthleteSet(row), completed: row.done });
 export default function WorkoutScreen() {
     const { sessionId } = useLocalSearchParams<{
@@ -22,13 +20,15 @@ export default function WorkoutScreen() {
     const [rows, setRows] = useState<Record<string, AthleteSet[]>>({}), rowsRef = useRef(rows), plans = useRef<Record<string, AthleteSet[]>>({});
     const [wods, setWods] = useState<Record<string, WodDraft>>({}), wodsRef = useRef(wods), savedWods = useRef<Record<string, WodResult>>({});
     const [previous, setPrevious] = useState<Record<string, string>>({});
-    const [index, setIndex] = useState(0), [editing, setEditing] = useState(false), [overview, setOverview] = useState(false);
+    const [editing, setEditing] = useState<Record<string, boolean>>({});
+    const [showNotes, setShowNotes] = useState(false);
+    const [messageStep, setMessageStep] = useState<string | null>(null);
+    const focus = useRef<string | undefined>(undefined), scrollY = useRef(0), restoreScroll = useRef(false);
     const [busy, setBusy] = useState(false), lock = useRef(false), active = useRef(sessionId), queue = useRef(Promise.resolve());
     const scroll = useRef<ScrollView>(null), [retry, setRetry] = useState(0);
     const readOnly = isFinishedSession(detail?.session), draftKey = `evolve-session-draft:${sessionId}`;
     const sections = useMemo(() => buildWorkoutSections(detail?.workoutExercises ?? [], detail?.session?.workout_templates), [detail]);
     const steps = useMemo(() => athleteSteps(sections, s => !readOnly || !!detail?.session?.wod_results?.[s.id]), [sections, readOnly, detail]);
-    const step = steps[index];
     useEffect(() => {
         let cancelled = false;
         active.current = sessionId;
@@ -37,9 +37,12 @@ export default function WorkoutScreen() {
         setLoading(true);
         setDetail(null);
         setMessage('');
-        setIndex(0);
-        setEditing(false);
-        setOverview(false);
+        setEditing({});
+        setMessageStep(null);
+        setShowNotes(false);
+        focus.current = undefined;
+        scrollY.current = 0;
+        restoreScroll.current = false;
         setPrevious({});
         setRows({});
         rowsRef.current = {};
@@ -84,7 +87,7 @@ export default function WorkoutScreen() {
             }
             await queue.current;
             const raw = await AsyncStorage.getItem(draftKey).catch(() => null);
-            let focus = 0;
+            let restoredFocus: string | undefined;
             if (!finished && raw) {
                 try {
                     const draft = JSON.parse(raw), oldRows = draft.sets ?? draft;
@@ -99,9 +102,10 @@ export default function WorkoutScreen() {
                     for (const id of Object.keys(loadedWods))
                         if (draft.wods?.[id])
                             loadedWods[id] = draft.wods[id];
-                    const found = localSteps.findIndex(s => s.id === draft.activeStep);
-                    if (found >= 0)
-                        focus = found;
+                    restoredFocus = localSteps.find(s => s.id === draft.activeStep)?.id;
+                    scrollY.current = typeof draft.scrollY === 'number' && Number.isFinite(draft.scrollY) ? Math.max(0, draft.scrollY) : 0;
+                    setEditing(Object.fromEntries(localSteps.map(s => [s.id, !!draft.editing?.[s.id]])));
+                    restoreScroll.current = scrollY.current > 0;
                 }
                 catch { /* Keep verified server data if a device draft is corrupt. */ }
             }
@@ -113,7 +117,7 @@ export default function WorkoutScreen() {
             wodsRef.current = loadedWods;
             setWods(loadedWods);
             savedWods.current = d.session.wod_results ?? {};
-            setIndex(focus);
+            focus.current = restoredFocus;
             setDetail(d);
             setLoading(false);
             // Nonessential history must never delay or block the active session.
@@ -128,21 +132,13 @@ export default function WorkoutScreen() {
         return () => { cancelled = true; if (active.current === sessionId)
             active.current = undefined; };
     }, [sessionId, retry]);
-    function persist(focus = step?.id) {
-        const snapshot = JSON.stringify({ sets: rowsRef.current, wods: wodsRef.current, activeStep: focus });
+    function persist(blockId = focus.current) {
+        if (readOnly || !detail || active.current !== sessionId) return;
+        focus.current = blockId;
+        const snapshot = JSON.stringify({ sets: rowsRef.current, wods: wodsRef.current, activeStep: blockId, scrollY: scrollY.current, editing });
         queue.current = queue.current.then(() => AsyncStorage.setItem(draftKey, snapshot)).catch(() => { if (active.current === sessionId)
             setMessage('Le brouillon n’a pas pu être conservé. Valide tes résultats avant de quitter.'); });
     }
-    function move(next: number) { if (lock.current)
-        return; setIndex(next); setEditing(false); setOverview(false); setMessage(''); persist(steps[next]?.id); scroll.current?.scrollTo({ y: 0, animated: false }); }
-    function next() { if (index + 1 < steps.length)
-        move(index + 1);
-    else {
-        setOverview(true);
-        setEditing(false);
-        scroll.current?.scrollTo({ y: 0, animated: false });
-        persist();
-    } }
     function patch(id: string, nextRows: AthleteSet[]) {
         if (lock.current || readOnly)
             return;
@@ -150,9 +146,10 @@ export default function WorkoutScreen() {
         setRows(rowsRef.current);
         persist();
     }
-    async function commitRows(nextRows: AthleteSet[]) {
+    async function commitRows(step: AthleteStep, nextRows: AthleteSet[]) {
         if (lock.current || readOnly || !sessionId || !step)
             return;
+        setMessageStep(step.id);
         let parsed;
         try {
             const error = nextRows.find(r => r.inputError)?.inputError;
@@ -161,7 +158,7 @@ export default function WorkoutScreen() {
             parsed = nextRows.map(payload);
         }
         catch (e: any) {
-            setEditing(true);
+            setEditing(v => ({ ...v, [step.id]: true }));
             setMessage(e.message);
             return;
         }
@@ -178,9 +175,8 @@ export default function WorkoutScreen() {
                 updated[id] = normalized.filter(r => r.workoutExerciseId === id);
             rowsRef.current = updated;
             setRows(updated);
-            persist(steps[index + 1]?.id ?? step.id);
-            lock.current = false;
-            next();
+            persist(step.id);
+            setEditing(v => ({ ...v, [step.id]: false }));
         }
         catch (e: any) {
             if (active.current === sessionId)
@@ -193,7 +189,7 @@ export default function WorkoutScreen() {
             }
         }
     }
-    function confirmCard() {
+    function confirmCard(step: AthleteStep) {
         if (!step || lock.current || readOnly) return;
         const current = stepRows(step, rowsRef.current);
         // “Terminé” confirms the visible draft, including edits hidden by “Réduire”.
@@ -201,21 +197,31 @@ export default function WorkoutScreen() {
         const edited = current.some(r => r.dirty || r.done);
         const planned = edited ? current.map(r => ({ ...r, done: !r.skipped })) : asPlanned(step, plans.current);
         const extra = current.filter(r => !planned.some(p => p.workoutExerciseId === r.workoutExerciseId && p.setNumber === r.setNumber));
-        void commitRows([...planned, ...skipRows(extra)]);
+        void commitRows(step, [...planned, ...skipRows(extra)]);
     }
-    function edit(value: boolean) { if (lock.current)
-        return; setEditing(value); setMessage(''); }
-    function patchWod(value: Partial<WodDraft>) { if (lock.current || readOnly || !step)
-        return; wodsRef.current = { ...wodsRef.current, [step.section.id]: { ...wodsRef.current[step.section.id], ...value, completed: false } }; setWods(wodsRef.current); persist(); }
-    async function commitWod(skipped = false) {
+    function edit(step: AthleteStep, value: boolean) {
+        if (lock.current || readOnly) return;
+        setEditing(v => ({ ...v, [step.id]: value }));
+        setMessage('');
+        focus.current = step.id;
+    }
+    function patchWod(step: AthleteStep, value: Partial<WodDraft>) {
+        if (lock.current || readOnly) return;
+        wodsRef.current = { ...wodsRef.current, [step.section.id]: { ...wodsRef.current[step.section.id], ...value, completed: false } };
+        setWods(wodsRef.current);
+        persist(step.id);
+    }
+    async function commitWod(step: AthleteStep, skipped = false) {
         if (lock.current || readOnly || !sessionId || !step)
             return;
+        setMessageStep(step.id);
         const draft: WodDraft = skipped ? { completed: false, notes: 'Non réalisé' } : { ...wodsRef.current[step.section.id], completed: true };
         let score;
         try {
             score = serializeWod(step.section, draft);
         }
         catch (e: any) {
+            setEditing(v => ({ ...v, [step.id]: true }));
             setMessage(e.message);
             return;
         }
@@ -230,9 +236,8 @@ export default function WorkoutScreen() {
             savedWods.current = results;
             wodsRef.current = { ...wodsRef.current, [step.section.id]: draft };
             setWods(wodsRef.current);
-            persist(steps[index + 1]?.id ?? step.id);
-            lock.current = false;
-            next();
+            persist(step.id);
+            setEditing(v => ({ ...v, [step.id]: false }));
         }
         catch (e: any) {
             if (active.current === sessionId)
@@ -251,6 +256,7 @@ export default function WorkoutScreen() {
             return;
         lock.current = true;
         setBusy(true);
+        setMessageStep(null);
         setMessage('');
         try {
             const results = Object.fromEntries(steps.filter(s => s.wod).map(s => [s.section.id, serializeWod(s.section, wodsRef.current[s.section.id]?.completed ? wodsRef.current[s.section.id] : { completed: false, notes: wodsRef.current[s.section.id]?.notes })]));
@@ -274,36 +280,62 @@ export default function WorkoutScreen() {
     function finish() {
         if (lock.current || readOnly || !detail)
             return;
+        setMessageStep(null);
         if (!detail.workoutExercises.length && !/\b(repos|récupération|recovery|rest)\b/i.test(`${detail.session.workout_templates?.name} ${detail.session.workout_templates?.notes}`)) {
             setMessage('Cette séance ne contient aucun exercice.');
             return;
         }
         const remaining = steps.filter(s => status(s) === 'pending').length;
         if (remaining) {
-            Alert.alert('Résultats non confirmés', `${remaining} carte(s) restent sans validation. Elles ne seront pas comptées comme réalisées. Terminer ?`, [{ text: 'REVENIR À LA SÉANCE', style: 'cancel' }, { text: 'TERMINER', onPress: () => void finalize() }]);
+            Alert.alert('Résultats non confirmés', `${remaining} bloc(s) restent sans validation. Elles ne seront pas comptées comme réalisées. Terminer ?`, [{ text: 'REVENIR À LA SÉANCE', style: 'cancel' }, { text: 'TERMINER', onPress: () => void finalize() }]);
             return;
         }
         void finalize();
     }
-    return <ScreenScrollView ref={scroll} contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
-    <BackScreenHeader compact eyebrow={readOnly ? 'HISTORIQUE DE SÉANCE' : 'SÉANCE EN COURS'} title={detail?.session?.workout_templates?.name ?? 'Séance'} subtitle={readOnly ? 'Résultats enregistrés' : undefined}/>
-    {loading ? <ActivityIndicator color={colors.yellow} size="large"/> : !detail ? <PrimaryButton label="RÉESSAYER" onPress={() => setRetry(n => n + 1)}/> : <>
-      {steps.length > 0 ? <View style={styles.progress}><Text style={styles.progressText}>{steps.filter(s => status(s) !== 'pending').length} / {steps.length} validés</Text><Pressable accessibilityRole="button" disabled={busy} onPress={() => setOverview(v => !v)} style={styles.navButton}><Text style={styles.link}>{overview ? 'Reprendre' : 'Vue d’ensemble'}</Text></Pressable></View> : null}
-      {overview ? <>
-        <Text style={styles.heading}>Ma séance</Text>
-        {detail.session.workout_templates?.notes ? <Text style={styles.notes}>{withoutRpe(detail.session.workout_templates.notes)}</Text> : null}
-        {steps.map((s, i) => <Pressable key={s.id} accessibilityRole="button" accessibilityLabel={`Ouvrir ${stepName(s)}`} disabled={busy} onPress={() => move(i)} style={styles.overviewRow}><Text style={styles.overviewName}>{i + 1}. {stepName(s)}</Text><Text style={styles.status}>{({ done: '✓ Fait', partial: 'Adapté', skipped: 'Non réalisé', pending: 'À confirmer' })[status(s)]}</Text></Pressable>)}
-        {!readOnly ? <PrimaryButton compact label={busy ? 'Enregistrement…' : 'Terminer la séance'} disabled={busy} onPress={finish}/> : null}
-      </> : step ? <>
-        <Text style={styles.heading}>Étape {index + 1} / {steps.length}</Text>
-        {step.wod ? <><WodCard section={step.section} value={wods[step.section.id] ?? {}} disabled={readOnly || busy} navigationDisabled={busy} onChange={patchWod} onValidate={() => void commitWod()}/>{!readOnly ? <Pressable disabled={busy} onPress={() => void commitWod(true)} style={styles.navButton}><Text style={styles.link}>Passer</Text></Pressable> : null}</> :
-                    <AthleteExerciseCard key={step.id} step={step} rows={rows} previous={previous} editing={editing} disabled={busy} readOnly={readOnly} onEdit={edit} onPatch={patch} onPlanned={confirmCard} onSave={() => void commitRows(stepRows(step, rowsRef.current).map(r => ({ ...r, done: !r.skipped })))} onSkip={() => void commitRows(skipRows(stepRows(step, rowsRef.current)))}/>}
-        <View style={styles.navigation}><Pressable accessibilityRole="button" disabled={busy || index === 0} onPress={() => move(index - 1)} style={[styles.navButton, index === 0 && styles.dim]}><Text style={styles.link}>Précédent</Text></Pressable><Pressable accessibilityRole="button" disabled={busy} onPress={next} style={styles.navButton}><Text style={styles.link}>{index + 1 < steps.length ? 'Suivant' : 'Bilan'}</Text></Pressable></View>
-      </> : <Card><Text style={styles.notes}>{withoutRpe(detail.session.workout_templates?.notes) || 'Aucun exercice prévu.'}</Text>{!readOnly ? <PrimaryButton label="TERMINER" disabled={busy} onPress={finish}/> : null}</Card>}
-      {readOnly ? <PrimaryButton label="RETOUR AUX SÉANCES" onPress={() => router.replace('/(tabs)')}/> : null}
-    </>}
-    {busy ? <ActivityIndicator color={colors.yellow}/> : null}
-    {message ? <Text accessibilityRole="alert" style={styles.message}>{message}</Text> : null}
-  </ScreenScrollView>;
+    const template = detail?.session?.workout_templates;
+    const metadata = [template?.week_number != null ? `S${template.week_number}` : '', template?.day_number != null ? `J${template.day_number}` : '', template?.estimated_minutes ? `≈ ${template.estimated_minutes} min` : ''].filter(Boolean).join(' · ');
+    return <ScreenScrollView ref={scroll} style={styles.surface} contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled"
+      scrollEventThrottle={100}
+      onScroll={event => { if (!restoreScroll.current) scrollY.current = event.nativeEvent.contentOffset.y; }}
+      onScrollEndDrag={() => { if (detail && !readOnly) persist(); }}
+      onMomentumScrollEnd={() => { if (detail && !readOnly) persist(); }}
+      onContentSizeChange={() => { if (!loading && detail && restoreScroll.current) { restoreScroll.current = false; scroll.current?.scrollTo({ y: scrollY.current, animated: false }); } }}>
+      <BackScreenHeader compact eyebrow={readOnly ? 'HISTORIQUE' : 'SÉANCE EN COURS'} title={template?.name ?? 'Séance'} subtitle={metadata || undefined}/>
+      {loading ? <ActivityIndicator color={colors.yellow} size="large"/> : !detail ? <PrimaryButton label="Réessayer" onPress={() => setRetry(n => n + 1)}/> : <>
+        {steps.length > 0 ? <Text style={styles.progressText}>{steps.filter(s => status(s) !== 'pending').length} / {steps.length} blocs renseignés</Text> : null}
+        {steps.length > 0 && template?.notes ? <View>
+          <Pressable accessibilityRole="button" accessibilityState={{ expanded: showNotes }} onPress={() => setShowNotes(v => !v)} style={styles.noteToggle}>
+            <Text style={styles.noteLink}>{showNotes ? 'Masquer les consignes' : 'Consignes du coach'}</Text>
+          </Pressable>
+          {showNotes ? <Text style={styles.notes}>{withoutRpe(template.notes)}</Text> : null}
+        </View> : null}
+        {steps.map((step, i) => <View key={step.id} style={styles.block}>
+          {step.wod ? <WodCard section={step.section} value={wods[step.section.id] ?? {}} ordinal={i + 1}
+            editing={!!editing[step.id]} readOnly={readOnly} disabled={busy || readOnly} navigationDisabled={busy}
+            onEdit={value => edit(step, value)} onOpen={() => persist(step.id)}
+            onChange={value => patchWod(step, value)} onValidate={() => void commitWod(step)} onSkip={() => void commitWod(step, true)}/> :
+            <AthleteExerciseCard step={step} ordinal={i + 1} rows={rows} previous={previous} editing={!!editing[step.id]} disabled={busy} readOnly={readOnly}
+              onEdit={value => edit(step, value)} onOpen={() => persist(step.id)} onPatch={patch} onPlanned={() => confirmCard(step)}
+              onSave={() => void commitRows(step, stepRows(step, rowsRef.current).map(r => ({ ...r, done: !r.skipped })))}
+              onSkip={() => void commitRows(step, skipRows(stepRows(step, rowsRef.current)))}/>}
+          {message && messageStep === step.id ? <Text accessibilityRole="alert" style={styles.message}>{message}</Text> : null}
+        </View>)}
+        {!steps.length ? <Text style={styles.notes}>{withoutRpe(template?.notes) || 'Aucun exercice prévu.'}</Text> : null}
+        {message && !messageStep ? <Text accessibilityRole="alert" style={styles.message}>{message}</Text> : null}
+        {busy ? <ActivityIndicator color={colors.yellow}/> : null}
+        <View style={styles.footer}>
+          {readOnly ? <PrimaryButton compact label="Retour aux séances" onPress={() => router.replace('/(tabs)')}/> :
+            <PrimaryButton compact label={busy ? 'Enregistrement…' : 'Terminer la séance'} disabled={busy} onPress={finish}/>}
+        </View>
+      </>}
+      {!detail && message ? <Text accessibilityRole="alert" style={styles.message}>{message}</Text> : null}
+    </ScreenScrollView>;
 }
-const styles = StyleSheet.create({ page: { padding: 20, paddingTop: 68, paddingBottom: 50 }, progress: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', columnGap: 12, marginBottom: 4 }, progressText: { color: colors.muted, fontSize: 14 }, link: { color: colors.yellow, fontWeight: '500', fontSize: 13 }, navButton: { minHeight: 48, paddingVertical: 12, justifyContent: 'center' }, heading: { color: colors.yellow, fontWeight: '500', fontSize: 14, marginVertical: 8 }, navigation: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 16, marginTop: 12 }, dim: { opacity: 0.3 }, overviewRow: { paddingVertical: 18, borderBottomWidth: 1, borderBottomColor: colors.border, gap: 8 }, overviewName: { color: colors.text, fontSize: 17, fontWeight: '500', lineHeight: 24 }, status: { color: colors.muted, fontSize: 13 }, message: { color: colors.yellow, fontSize: 15, lineHeight: 22, marginVertical: 14 }, notes: { color: colors.text, fontSize: 15, lineHeight: 23 } });
+const styles = StyleSheet.create({
+    surface: { backgroundColor: colors.surface }, page: { padding: 20, paddingBottom: 40 },
+    progressText: { color: colors.muted, fontSize: 13, marginBottom: 8 },
+    block: { paddingVertical: 22, borderBottomWidth: 1, borderBottomColor: colors.border },
+    footer: { paddingTop: 24 }, noteToggle: { minHeight: 44, justifyContent: 'center' }, noteLink: { color: colors.muted, fontSize: 13 },
+    message: { color: colors.yellow, fontSize: 14, lineHeight: 21, marginTop: 12 },
+    notes: { color: colors.text, fontSize: 15, lineHeight: 23 }
+});

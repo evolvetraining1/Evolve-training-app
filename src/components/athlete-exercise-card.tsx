@@ -7,7 +7,9 @@ import { editCommon, stepRows, stepStatus, summaryRows, type AthleteSet, type At
 import { repetitionLabel } from '../lib/exercise-groups';
 import { colors } from '../theme';
 const exercise = (i: any) => Array.isArray(i.exercises) ? i.exercises[0] : i.exercises;
-export function AthleteExerciseCard({ step, rows, previous, editing, disabled, readOnly, onEdit, onPatch, onPlanned, onSave, onSkip }: {
+export function AthleteExerciseCard({ step, rows, previous, editing, disabled, readOnly, onEdit, onPatch, onPlanned, onSave, onSkip, ordinal, onOpen }: {
+    ordinal?: number;
+    onOpen?: () => void;
     step: AthleteStep;
     rows: Record<string, AthleteSet[]>;
     previous: Record<string, string>;
@@ -22,22 +24,22 @@ export function AthleteExerciseCard({ step, rows, previous, editing, disabled, r
 }) {
     const all = stepRows(step, rows), status = stepStatus(all);
     const display = compactAthleteDisplay(step);
+    const title = display.title || ({ 'STRENGTH WORK': 'Force', RENFO: 'Renforcement' }[step.section.block] ?? 'Exercice');
     return <Card style={styles.card}>
-    {display.title ? <Text style={styles.phase}>{display.title}</Text> : null}
+    <View style={styles.heading}><Text style={styles.phase}>{ordinal ? `${ordinal} · ` : ''}{title}</Text>{status !== 'pending' ? <Text style={styles.muted}>{({ done: '✓ Terminé', partial: 'Adapté', skipped: 'Passé' })[status]}</Text> : null}</View>
     {step.group.items.map(item => <View key={item.id} style={styles.exercise}>
-      <ExerciseNameLink exerciseId={item.exercise_id ?? exercise(item)?.id} name={exercise(item)?.name} disabled={disabled} style={styles.name}>{exercise(item)?.name ?? 'Exercice'}</ExerciseNameLink>
+      <ExerciseNameLink exerciseId={item.exercise_id ?? exercise(item)?.id} name={exercise(item)?.name} disabled={disabled} onOpen={onOpen} style={styles.name}>{exercise(item)?.name ?? 'Exercice'}</ExerciseNameLink>
       <Text style={styles.prescription}>{display.prescriptions[item.id] || 'Suis les consignes de ton coach.'}</Text>
-      {!step.warmup && previous[item.exercise_id] ? <Text style={styles.previous}>Précédent : {previous[item.exercise_id]}</Text> : null}
+      {editing && !step.warmup && previous[item.exercise_id] ? <Text style={styles.previous}>Précédent : {previous[item.exercise_id]}</Text> : null}
       {readOnly || (!step.warmup && status !== 'pending') ? <Text style={styles.result}>{summaryRows(rows[item.id] ?? [])}</Text> : null}
       {editing && !readOnly ? <ExerciseEditor key={`${step.id}:${item.id}`} item={item} rows={rows[item.id] ?? []} disabled={disabled} onChange={next => onPatch(item.id, next)}/> : null}
     </View>)}
     {display.footer ? <Text style={styles.muted}>{display.footer}</Text> : null}
-    {!readOnly ? <>
-      {!editing ? <PrimaryButton compact label="Terminé ✓" onPress={onPlanned} disabled={disabled}/> : <PrimaryButton compact label="Enregistrer" onPress={onSave} disabled={disabled}/>}
-      <View style={styles.actions}><Pressable accessibilityRole="button" disabled={disabled} onPress={() => onEdit(!editing)} style={styles.secondary}><Text style={styles.secondaryText}>{editing ? 'Réduire' : 'Modifier'}</Text></Pressable>
+    {!readOnly ? <View style={styles.actions}>
+      {!editing ? <PrimaryButton compact label={status === 'done' ? 'Terminé ✓' : 'Terminé'} onPress={onPlanned} disabled={disabled || status === 'done'}/> : <PrimaryButton compact label="Enregistrer" onPress={onSave} disabled={disabled}/>}
+      <Pressable accessibilityRole="button" disabled={disabled} onPress={() => onEdit(!editing)} style={styles.secondary}><Text style={styles.secondaryText}>{editing ? 'Réduire' : 'Saisir / modifier'}</Text></Pressable>
       <Pressable accessibilityRole="button" disabled={disabled} onPress={onSkip} style={styles.secondary}><Text style={styles.muted}>Passer</Text></Pressable>
-      </View>
-    </> : null}
+    </View> : null}
   </Card>;
 }
 function ExerciseEditor({ item, rows, disabled, onChange }: {
@@ -86,9 +88,9 @@ function ExerciseEditor({ item, rows, disabled, onChange }: {
   </View>;
 }
 const styles = StyleSheet.create({
-    card: { gap: 16, padding: 16 }, exercise: { gap: 4 }, phase: { color: colors.yellow, fontSize: 14, fontWeight: '500' }, name: { color: colors.text, fontSize: 18, fontWeight: '500', lineHeight: 25 },
+    card: { gap: 12, padding: 0, borderWidth: 0, borderRadius: 0, backgroundColor: 'transparent' }, heading: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8 }, exercise: { gap: 4 }, phase: { color: colors.yellow, fontSize: 14, fontWeight: '500' }, name: { color: colors.yellow, fontSize: 18, fontWeight: '500', lineHeight: 25 },
     prescription: { color: colors.text, fontSize: 15, lineHeight: 22 }, previous: { color: colors.muted, fontSize: 13, lineHeight: 20 }, result: { color: colors.yellow, fontSize: 14, lineHeight: 21 },
-    actions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', columnGap: 24 }, secondary: { minHeight: 48, paddingVertical: 12, justifyContent: 'center' }, secondaryText: { color: colors.yellow, fontSize: 14, fontWeight: '400' }, muted: { color: colors.muted, fontSize: 13, lineHeight: 20 },
+    actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', columnGap: 12 }, secondary: { minHeight: 48, paddingVertical: 12, justifyContent: 'center' }, secondaryText: { color: colors.yellow, fontSize: 14, fontWeight: '400' }, muted: { color: colors.muted, fontSize: 13, lineHeight: 20 },
     editor: { gap: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border }, fields: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 }, field: { flexGrow: 1, flexBasis: 95, gap: 6 }, label: { color: colors.text, fontSize: 12, lineHeight: 18 },
     input: { minHeight: 48, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 10, color: colors.text, fontSize: 16, backgroundColor: colors.surface2 }, series: { borderTopWidth: 1, borderTopColor: colors.border }, error: { color: colors.red, lineHeight: 20 }
 });
