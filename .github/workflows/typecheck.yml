@@ -40,3 +40,6 @@ jobs:
 
       - name: Athlete exercise card regression tests
         run: node scripts/test-athlete-workout.cjs
+
+      - name: Active programme tab regression tests
+        run: node scripts/test-program-tab.cjs
