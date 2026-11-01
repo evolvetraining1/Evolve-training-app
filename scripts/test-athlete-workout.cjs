@@ -2,6 +2,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),ts=require('typ
 function load(file,deps={}){const m={exports:{}};const code=ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;new Function('require','module','exports',code)(n=>deps[n]??(n==='react/jsx-runtime'?require(n):{}),m,m.exports);return m.exports;}
 const sets=load('src/lib/workout-sets.ts'),groups=load('src/lib/exercise-groups.ts'),wod=load('src/lib/wod.ts');
 const h=load('src/lib/athlete-workout.ts',{'./workout-sets':sets,'./exercise-groups':groups});
+const display=load('src/lib/athlete-display.ts',{'./athlete-workout':h});
 const item=(id,note,extra={})=>({id,exercise_id:`ex-${id}`,prescription_notes:note,exercises:{id:`ex-${id}`,name:id},...extra});
 const squat=item('squat','STRENGTH WORK — 3x10 @16 kg — RPE 7 — repos 90 sec');
 const ps=h.prescribedRows(squat);assert.equal(ps.length,3);assert.equal(ps[0].reps,'10');assert.equal(ps[0].load,'16');assert.equal(ps[0].rpe,'');assert.ok(!ps[0].simpleCompletion);
@@ -23,7 +24,7 @@ assert.equal(h.restoreAthleteRow(planned[0],{...planned[0],done:false}).done,tru
 assert.equal(h.restoreAthleteRow(planned[0],{...planned[0],load:'20',done:true}).done,false,'changed draft never fabricates completion');
 assert.equal(h.restoreAthleteRow(planned[0],{...planned[0],dirty:true,skipped:true}).skipped,true,'a skipped set draft survives reopening');
 const native={View:'View',Text:'Text',Pressable:'Pressable',TextInput:'Input',StyleSheet:{create:s=>s},ActivityIndicator:'Spinner',ScrollView:'Scroll'};
-const card=load('src/components/athlete-exercise-card.tsx',{'react':{useState:v=>[v,()=>{}]},'react-native':native,'./ui':{Card:'Card',PrimaryButton:'Button'},'./exercise-name-link':{ExerciseNameLink:'ExerciseLink'},'./exercise-group-header':{ExerciseGroupHeader:'GroupHeader'},'../lib/athlete-workout':h,'../lib/exercise-groups':groups,'../theme':{colors:{}}}).AthleteExerciseCard;
+const card=load('src/components/athlete-exercise-card.tsx',{'react':{useState:v=>[v,()=>{}]},'react-native':native,'./ui':{Card:'Card',PrimaryButton:'Button'},'./exercise-name-link':{ExerciseNameLink:'ExerciseLink'},'./exercise-group-header':{ExerciseGroupHeader:'GroupHeader'},'../lib/athlete-workout':h,'../lib/athlete-display':display,'../lib/exercise-groups':groups,'../theme':{colors:{}}}).AthleteExerciseCard;
 const descend=n=>!React.isValidElement(n)?[]:[n,...React.Children.toArray(n.props.children).flatMap(descend)];
 const props={step:steps[1],rows:{squat:ps},previous:{},editing:false,disabled:false,readOnly:false,onEdit:()=>{},onPatch:()=>{},onPlanned:()=>{},onSave:()=>{},onSkip:()=>{}};
 const nodes=descend(card(props));assert.equal(nodes.filter(n=>n.type==='Input').length,0,'no input field on default card');assert.equal(nodes.filter(n=>n.type==='ExerciseLink')[0].props.exerciseId,'ex-squat');
@@ -52,9 +53,34 @@ async function screenFlow(){
  let card=nodes.find(n=>n.type==='AthleteCard');assert.equal(nodes.filter(n=>n.type==='AthleteCard').length,1);assert.equal(card.props.step.group.items[0].id,'squat');
  fail=true;card.props.onPlanned();await tick();nodes=render();card=nodes.find(n=>n.type==='AthleteCard');assert.equal(card.props.step.group.items[0].id,'squat','failed save stays on current card');assert.ok(card.props.rows.squat.every(r=>!r.done));
  fail=false;hold=true;card.props.onPlanned();card.props.onPlanned();await tick();assert.equal(upserts.length,2,'double tap sends only one new request');resolveSave();hold=false;await tick();nodes=render();card=nodes.find(n=>n.type==='AthleteCard');assert.equal(card.props.step.group.items[0].id,'row');assert.ok(card.props.rows.squat.every(r=>r.done));
- card.props.onPatch('row',h.editCommon(card.props.rows.row,'1','9','10'));await tick();card=render().find(n=>n.type==='AthleteCard');card.props.onSave();await tick();nodes=render();assert.equal(nodes.filter(n=>n.type==='AthleteCard').length,0,'last card opens summary');
- assert.deepEqual(upserts.at(-1).map(r=>[r.set_number,r.reps,r.load_kg,r.completed]),[[1,9,10,true],[2,0,0,false]]);
- nodes.find(n=>n.type==='Button'&&n.props.label==='TERMINER MA SÉANCE').props.onPress();await tick();await tick();assert.equal(finished.length,1);assert.equal(finished[0][1].filter(r=>r.completed).length,4);assert.deepEqual(nav,['/(tabs)']);assert.equal(Object.keys(persisted).length,0);
+ card.props.onPatch('row',h.editCommon(card.props.rows.row,'1','9','10'));await tick();card=render().find(n=>n.type==='AthleteCard');card.props.onEdit(false);card=render().find(n=>n.type==='AthleteCard');card.props.onPlanned();await tick();nodes=render();assert.equal(nodes.filter(n=>n.type==='AthleteCard').length,0,'last card opens summary');
+ assert.deepEqual(upserts.at(-1).map(r=>[r.set_number,r.reps,r.load_kg,r.completed]),[[1,9,10,true],[2,0,0,false]],'Terminé saves edits after Réduire without restoring targets');
+ nodes.find(n=>n.type==='Button'&&n.props.label==='Terminer la séance').props.onPress();await tick();await tick();assert.equal(finished.length,1);assert.equal(finished[0][1].filter(r=>r.completed).length,4);assert.deepEqual(nav,['/(tabs)']);assert.equal(Object.keys(persisted).length,0);
  cleanup();console.log('Athlete screen interaction checks passed: single visible card, failed save recovery, rapid double tap, automatic advance, edited partial exercise, summary and transactional finish.');
 }
 screenFlow().catch(e=>{console.error(e);process.exitCode=1;});
+
+// Compact presentation must preserve prescription meaning and never rewrite stored data.
+const displayStep = (items) => h.athleteSteps(wod.buildWorkoutSections(items),()=>true)[0];
+const pairItems = [item('extension','RENFO — 4x12 — SUPERSET A1 — enchaîné avec single leg ischio flexion — sans repos entre les exercices'), item('curl','RENFO — 4x12 — SUPERSET A2 — repos 2 min après le superset')];
+const originalPair = structuredClone(pairItems);
+const compact = display.compactAthleteDisplay(displayStep(pairItems));
+assert.equal(compact.title,'Superset A · 4 tours');
+assert.deepEqual(compact.prescriptions,{extension:'12 reps',curl:'12 reps'});
+assert.equal(compact.footer,'Sans pause entre les exercices · repos 2 min après le tour');
+assert.deepEqual(pairItems,originalPair);
+const warm = display.compactAthleteDisplay(displayStep([item('star','WARM UP — 3 rounds — 20 sec'),item('bridge','WARM UP — 3 rounds — 10 reps + 5 sec iso + 5 reps'),item('hinge','WARM UP — 3 rounds — 5 reps — tempo 3111')]));
+assert.equal(warm.title,'Échauffement · 3 tours');
+assert.equal(warm.prescriptions.star,'20 sec');
+assert.equal(warm.prescriptions.bridge,'10 reps + 5 sec iso + 5 reps');
+assert.match(warm.prescriptions.hinge,/tempo 3111/);
+const unequal = display.compactAthleteDisplay(displayStep([item('a','RENFO — 4x8 — SUPERSET A1 — tempo 3111'),item('b','RENFO — 3x12 — SUPERSET A2 — repos selon récupération')]));
+assert.equal(unequal.title,'Superset A');
+assert.match(unequal.prescriptions.a,/4x8.*tempo 3111/);
+assert.match(unequal.prescriptions.b,/3x12.*repos selon récupération/);
+const timed=display.compactAthleteDisplay(displayStep([item('a','RENFO — 4x30 sec — SUPERSET A1'),item('b','RENFO — 4x1 aller-retour — SUPERSET A2')]));
+assert.equal(timed.prescriptions.a,'30 sec');assert.equal(timed.prescriptions.b,'1 aller-retour');
+const special=display.compactAthleteDisplay(displayStep([item('a','RENFO — 4x8–12 — SUPERSET A1 — enchaîné avec curl tempo lent'),item('b','RENFO — 4x12 + 5 sec iso + 12 reps — SUPERSET A2')]));
+assert.match(special.prescriptions.a,/4x8.*12/);assert.match(special.prescriptions.a,/tempo lent/);
+assert.match(special.prescriptions.b,/12 reps \+ 5 sec iso \+ 12 reps/);
+console.log('Compact cards: shared rounds/rest, warmup timing, tempo, unequal sets, rep ranges and unchanged source data passed.');

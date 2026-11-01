@@ -193,6 +193,16 @@ export default function WorkoutScreen() {
             }
         }
     }
+    function confirmCard() {
+        if (!step || lock.current || readOnly) return;
+        const current = stepRows(step, rowsRef.current);
+        // “Terminé” confirms the visible draft, including edits hidden by “Réduire”.
+        // It must never silently replace actual results with the original targets.
+        const edited = current.some(r => r.dirty || r.done);
+        const planned = edited ? current.map(r => ({ ...r, done: !r.skipped })) : asPlanned(step, plans.current);
+        const extra = current.filter(r => !planned.some(p => p.workoutExerciseId === r.workoutExerciseId && p.setNumber === r.setNumber));
+        void commitRows([...planned, ...skipRows(extra)]);
+    }
     function edit(value: boolean) { if (lock.current)
         return; setEditing(value); setMessage(''); }
     function patchWod(value: Partial<WodDraft>) { if (lock.current || readOnly || !step)
@@ -276,19 +286,19 @@ export default function WorkoutScreen() {
         void finalize();
     }
     return <ScreenScrollView ref={scroll} contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
-    <BackScreenHeader eyebrow={readOnly ? 'HISTORIQUE DE SÉANCE' : 'SÉANCE EN COURS'} title={detail?.session?.workout_templates?.name ?? 'Séance'} subtitle={readOnly ? 'Tes résultats enregistrés.' : 'Une carte à la fois. Confirme ou ajuste ce que tu as fait.'}/>
+    <BackScreenHeader compact eyebrow={readOnly ? 'HISTORIQUE DE SÉANCE' : 'SÉANCE EN COURS'} title={detail?.session?.workout_templates?.name ?? 'Séance'} subtitle={readOnly ? 'Résultats enregistrés' : undefined}/>
     {loading ? <ActivityIndicator color={colors.yellow} size="large"/> : !detail ? <PrimaryButton label="RÉESSAYER" onPress={() => setRetry(n => n + 1)}/> : <>
-      {steps.length > 0 ? <View style={styles.progress}><Text style={styles.progressText}>{steps.filter(s => status(s) !== 'pending').length} / {steps.length} cartes renseignées</Text><Pressable accessibilityRole="button" disabled={busy} onPress={() => setOverview(v => !v)} style={styles.navButton}><Text style={styles.link}>{overview ? 'REVENIR À LA CARTE' : 'VOIR LA SÉANCE'}</Text></Pressable></View> : null}
+      {steps.length > 0 ? <View style={styles.progress}><Text style={styles.progressText}>{steps.filter(s => status(s) !== 'pending').length} / {steps.length} validés</Text><Pressable accessibilityRole="button" disabled={busy} onPress={() => setOverview(v => !v)} style={styles.navButton}><Text style={styles.link}>{overview ? 'Reprendre' : 'Vue d’ensemble'}</Text></Pressable></View> : null}
       {overview ? <>
         <Text style={styles.heading}>Ma séance</Text>
         {detail.session.workout_templates?.notes ? <Text style={styles.notes}>{withoutRpe(detail.session.workout_templates.notes)}</Text> : null}
         {steps.map((s, i) => <Pressable key={s.id} accessibilityRole="button" accessibilityLabel={`Ouvrir ${stepName(s)}`} disabled={busy} onPress={() => move(i)} style={styles.overviewRow}><Text style={styles.overviewName}>{i + 1}. {stepName(s)}</Text><Text style={styles.status}>{({ done: '✓ Fait', partial: 'Adapté', skipped: 'Non réalisé', pending: 'À confirmer' })[status(s)]}</Text></Pressable>)}
-        {!readOnly ? <PrimaryButton label={busy ? 'ENREGISTREMENT…' : 'TERMINER MA SÉANCE'} disabled={busy} onPress={finish}/> : null}
+        {!readOnly ? <PrimaryButton compact label={busy ? 'Enregistrement…' : 'Terminer la séance'} disabled={busy} onPress={finish}/> : null}
       </> : step ? <>
-        <Text style={styles.heading}>{step.section.block === 'AUTRE' ? 'EXERCICE' : step.section.block} · {index + 1} / {steps.length}</Text>
-        {step.wod ? <><WodCard section={step.section} value={wods[step.section.id] ?? {}} disabled={readOnly || busy} navigationDisabled={busy} onChange={patchWod} onValidate={() => void commitWod()}/>{!readOnly ? <Pressable disabled={busy} onPress={() => void commitWod(true)} style={styles.navButton}><Text style={styles.link}>Je n’ai pas fait ce WOD</Text></Pressable> : null}</> :
-                    <AthleteExerciseCard key={step.id} step={step} rows={rows} previous={previous} editing={editing} disabled={busy} readOnly={readOnly} onEdit={edit} onPatch={patch} onPlanned={() => { const planned = asPlanned(step, plans.current); const extra = stepRows(step, rowsRef.current).filter(r => !planned.some(p => p.workoutExerciseId === r.workoutExerciseId && p.setNumber === r.setNumber)); void commitRows([...planned, ...skipRows(extra)]); }} onSave={() => void commitRows(stepRows(step, rowsRef.current).map(r => ({ ...r, done: !r.skipped })))} onSkip={() => void commitRows(skipRows(stepRows(step, rowsRef.current)))}/>}
-        <View style={styles.navigation}><Pressable accessibilityRole="button" disabled={busy || index === 0} onPress={() => move(index - 1)} style={[styles.navButton, index === 0 && styles.dim]}><Text style={styles.link}>PRÉCÉDENT</Text></Pressable><Pressable accessibilityRole="button" disabled={busy} onPress={next} style={styles.navButton}><Text style={styles.link}>{index + 1 < steps.length ? 'SUIVANT' : 'VOIR LE BILAN'}</Text></Pressable></View>
+        <Text style={styles.heading}>Étape {index + 1} / {steps.length}</Text>
+        {step.wod ? <><WodCard section={step.section} value={wods[step.section.id] ?? {}} disabled={readOnly || busy} navigationDisabled={busy} onChange={patchWod} onValidate={() => void commitWod()}/>{!readOnly ? <Pressable disabled={busy} onPress={() => void commitWod(true)} style={styles.navButton}><Text style={styles.link}>Passer</Text></Pressable> : null}</> :
+                    <AthleteExerciseCard key={step.id} step={step} rows={rows} previous={previous} editing={editing} disabled={busy} readOnly={readOnly} onEdit={edit} onPatch={patch} onPlanned={confirmCard} onSave={() => void commitRows(stepRows(step, rowsRef.current).map(r => ({ ...r, done: !r.skipped })))} onSkip={() => void commitRows(skipRows(stepRows(step, rowsRef.current)))}/>}
+        <View style={styles.navigation}><Pressable accessibilityRole="button" disabled={busy || index === 0} onPress={() => move(index - 1)} style={[styles.navButton, index === 0 && styles.dim]}><Text style={styles.link}>Précédent</Text></Pressable><Pressable accessibilityRole="button" disabled={busy} onPress={next} style={styles.navButton}><Text style={styles.link}>{index + 1 < steps.length ? 'Suivant' : 'Bilan'}</Text></Pressable></View>
       </> : <Card><Text style={styles.notes}>{withoutRpe(detail.session.workout_templates?.notes) || 'Aucun exercice prévu.'}</Text>{!readOnly ? <PrimaryButton label="TERMINER" disabled={busy} onPress={finish}/> : null}</Card>}
       {readOnly ? <PrimaryButton label="RETOUR AUX SÉANCES" onPress={() => router.replace('/(tabs)')}/> : null}
     </>}
@@ -296,4 +306,4 @@ export default function WorkoutScreen() {
     {message ? <Text accessibilityRole="alert" style={styles.message}>{message}</Text> : null}
   </ScreenScrollView>;
 }
-const styles = StyleSheet.create({ page: { padding: 20, paddingTop: 68, paddingBottom: 50 }, progress: { gap: 6, marginBottom: 12 }, progressText: { color: colors.muted, fontSize: 14 }, link: { color: colors.yellow, fontWeight: '800', fontSize: 13 }, navButton: { minHeight: 48, paddingVertical: 12, justifyContent: 'center' }, heading: { color: colors.yellow, fontWeight: '900', fontSize: 14, marginVertical: 14 }, navigation: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 16, marginTop: 12 }, dim: { opacity: 0.3 }, overviewRow: { paddingVertical: 18, borderBottomWidth: 1, borderBottomColor: colors.border, gap: 8 }, overviewName: { color: colors.text, fontSize: 17, fontWeight: '700', lineHeight: 24 }, status: { color: colors.muted, fontSize: 13 }, message: { color: colors.yellow, fontSize: 15, lineHeight: 22, marginVertical: 14 }, notes: { color: colors.text, fontSize: 15, lineHeight: 23 } });
+const styles = StyleSheet.create({ page: { padding: 20, paddingTop: 68, paddingBottom: 50 }, progress: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', columnGap: 12, marginBottom: 4 }, progressText: { color: colors.muted, fontSize: 14 }, link: { color: colors.yellow, fontWeight: '500', fontSize: 13 }, navButton: { minHeight: 48, paddingVertical: 12, justifyContent: 'center' }, heading: { color: colors.yellow, fontWeight: '500', fontSize: 14, marginVertical: 8 }, navigation: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 16, marginTop: 12 }, dim: { opacity: 0.3 }, overviewRow: { paddingVertical: 18, borderBottomWidth: 1, borderBottomColor: colors.border, gap: 8 }, overviewName: { color: colors.text, fontSize: 17, fontWeight: '500', lineHeight: 24 }, status: { color: colors.muted, fontSize: 13 }, message: { color: colors.yellow, fontSize: 15, lineHeight: 22, marginVertical: 14 }, notes: { color: colors.text, fontSize: 15, lineHeight: 23 } });
