@@ -25,7 +25,7 @@ export function WodCard({ section, value, disabled, navigationDisabled = false, 
     </View>
   );
   return <Card style={styles.card}>
-    <Text style={styles.title}>{commonHeader ? commonHeader.toUpperCase() : wodLabels[format]}</Text>
+    <Text style={styles.title}>{commonHeader ? commonHeader : wodLabels[format]}</Text>
     {section.items.map((item: any) => {
       const exercise = Array.isArray(item.exercises) ? item.exercises[0] : item.exercises;
       const fullPrescription = withoutRpe(item.prescription_notes).replace(/^(WORKOUT|WOD)\s*[—–:-]?\s*/i, '');
@@ -52,19 +52,19 @@ export function WodCard({ section, value, disabled, navigationDisabled = false, 
     {field('notes', value.capped ? 'Travail réalisé / adaptations' : 'Charges, adaptations, ressenti (facultatif)', 'Ex. haltère 15 kg, variante adaptée…', true)}
     <Pressable disabled={disabled} accessibilityRole="checkbox" accessibilityState={{ checked: !!value.completed, disabled }} onPress={onValidate}
       style={[styles.validate, value.completed && styles.done]}>
-      <Text style={styles.validateText}>{value.completed ? '✓ RÉSULTAT VALIDÉ' : 'VALIDER MON RÉSULTAT'}</Text>
+      <Text style={styles.validateText}>{value.completed ? 'Résultat enregistré ✓' : 'Enregistrer'}</Text>
     </Pressable>
   </Card>;
 }
 const styles = StyleSheet.create({
-  card: { marginBottom: 16, gap: 12 }, title: { color: colors.yellow, fontSize: 23, fontWeight: '900' },
+  card: { marginBottom: 16, gap: 12 }, title: { color: colors.yellow, fontSize: 16, fontWeight: '500' },
   movement: { borderBottomWidth: 1, borderBottomColor: colors.borderSoft, paddingBottom: 10, gap: 3 },
-  name: { color: colors.text, fontSize: 17, fontWeight: '800' }, prescription: { color: colors.muted, fontSize: 14, lineHeight: 20 },
+  name: { color: colors.text, fontSize: 17, fontWeight: '500' }, prescription: { color: colors.muted, fontSize: 14, lineHeight: 20 },
   help: { color: colors.muted, fontSize: 14, lineHeight: 21 }, fields: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
-  field: { flexGrow: 1, minWidth: 120, gap: 6 }, label: { color: colors.text, fontSize: 12, fontWeight: '700' },
+  field: { flexGrow: 1, minWidth: 120, gap: 6 }, label: { color: colors.text, fontSize: 12, fontWeight: '400' },
   input: { minHeight: 48, borderWidth: 1, borderColor: colors.borderSoft, borderRadius: 12, padding: 12, color: colors.text, fontSize: 18, backgroundColor: '#101010' },
   multiline: { minHeight: 66, fontSize: 14, textAlignVertical: 'top' },
   status: { paddingVertical: 8 }, statusText: { color: colors.text, fontSize: 14 },
   validate: { padding: 15, borderRadius: 12, borderWidth: 1, borderColor: colors.yellow, alignItems: 'center' },
-  done: { backgroundColor: '#39320a' }, validateText: { color: colors.yellow, fontSize: 13, fontWeight: '900' },
+  done: { backgroundColor: '#39320a' }, validateText: { color: colors.yellow, fontSize: 13, fontWeight: '500' },
 });
