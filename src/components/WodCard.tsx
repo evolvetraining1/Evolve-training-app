@@ -34,11 +34,11 @@ export function WodCard({ section, value, disabled, navigationDisabled = false, 
       const prescription = commonHeader ? fullPrescription.slice(commonHeader.length).replace(/^\s*[—–]\s*/, '') : fullPrescription;
       return <View style={styles.movement} key={item.id}>
         <ExerciseNameLink exerciseId={item.exercise_id ?? exercise?.id} name={exercise?.name}
-          disabled={navigationDisabled} onOpen={onOpen} style={styles.name}>{exercise?.name ?? 'Mouvement'}</ExerciseNameLink>
+          disabled={navigationDisabled} onOpen={onOpen} style={styles.name}>{exercise?.name ?? 'Mouvement'}{item.exercise_id || exercise?.id ? <Text style={styles.chevron}> ›</Text> : null}</ExerciseNameLink>
         <Text style={styles.prescription}>{prescription}</Text>
       </View>;
     })}
-    {value.completed ? <Text style={styles.help}>{wodScoreSummary(format, value)}</Text> : value.notes === 'Non réalisé' ? <Text style={styles.help}>Passé</Text> : null}
+    {value.completed ? <Text style={styles.result}>{wodScoreSummary(format, value)}</Text> : value.notes === 'Non réalisé' ? <Text style={styles.help}>Passé</Text> : null}
     {value.completed && value.notes ? <Text style={styles.help}>{value.notes}</Text> : null}
     {editing && !readOnly ? <>
     <Text style={styles.help}>{wodHelp[format]}</Text>
@@ -79,14 +79,17 @@ export function wodScoreSummary(format: string, value: WodDraft): string {
   return ['✓ Terminé', ...score.filter(Boolean)].join(' · ');
 }
 const styles = StyleSheet.create({
-  card: { padding: 0, borderWidth: 0, borderRadius: 0, backgroundColor: 'transparent', gap: 12 }, title: { color: colors.yellow, fontSize: 16, fontWeight: '500' },
-  movement: { borderBottomWidth: 1, borderBottomColor: colors.borderSoft, paddingBottom: 10, gap: 3 },
-  name: { color: colors.yellow, fontSize: 17, fontWeight: '500' }, prescription: { color: colors.muted, fontSize: 14, lineHeight: 20 },
-  help: { color: colors.muted, fontSize: 14, lineHeight: 21 }, fields: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
-  field: { flexGrow: 1, minWidth: 120, gap: 6 }, label: { color: colors.text, fontSize: 12, fontWeight: '400' },
+  card: { padding: 0, borderWidth: 0, borderRadius: 0, backgroundColor: 'transparent', gap: 18 }, title: { color: colors.yellow, fontSize: 13, lineHeight: 20, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' },
+  movement: { borderBottomWidth: 1, borderBottomColor: colors.borderSoft, paddingBottom: 16, gap: 6 },
+  name: { color: colors.text, fontSize: 20, fontWeight: '600', lineHeight: 28 },
+  chevron: { color: colors.yellow, fontWeight: '400' },
+  prescription: { color: '#D7D6D3', fontSize: 16, fontWeight: '400', lineHeight: 24 },
+  result: { color: colors.text, fontSize: 15, fontWeight: '500', lineHeight: 23 },
+  help: { color: colors.muted, fontSize: 14, fontWeight: '400', lineHeight: 22 }, fields: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
+  field: { flexGrow: 1, minWidth: 120, gap: 6 }, label: { color: colors.muted, fontSize: 13, fontWeight: '500', lineHeight: 20 },
   input: { minHeight: 48, borderWidth: 1, borderColor: colors.borderSoft, borderRadius: 12, padding: 12, color: colors.text, fontSize: 18, backgroundColor: '#101010' },
   multiline: { minHeight: 66, fontSize: 14, textAlignVertical: 'top' },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 16 }, action: { minHeight: 48, justifyContent: 'center' }, actionText: { color: colors.yellow, fontSize: 14 },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 16 }, action: { minHeight: 48, justifyContent: 'center' }, actionText: { color: colors.yellow, fontSize: 14, fontWeight: '500', lineHeight: 21 },
   status: { paddingVertical: 8 }, statusText: { color: colors.text, fontSize: 14 },
   validate: { padding: 15, borderRadius: 12, borderWidth: 1, borderColor: colors.yellow, alignItems: 'center' },
   done: { backgroundColor: '#39320a' }, validateText: { color: colors.yellow, fontSize: 13, fontWeight: '500' },
